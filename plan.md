@@ -47,6 +47,7 @@
 ---
 
 ### Phase 2 — V1 App Development (MVP, core first; auth deferred)
+**Status:** BUILT & in testing. Backend (FastAPI+MongoDB+GridFS): auth (email/pw JWT + Emergent Google), envelopes CRUD, DOCX/PDF upload+convert, recipients, fields (percentage coords), send (SendGrid skip-mode + shareable links), tokenized signer flow (view/submit/decline), background finalization (stamp + Certificate of Completion + SHA-256), audit trail, stats. Frontend (React+react-pdf): Landing, Login/Register+Google, AuthCallback, Dashboard (stats+chart+table), NewEnvelope (upload), PrepareStudio (PDF render + click-to-place fields, drag/resize, recipients, signing order), SendReview (shareable links), EnvelopeDetail (tracking timeline + audit + doc viewer + download), SignerFlow (consent gate + draw/type/upload signature + guided fields + finish/decline). Backend E2E smoke test passed; studio verified in browser.
 **Goal:** working signing flow without requiring sender accounts yet (use a temporary “demo sender” mode).
 
 **User stories (V1 core, no auth)**

@@ -1,89 +1,551 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+"""CIVICSIGN backend — FastAPI app: auth, envelopes, signer flow, finalization."""
 import os
+import uuid
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
+from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+from fastapi import (
+    FastAPI, APIRouter, Request, HTTPException, Depends,
+    UploadFile, File, Form, BackgroundTasks,
+)
+from fastapi.responses import Response as FastResponse
+from starlette.middleware.cors import CORSMiddleware
 
-# Create the main app without a prefix
-app = FastAPI()
+from db import db, upload_file, download_file, delete_file
+import pdf_service
+import email_service
+from models import EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest
+from auth import auth_router, get_current_user, seed_admin
 
-# Create a router with the /api prefix
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("civicsign")
+
+app = FastAPI(title="CIVICSIGN API")
 api_router = APIRouter(prefix="/api")
 
+RECIPIENT_COLORS = ["#1FB8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"]
+DOCX_TYPES = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+}
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+# --------------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------------
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
-# Add your routes to the router instead of directly to app
+
+def now_human():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "-"
+
+
+def audit_event(actor, action, ip="-", detail=None):
+    return {"timestamp": now_human(), "actor": actor, "action": action,
+            "ip": ip, "detail": detail}
+
+
+def can_sign(env: dict, recipient: dict) -> bool:
+    if env["status"] not in ("sent", "viewed"):
+        return False
+    if recipient["status"] in ("signed", "declined"):
+        return False
+    if env.get("signing_order", "sequential") == "parallel":
+        return True
+    order = recipient.get("order", 1)
+    for r in env["recipients"]:
+        if r.get("order", 1) < order and r["status"] != "signed":
+            return False
+    return True
+
+
+async def get_envelope_owned(envelope_id: str, user: dict) -> dict:
+    env = await db.envelopes.find_one(
+        {"envelope_id": envelope_id, "owner_id": user["user_id"]}, {"_id": 0})
+    if not env:
+        raise HTTPException(status_code=404, detail="Envelope not found")
+    return env
+
+
+async def finalize_envelope_doc(env: dict):
+    """Stamp every collected value, append certificate, persist, email parties."""
+    pdf_bytes = await download_file(env["document"]["file_id"])
+    fields = []
+    for f in env["fields"]:
+        if f.get("value") in (None, ""):
+            continue
+        fields.append({
+            "page": f.get("page", 0), "type": f.get("type"),
+            "rect_pct": {"x": f["x"], "y": f["y"], "w": f["w"], "h": f["h"]},
+            "value": f.get("value"),
+        })
+    events = list(env["audit_events"]) + [
+        audit_event("system", "Envelope completed", "-",
+                    "All required fields completed by all recipients")]
+    meta = {"envelope_id": env["envelope_id"], "title": env["title"], "status": "Completed"}
+    completed_bytes, doc_hash = pdf_service.finalize_envelope(pdf_bytes, fields, meta, events)
+    completed_id = await upload_file(
+        completed_bytes, f"{env['title']}-completed.pdf".replace(" ", "_"))
+    env["audit_events"].append(
+        audit_event("system", "Envelope completed", "-", f"Document hash {doc_hash[:16]}…"))
+    await db.envelopes.update_one(
+        {"envelope_id": env["envelope_id"]},
+        {"$set": {"status": "completed", "completed_at": now_iso(),
+                  "completed_file_id": completed_id, "doc_hash": doc_hash,
+                  "audit_events": env["audit_events"], "updated_at": now_iso()}})
+    try:
+        owner = await db.users.find_one({"user_id": env["owner_id"]}, {"_id": 0})
+        recipients_emails = [r["email"] for r in env["recipients"]]
+        targets = list({*(([owner["email"]] if owner else []) + recipients_emails)})
+        for em in targets:
+            email_service.send_completion(em, env["title"], completed_bytes)
+    except Exception as e:
+        logger.error(f"completion email error: {e}")
+
+
+# --------------------------------------------------------------------------
+# Health
+# --------------------------------------------------------------------------
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"service": "CIVICSIGN", "status": "ok"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+# --------------------------------------------------------------------------
+# Envelopes (authenticated sender)
+# --------------------------------------------------------------------------
+@api_router.post("/envelopes")
+async def create_envelope(
+    request: Request,
+    file: UploadFile = File(...),
+    title: str = Form(None),
+    user: dict = Depends(get_current_user),
+):
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+    fname = file.filename or "document"
+    is_docx = fname.lower().endswith((".docx", ".doc")) or (file.content_type in DOCX_TYPES)
+    is_pdf = fname.lower().endswith(".pdf") or file.content_type == "application/pdf"
+    if not (is_docx or is_pdf):
+        raise HTTPException(status_code=400, detail="Only PDF and Word (.docx) files are supported")
+    try:
+        if is_docx:
+            pdf_bytes = pdf_service.convert_docx_to_pdf_bytes(raw)
+        else:
+            pdf_bytes = raw
+        page_count, pages = pdf_service.get_pdf_info(pdf_bytes)
+    except Exception as e:
+        logger.error(f"upload processing error: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not process document: {e}")
 
-# Include the router in the main app
+    file_id = await upload_file(pdf_bytes, fname.rsplit(".", 1)[0] + ".pdf")
+    env_title = (title or fname.rsplit(".", 1)[0] or "Untitled Document").strip()
+    envelope = {
+        "envelope_id": f"env_{uuid.uuid4().hex[:16]}",
+        "owner_id": user["user_id"],
+        "owner_name": user.get("name") or user["email"],
+        "title": env_title, "message": "", "status": "draft",
+        "signing_order": "sequential",
+        "document": {"original_filename": fname,
+                     "file_type": "docx" if is_docx else "pdf",
+                     "file_id": file_id, "page_count": page_count, "pages": pages},
+        "recipients": [], "fields": [],
+        "audit_events": [audit_event(user["email"], "Envelope created", client_ip(request),
+                                     f"Uploaded {fname}" + (" (converted to PDF)" if is_docx else ""))],
+        "created_at": now_iso(), "updated_at": now_iso(),
+        "sent_at": None, "completed_at": None,
+        "completed_file_id": None, "doc_hash": None,
+    }
+    await db.envelopes.insert_one(dict(envelope))
+    envelope.pop("_id", None)
+    return envelope
+
+
+@api_router.get("/envelopes")
+async def list_envelopes(user: dict = Depends(get_current_user)):
+    items = await db.envelopes.find(
+        {"owner_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    return items
+
+
+@api_router.get("/stats")
+async def stats(user: dict = Depends(get_current_user)):
+    items = await db.envelopes.find(
+        {"owner_id": user["user_id"]},
+        {"_id": 0, "status": 1, "created_at": 1, "completed_at": 1}).to_list(2000)
+    counts = {"draft": 0, "sent": 0, "viewed": 0, "completed": 0, "declined": 0}
+    for it in items:
+        s = it.get("status", "draft")
+        counts[s] = counts.get(s, 0) + 1
+    total = len(items)
+    pending = counts["sent"] + counts["viewed"]
+    completion_rate = round((counts["completed"] / total) * 100) if total else 0
+    series = []
+    today = datetime.now(timezone.utc).date()
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        c = sum(1 for it in items if (it.get("created_at") or "")[:10] == d.isoformat())
+        series.append({"date": d.strftime("%b %d"), "count": c})
+    return {"total": total, "counts": counts, "pending": pending,
+            "completion_rate": completion_rate, "series": series}
+
+
+@api_router.get("/envelopes/{envelope_id}")
+async def get_envelope(envelope_id: str, user: dict = Depends(get_current_user)):
+    return await get_envelope_owned(envelope_id, user)
+
+
+@api_router.put("/envelopes/{envelope_id}")
+async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
+                          user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    if env["status"] not in ("draft",):
+        raise HTTPException(status_code=400, detail="Only draft envelopes can be edited")
+    update = {"updated_at": now_iso()}
+    if body.title is not None:
+        update["title"] = body.title.strip() or env["title"]
+    if body.message is not None:
+        update["message"] = body.message
+    if body.signing_order in ("sequential", "parallel"):
+        update["signing_order"] = body.signing_order
+    if body.recipients is not None:
+        recs = []
+        existing_by_id = {r["recipient_id"]: r for r in env["recipients"]}
+        for i, r in enumerate(body.recipients):
+            rid = r.recipient_id or f"rcp_{uuid.uuid4().hex[:10]}"
+            prev = existing_by_id.get(rid, {})
+            recs.append({
+                "recipient_id": rid, "name": r.name.strip(),
+                "email": r.email.lower().strip(), "order": r.order or (i + 1),
+                "color": r.color or RECIPIENT_COLORS[i % len(RECIPIENT_COLORS)],
+                "status": "pending",
+                "access_token": prev.get("access_token") or uuid.uuid4().hex,
+                "viewed_at": None, "signed_at": None, "signer_name": None,
+            })
+        update["recipients"] = recs
+    if body.fields is not None:
+        valid_rids = {r["recipient_id"] for r in update.get("recipients", env["recipients"])}
+        flds = []
+        for f in body.fields:
+            if f.recipient_id not in valid_rids:
+                continue
+            flds.append({
+                "field_id": f.field_id or f"fld_{uuid.uuid4().hex[:10]}",
+                "recipient_id": f.recipient_id, "page": f.page, "type": f.type,
+                "x": f.x, "y": f.y, "w": f.w, "h": f.h,
+                "required": f.required, "label": f.label, "value": f.value,
+            })
+        update["fields"] = flds
+    await db.envelopes.update_one({"envelope_id": envelope_id}, {"$set": update})
+    return await get_envelope_owned(envelope_id, user)
+
+
+@api_router.post("/envelopes/{envelope_id}/send")
+async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
+                        user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    if env["status"] != "draft":
+        raise HTTPException(status_code=400, detail="Envelope already sent")
+    if not env["recipients"]:
+        raise HTTPException(status_code=400, detail="Add at least one recipient before sending")
+    if not env["fields"]:
+        raise HTTPException(status_code=400, detail="Add at least one field before sending")
+    rids_with_fields = {f["recipient_id"] for f in env["fields"]}
+    for r in env["recipients"]:
+        if r["recipient_id"] not in rids_with_fields:
+            raise HTTPException(status_code=400,
+                                detail=f"Recipient {r['name']} has no fields assigned")
+    msg = body.message if body.message is not None else env.get("message")
+    env["status"] = "sent"
+    env["sent_at"] = now_iso()
+    env["message"] = msg
+    env["audit_events"].append(
+        audit_event(user["email"], "Sent for signature", client_ip(request),
+                    f"{len(env['recipients'])} recipient(s), {env['signing_order']} order"))
+    await db.envelopes.update_one(
+        {"envelope_id": envelope_id},
+        {"$set": {"status": "sent", "sent_at": env["sent_at"], "message": msg,
+                  "recipients": env["recipients"], "audit_events": env["audit_events"],
+                  "updated_at": now_iso()}})
+    base = (body.base_url or "").rstrip("/")
+    links = []
+    for r in env["recipients"]:
+        link = f"{base}/sign/{r['access_token']}" if base else None
+        links.append({"recipient_id": r["recipient_id"], "name": r["name"],
+                      "email": r["email"], "token": r["access_token"], "sign_url": link})
+        if can_sign(env, r) and link:
+            email_service.send_signing_invite(
+                r["email"], r["name"], env["owner_name"], env["title"], link, msg)
+    return {"status": "sent", "links": links}
+
+
+@api_router.post("/envelopes/{envelope_id}/void")
+async def void_envelope(envelope_id: str, request: Request,
+                        user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    if env["status"] in ("completed", "declined"):
+        raise HTTPException(status_code=400, detail="Envelope already finalized")
+    env["audit_events"].append(audit_event(user["email"], "Envelope voided", client_ip(request)))
+    await db.envelopes.update_one(
+        {"envelope_id": envelope_id},
+        {"$set": {"status": "declined", "audit_events": env["audit_events"],
+                  "updated_at": now_iso()}})
+    return {"status": "declined"}
+
+
+@api_router.delete("/envelopes/{envelope_id}")
+async def delete_envelope(envelope_id: str, user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    await delete_file(env["document"]["file_id"])
+    if env.get("completed_file_id"):
+        await delete_file(env["completed_file_id"])
+    await db.envelopes.delete_one({"envelope_id": envelope_id})
+    return {"ok": True}
+
+
+@api_router.get("/envelopes/{envelope_id}/file")
+async def envelope_file(envelope_id: str, user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    data = await download_file(env["document"]["file_id"])
+    return FastResponse(content=data, media_type="application/pdf",
+                        headers={"Content-Disposition": "inline; filename=document.pdf"})
+
+
+@api_router.get("/envelopes/{envelope_id}/completed")
+async def envelope_completed(envelope_id: str, user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    if not env.get("completed_file_id"):
+        raise HTTPException(status_code=404, detail="Document not completed yet")
+    data = await download_file(env["completed_file_id"])
+    safe = (env["title"] or "document").replace(" ", "_")
+    return FastResponse(content=data, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{safe}-completed.pdf"'})
+
+
+# --------------------------------------------------------------------------
+# Signer flow (public, token-based — no account required)
+# --------------------------------------------------------------------------
+async def _find_by_token(token: str):
+    env = await db.envelopes.find_one({"recipients.access_token": token}, {"_id": 0})
+    if not env:
+        raise HTTPException(status_code=404, detail="Invalid or expired signing link")
+    recipient = next((r for r in env["recipients"] if r["access_token"] == token), None)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Invalid signing link")
+    return env, recipient
+
+
+@api_router.get("/sign/{token}")
+async def signer_view(token: str, request: Request):
+    env, recipient = await _find_by_token(token)
+    signable = can_sign(env, recipient)
+    if recipient["status"] == "pending" and env["status"] in ("sent", "viewed") and signable:
+        for r in env["recipients"]:
+            if r["access_token"] == token:
+                r["status"] = "viewed"
+                r["viewed_at"] = now_iso()
+        new_status = "viewed" if env["status"] == "sent" else env["status"]
+        env["status"] = new_status
+        env["audit_events"].append(
+            audit_event(recipient["email"], "Viewed document", client_ip(request),
+                        f"User-Agent: {request.headers.get('user-agent', '')[:80]}"))
+        await db.envelopes.update_one(
+            {"envelope_id": env["envelope_id"]},
+            {"$set": {"status": new_status, "recipients": env["recipients"],
+                      "audit_events": env["audit_events"], "updated_at": now_iso()}})
+        recipient["status"] = "viewed"
+
+    fields = []
+    for f in env["fields"]:
+        editable = (f["recipient_id"] == recipient["recipient_id"] and signable
+                    and recipient["status"] not in ("signed", "declined"))
+        rcolor = next((r["color"] for r in env["recipients"]
+                       if r["recipient_id"] == f["recipient_id"]), "#1FB8A6")
+        fields.append({**f, "editable": editable, "recipient_color": rcolor})
+
+    return {
+        "envelope_id": env["envelope_id"], "title": env["title"],
+        "message": env.get("message"), "sender_name": env.get("owner_name"),
+        "status": env["status"], "signing_order": env["signing_order"],
+        "document": {"page_count": env["document"]["page_count"],
+                     "pages": env["document"]["pages"]},
+        "recipient": {"recipient_id": recipient["recipient_id"], "name": recipient["name"],
+                      "email": recipient["email"], "color": recipient["color"],
+                      "status": recipient["status"], "order": recipient["order"]},
+        "fields": fields,
+        "signable": signable,
+        "already_signed": recipient["status"] == "signed",
+        "completed": env["status"] == "completed",
+    }
+
+
+@api_router.get("/sign/{token}/file")
+async def signer_file(token: str):
+    env, _ = await _find_by_token(token)
+    data = await download_file(env["document"]["file_id"])
+    return FastResponse(content=data, media_type="application/pdf",
+                        headers={"Content-Disposition": "inline; filename=document.pdf"})
+
+
+@api_router.get("/sign/{token}/completed")
+async def signer_completed(token: str):
+    env, _ = await _find_by_token(token)
+    if not env.get("completed_file_id"):
+        raise HTTPException(status_code=404, detail="Document not completed yet")
+    data = await download_file(env["completed_file_id"])
+    safe = (env["title"] or "document").replace(" ", "_")
+    return FastResponse(content=data, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{safe}-completed.pdf"'})
+
+
+@api_router.post("/sign/{token}/submit")
+async def signer_submit(token: str, body: SignSubmit, request: Request,
+                        background: BackgroundTasks):
+    env, recipient = await _find_by_token(token)
+    if not can_sign(env, recipient):
+        raise HTTPException(status_code=400,
+                            detail="This document is not currently awaiting your signature")
+    if not body.consent:
+        raise HTTPException(status_code=400, detail="You must consent to sign electronically")
+
+    values = {v.field_id: v.value for v in body.values}
+    my_fields = [f for f in env["fields"] if f["recipient_id"] == recipient["recipient_id"]]
+    for f in my_fields:
+        if f["field_id"] in values:
+            f["value"] = values[f["field_id"]]
+    missing = [f for f in my_fields if f.get("required") and f.get("value") in (None, "", False)]
+    if missing:
+        raise HTTPException(status_code=400,
+                            detail=f"{len(missing)} required field(s) are not completed")
+
+    ip = client_ip(request)
+    for r in env["recipients"]:
+        if r["access_token"] == token:
+            r["status"] = "signed"
+            r["signed_at"] = now_iso()
+            r["signer_name"] = body.signer_name or r["name"]
+    env["audit_events"].append(audit_event(recipient["email"], "Consent to e-sign accepted", ip))
+    env["audit_events"].append(
+        audit_event(recipient["email"], "Signed document", ip,
+                    f"{len(my_fields)} field(s) completed"))
+
+    all_signed = all(r["status"] == "signed" for r in env["recipients"])
+    next_recipient = None
+    if not all_signed and env["signing_order"] == "sequential":
+        for r in sorted(env["recipients"], key=lambda x: x["order"]):
+            if r["status"] not in ("signed", "declined") and can_sign(
+                    {**env, "status": "sent"}, r):
+                next_recipient = r
+                break
+
+    await db.envelopes.update_one(
+        {"envelope_id": env["envelope_id"]},
+        {"$set": {"recipients": env["recipients"], "fields": env["fields"],
+                  "audit_events": env["audit_events"], "updated_at": now_iso()}})
+
+    if all_signed:
+        env_full = await db.envelopes.find_one({"envelope_id": env["envelope_id"]}, {"_id": 0})
+        background.add_task(finalize_envelope_doc, env_full)
+        return {"status": "completed", "message": "All parties have signed."}
+
+    if next_recipient:
+        base = request.headers.get("origin", "").rstrip("/")
+        link = f"{base}/sign/{next_recipient['access_token']}" if base else None
+        if link:
+            email_service.send_signing_invite(
+                next_recipient["email"], next_recipient["name"],
+                env["owner_name"], env["title"], link, env.get("message"))
+    return {"status": "signed", "message": "Your signature has been recorded."}
+
+
+@api_router.post("/sign/{token}/decline")
+async def signer_decline(token: str, body: DeclineRequest, request: Request):
+    env, recipient = await _find_by_token(token)
+    if recipient["status"] in ("signed", "declined"):
+        raise HTTPException(status_code=400, detail="You have already responded")
+    for r in env["recipients"]:
+        if r["access_token"] == token:
+            r["status"] = "declined"
+    env["audit_events"].append(
+        audit_event(recipient["email"], "Declined to sign", client_ip(request), body.reason))
+    await db.envelopes.update_one(
+        {"envelope_id": env["envelope_id"]},
+        {"$set": {"status": "declined", "recipients": env["recipients"],
+                  "audit_events": env["audit_events"], "updated_at": now_iso()}})
+    try:
+        owner = await db.users.find_one({"user_id": env["owner_id"]}, {"_id": 0})
+        if owner:
+            email_service.send_declined(owner["email"], env["title"],
+                                        recipient["name"], body.reason)
+    except Exception:
+        pass
+    return {"status": "declined"}
+
+
+# --------------------------------------------------------------------------
+# App wiring
+# --------------------------------------------------------------------------
+app.include_router(auth_router)
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup():
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.envelopes.create_index("owner_id")
+        await db.envelopes.create_index("envelope_id", unique=True)
+        await db.envelopes.create_index("recipients.access_token")
+    except Exception as e:
+        logger.warning(f"index creation: {e}")
+    await seed_admin()
+    try:
+        mem = Path("/app/memory")
+        mem.mkdir(parents=True, exist_ok=True)
+        (mem / "test_credentials.md").write_text(
+            "# CIVICSIGN Test Credentials\n\n"
+            "## Demo sender account (email/password)\n"
+            f"- Email: {os.environ.get('ADMIN_EMAIL','demo@civicsign.com')}\n"
+            f"- Password: {os.environ.get('ADMIN_PASSWORD','Demo1234!')}\n\n"
+            "## Auth endpoints\n"
+            "- POST /api/auth/register {name,email,password}\n"
+            "- POST /api/auth/login {email,password} -> sets cookies + returns access_token\n"
+            "- GET  /api/auth/me (cookie or Bearer)\n"
+            "- POST /api/auth/session {session_id} (Google OAuth)\n\n"
+            "Note: login/register also return `access_token` in the body for Bearer-based testing.\n"
+        )
+    except Exception as e:
+        logger.warning(f"could not write test_credentials: {e}")
+    logger.info("CIVICSIGN backend started")
+
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
+    from db import client
     client.close()
