@@ -17,22 +17,22 @@
   },
   {
     "content": "Frontend: Settings page (/settings) with Profile, Subscription, Help & Support tabs",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Frontend: AdminShell + Admin pages (Overview, Users, Envelopes, Contacts) under /admin",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Frontend: routing (App.js) + AppShell nav (Settings + conditional Admin link) + AdminProtected guard",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Compile-check, lint, and run testing_agent_v3 (frontend + backend)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Fix bugs, update plan.md, finish",
-    "status": "pending"
+    "status": "completed"
   }
 ]

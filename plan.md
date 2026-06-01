@@ -91,9 +91,9 @@
 
 ---
 
-### Phase 4 — White-label + Admin Dashboard + User Settings (Profile/Subscription/Help) 🔄 NEXT
-**Status:** PLANNED (not started)
-**Theme:** Keep existing **bold & fresh** CIVICSIGN UI.
+### Phase 4 — White-label + Admin Dashboard + User Settings (Profile/Subscription/Help) ✅ COMPLETE — VERIFIED (iteration_3.json)
+**Status:** DONE & TESTED. Frontend 100%, Integration 100%, Backend 95% (only `.test` TLD bulk-send email-validation failures — expected, unrelated to Phase 4). Delivered: (1) **White-label** — removed the "Made with Emergent" badge + emergent-main.js script from index.html, added a CSS safety net, and updated title/meta to CIVICSIGN. (2) **Admin Dashboard** (role-based, dark AdminShell at `/admin`) with Overview analytics (KPIs + 14-day charts + status/plan breakdowns), Users management (search, role/plan change, activate/deactivate with self-guard), Envelopes oversight (read-only, filter/search), and Contact inbox (mark handled/reopen). (3) **User Settings** (`/settings`) with Profile (edit name/email/mobile + change password, email uniqueness enforced), Subscription (mock Free/Pro/Business tiers), and Help & Support (FAQ + contact link). Backend: extended `users` (role/plan/mobile/active) with startup backfill + seeded internal admin `admin@civicsign.com`. Admin-only routes return 403 to non-admins and redirect in the UI.
+**Theme:** Kept existing **bold & fresh** CIVICSIGN UI.
 
 **User stories (Phase 4)**
 1. As a product owner, I can remove all “Made with Emergent” branding/badges from CIVICSIGN.
