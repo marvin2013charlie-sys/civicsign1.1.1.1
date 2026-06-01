@@ -1,0 +1,56 @@
+{
+  "envelope": {
+    "envelope_id": "ENV-POC-0001",
+    "title": "Master Services Agreement",
+    "status": "Completed"
+  },
+  "events": [
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "jordan@acme.com",
+      "action": "Envelope created",
+      "ip": "203.0.113.10",
+      "detail": "Document uploaded (DOCX, converted to PDF)"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "jordan@acme.com",
+      "action": "Sent for signature",
+      "ip": "203.0.113.10",
+      "detail": "Recipients: client, provider (sequential order)"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "client@acme.com",
+      "action": "Viewed document",
+      "ip": "198.51.100.23",
+      "detail": "User-Agent: Chrome on macOS"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "client@acme.com",
+      "action": "Consent to e-sign accepted",
+      "ip": "198.51.100.23"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "client@acme.com",
+      "action": "Signed (drawn)",
+      "ip": "198.51.100.23"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "provider@civicsign.com",
+      "action": "Signed (typed)",
+      "ip": "203.0.113.55"
+    },
+    {
+      "timestamp": "2026-06-01 08:13:58 UTC",
+      "actor": "system",
+      "action": "Envelope completed",
+      "ip": "\u2014",
+      "detail": "All required fields completed"
+    }
+  ],
+  "doc_hash": "d8b33fcae0d77c53157ca43758f1959131d71f0106c2995efb184e0f841a4b8a"
+}

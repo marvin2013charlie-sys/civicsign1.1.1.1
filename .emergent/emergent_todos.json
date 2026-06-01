@@ -1,0 +1,50 @@
+[
+  {
+    "content": "Phase 1: Setup POC environment (PyMuPDF, Pillow, reportlab, LibreOffice for DOCX→PDF)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Create POC fixtures (sample PDF, sample DOCX, signature PNG)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Build poc_signing.py — DOCX→PDF conversion (LibreOffice headless)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Build poc_signing.py — stamp signature/text/date/checkbox at percentage coords (PyMuPDF), multi-page",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Build poc_signing.py — generate audit events + append Certificate of Completion page",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Build poc_signing.py — SendGrid email send path (skip-mode when no key)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Run POC and FIX until all core steps pass (output valid completed.pdf) — ALL 6 PASS",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Get design guidelines from design_agent (bold & fresh CIVICSIGN identity)",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 2: Build backend (auth email/pw+Google, documents, envelopes, recipients, fields, signing, finalize, audit, email)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Build frontend (landing, auth, dashboard, prep studio, send, signer flow, tracking, completion)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: All user stories covered in development",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End-to-End Testing using Testing Agent",
+    "status": "pending"
+  }
+]
