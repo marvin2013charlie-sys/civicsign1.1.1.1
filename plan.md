@@ -95,6 +95,15 @@
 **Status:** DONE & TESTED. Frontend 100%, Integration 100%, Backend 95% (only `.test` TLD bulk-send email-validation failures — expected, unrelated to Phase 4). Delivered: (1) **White-label** — removed the "Made with Emergent" badge + emergent-main.js script from index.html, added a CSS safety net, and updated title/meta to CIVICSIGN. (2) **Admin Dashboard** (role-based, dark AdminShell at `/admin`) with Overview analytics (KPIs + 14-day charts + status/plan breakdowns), Users management (search, role/plan change, activate/deactivate with self-guard), Envelopes oversight (read-only, filter/search), and Contact inbox (mark handled/reopen). (3) **User Settings** (`/settings`) with Profile (edit name/email/mobile + change password, email uniqueness enforced), Subscription (mock Free/Pro/Business tiers), and Help & Support (FAQ + contact link). Backend: extended `users` (role/plan/mobile/active) with startup backfill + seeded internal admin `admin@civicsign.com`. Admin-only routes return 403 to non-admins and redirect in the UI.
 **Theme:** Kept existing **bold & fresh** CIVICSIGN UI.
 
+### Phase 5 — AI Help Chat + Account Deletion + Starter Templates + Deeper Analytics ✅ COMPLETE — VERIFIED (iteration_4 & iteration_5)
+**Status:** DONE & TESTED. Backend 100% (16/16); Frontend 100% after fixing the multi-role Use dialog (iteration_5: 12/12). Delivered:
+- **AI Help Chat** in Settings > Help & Support (logged-in only). NOTE: requested OpenAI/gpt-5, but the provisioned **Emergent universal key only permits Gemini models** (OpenAI not authorized), so the assistant runs on **Gemini (gemini-2.5-flash)** via the Emergent key. Swap MODEL_PROVIDER/MODEL_NAME in `assistant.py` once an OpenAI-enabled key is supplied.
+- **Account deletion** (user side, Settings > Profile > Danger zone): typed-"DELETE" confirmation, cascade-deletes the user's envelopes/templates/GridFS documents, then logs out.
+- **Change-password fields** no longer pre-filled (autoComplete=new-password).
+- **Starter templates** shared library (owner_id="system", is_sample=true): NDA, IP Assignment Deed, Shareholders' Agreement, Offer Letter, Onboarding Letter \u2014 generated as PDFs with pre-placed signature/date/name fields via reportlab and seeded on startup. Any user can Use (multi-role) or Bulk-send (single-role) them.
+- **Deeper admin analytics** in /api/admin/metrics: signing funnel (Sent\u2192Viewed\u2192Completed), avg time-to-sign, decline/expired rates, top active users \u2014 surfaced on the Admin Overview.
+- **Admin CSV export** buttons (Users / Envelopes / Contacts) via /api/admin/export/*.csv.
+
 **User stories (Phase 4)**
 1. As a product owner, I can remove all “Made with Emergent” branding/badges from CIVICSIGN.
 2. As an internal team member, I can access a dedicated **Admin Dashboard** (role-based) to oversee the platform.

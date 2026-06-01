@@ -32,11 +32,11 @@
     "status": "completed"
   },
   {
-    "content": "Compile/lint + run testing_agent_v3 + fix bugs",
-    "status": "in_progress"
+    "content": "Compile/lint + run testing_agent_v3 + fix multi-role Use dialog bug",
+    "status": "completed"
   },
   {
     "content": "Update plan.md + finish",
-    "status": "pending"
+    "status": "completed"
   }
 ]
