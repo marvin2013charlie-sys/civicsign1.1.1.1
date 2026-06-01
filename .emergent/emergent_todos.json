@@ -1,22 +1,38 @@
 [
   {
-    "content": "Compile-check frontend (esbuild) for Phase 3 pages",
+    "content": "Remove 'Made with Emergent' badge from index.html + add CSS safety net; update title/meta to CIVICSIGN",
     "status": "completed"
   },
   {
-    "content": "Visual verification of Templates, Save-as-template, Bulk send, Reminders, Expiration via screenshots",
+    "content": "Backend: extend user model (role, plan, mobile, active); update _public_user, register/google docs, seed admin@civicsign.com",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 for Phase 3 end-to-end (frontend + backend)",
+    "content": "Backend: add profile/password/subscription endpoints (auth.py) + new models",
     "status": "completed"
   },
   {
-    "content": "Fix any bugs found by testing agent",
+    "content": "Backend: create admin.py router (stats, users, user update, envelopes, contacts) + wire in server.py + migration",
     "status": "completed"
   },
   {
-    "content": "Update plan.md, mark Phase 3 COMPLETED, finish",
-    "status": "completed"
+    "content": "Frontend: Settings page (/settings) with Profile, Subscription, Help & Support tabs",
+    "status": "in_progress"
+  },
+  {
+    "content": "Frontend: AdminShell + Admin pages (Overview, Users, Envelopes, Contacts) under /admin",
+    "status": "pending"
+  },
+  {
+    "content": "Frontend: routing (App.js) + AppShell nav (Settings + conditional Admin link) + AdminProtected guard",
+    "status": "pending"
+  },
+  {
+    "content": "Compile-check, lint, and run testing_agent_v3 (frontend + backend)",
+    "status": "pending"
+  },
+  {
+    "content": "Fix bugs, update plan.md, finish",
+    "status": "pending"
   }
 ]

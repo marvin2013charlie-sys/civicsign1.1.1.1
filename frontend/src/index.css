@@ -68,3 +68,7 @@
   }
   h1, h2, h3, h4, h5, .font-heading { font-family: var(--font-heading); }
 }
+
+
+/* White-label safety net: hide any injected third-party attribution badge */
+#emergent-badge { display: none !important; }

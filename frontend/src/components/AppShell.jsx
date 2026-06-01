@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate } from "lucide-react";
+import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,6 +10,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/new", label: "New Envelope", icon: FilePlus2, testid: "nav-new" },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, testid: "nav-templates" },
+  { to: "/settings", label: "Settings", icon: Settings, testid: "nav-settings" },
 ];
 
 function SidebarContent({ user, onLogout, onNavigate }) {
@@ -37,6 +38,24 @@ function SidebarContent({ user, onLogout, onNavigate }) {
             {n.label}
           </NavLink>
         ))}
+        {user?.role === "admin" && (
+          <NavLink
+            to="/admin"
+            data-testid="nav-admin"
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                isActive
+                  ? "bg-[var(--c-ink)] text-white"
+                  : "text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"
+              }`
+            }
+            style={({ isActive }) => (isActive ? {} : { border: "1px dashed var(--c-border)" })}
+          >
+            <ShieldCheck className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+            Admin Console
+          </NavLink>
+        )}
       </nav>
       <div className="border-t border-[var(--c-border)] p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">

@@ -16,6 +16,12 @@ import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
+import Settings from "@/pages/Settings";
+import { AdminShell } from "@/components/AdminShell";
+import AdminOverview from "@/pages/admin/AdminOverview";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
+import AdminContacts from "@/pages/admin/AdminContacts";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -42,6 +48,14 @@ function PublicOnly({ children }) {
   return children;
 }
 
+function AdminProtected({ children }) {
+  const { user } = useAuth();
+  if (user === null) return <FullLoader />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== "admin") return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 function AppRoutes() {
   // Handle Emergent Google OAuth callback BEFORE any route/auth logic (race-safe).
   if (typeof window !== "undefined" && window.location.hash && window.location.hash.includes("session_id=")) {
@@ -61,6 +75,13 @@ function AppRoutes() {
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
+      <Route path="/settings" element={<Protected><Settings /></Protected>} />
+      <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
+        <Route index element={<AdminOverview />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="envelopes" element={<AdminEnvelopes />} />
+        <Route path="contacts" element={<AdminContacts />} />
+      </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
       <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />
       <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />

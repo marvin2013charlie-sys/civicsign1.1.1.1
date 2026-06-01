@@ -9,6 +9,8 @@ from pathlib import Path
 BASE_URL = "https://esign-platform-hub.preview.emergentagent.com/api"
 DEMO_EMAIL = "demo@civicsign.com"
 DEMO_PASSWORD = "Demo1234!"
+ADMIN_EMAIL = "admin@civicsign.com"
+ADMIN_PASSWORD = "Admin1234!"
 SAMPLE_PDF = "/app/poc/out/sample.pdf"
 SAMPLE_DOCX = "/app/poc/out/sample.docx"
 
@@ -48,6 +50,8 @@ class CivicSignTester:
                     r = requests.post(url, json=data, headers=h, timeout=30)
             elif method == "PUT":
                 r = requests.put(url, json=data, headers=h, timeout=30)
+            elif method == "PATCH":
+                r = requests.patch(url, json=data, headers=h, timeout=30)
             elif method == "DELETE":
                 r = requests.delete(url, headers=h, timeout=30)
             else:
@@ -842,10 +846,410 @@ class CivicSignTester:
             return True
         return False
 
+    # ========== PHASE 4: SETTINGS & PROFILE TESTS ==========
+    def test_profile_update(self):
+        """Test updating user profile (name, mobile)"""
+        success, resp = self.test(
+            "Update profile (name and mobile)",
+            "PUT",
+            "auth/profile",
+            200,
+            data={
+                "name": "Demo User Updated",
+                "mobile": "+1 555 123 4567"
+            }
+        )
+        if success and resp.get("name") == "Demo User Updated":
+            self.log("Profile updated successfully", "pass")
+            # Restore original name
+            self.test(
+                "Restore original name",
+                "PUT",
+                "auth/profile",
+                200,
+                data={"name": "CivicSign Demo"}
+            )
+            return True
+        return False
+
+    def test_email_uniqueness(self):
+        """Test email uniqueness validation (should fail with 400)"""
+        success, resp = self.test(
+            "Try to change email to admin email (should fail)",
+            "PUT",
+            "auth/profile",
+            400,
+            data={"email": ADMIN_EMAIL}
+        )
+        if success:
+            self.log("Email uniqueness validation working (400 returned)", "pass")
+            return True
+        return False
+
+    def test_password_change(self):
+        """Test changing password"""
+        success, resp = self.test(
+            "Change password",
+            "POST",
+            "auth/change-password",
+            200,
+            data={
+                "current_password": DEMO_PASSWORD,
+                "new_password": DEMO_PASSWORD  # Keep same password
+            }
+        )
+        if success:
+            self.log("Password change successful", "pass")
+            return True
+        return False
+
+    def test_subscription_update(self):
+        """Test updating subscription plan"""
+        success, resp = self.test(
+            "Update subscription to business",
+            "POST",
+            "auth/subscription",
+            200,
+            data={"plan": "business"}
+        )
+        if success and resp.get("plan") == "business":
+            self.log("Subscription updated to business", "pass")
+            # Restore to pro
+            self.test(
+                "Restore subscription to pro",
+                "POST",
+                "auth/subscription",
+                200,
+                data={"plan": "pro"}
+            )
+            return True
+        return False
+
+    # ========== PHASE 4: ADMIN TESTS ==========
+    def test_admin_login(self):
+        """Test admin login"""
+        success, resp = self.test(
+            "Admin login",
+            "POST",
+            "auth/login",
+            200,
+            data={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+        )
+        if success and "access_token" in resp:
+            self.admin_token = resp["access_token"]
+            self.admin_user_id = resp.get("user", {}).get("user_id")
+            self.log(f"Admin login successful, token obtained", "pass")
+            return True
+        return False
+
+    def test_admin_metrics(self):
+        """Test GET /admin/metrics"""
+        # Save current token and use admin token
+        user_token = self.token
+        self.token = self.admin_token
+        
+        success, resp = self.test(
+            "GET /admin/metrics",
+            "GET",
+            "admin/metrics",
+            200
+        )
+        
+        # Restore user token
+        self.token = user_token
+        
+        if success and "totals" in resp and "signup_series" in resp:
+            self.log(f"Admin metrics: {resp['totals']['users']} users, {resp['totals']['envelopes']} envelopes", "pass")
+            return True
+        return False
+
+    def test_admin_users_list(self):
+        """Test GET /admin/users"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        success, resp = self.test(
+            "GET /admin/users",
+            "GET",
+            "admin/users",
+            200
+        )
+        
+        self.token = user_token
+        
+        if success and isinstance(resp, list) and len(resp) > 0:
+            self.log(f"Admin users list: {len(resp)} users", "pass")
+            return True
+        return False
+
+    def test_admin_users_search(self):
+        """Test GET /admin/users with search"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        url = f"{BASE_URL}/admin/users?q=demo"
+        h = {"Authorization": f"Bearer {self.admin_token}"}
+        
+        self.tests_run += 1
+        self.log("Testing admin users search...", "info")
+        
+        try:
+            r = requests.get(url, headers=h, timeout=30)
+            if r.status_code == 200:
+                users = r.json()
+                self.tests_passed += 1
+                self.log(f"PASS - Admin users search returned {len(users)} result(s)", "pass")
+                self.token = user_token
+                return True
+            else:
+                self.log(f"FAIL - Expected 200, got {r.status_code}", "fail")
+                self.token = user_token
+                return False
+        except Exception as e:
+            self.log(f"FAIL - Error: {str(e)}", "fail")
+            self.token = user_token
+            return False
+
+    def test_admin_update_user(self):
+        """Test PATCH /admin/users/{user_id} - update a non-admin user"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        # First get the demo user
+        success, users = self.test(
+            "Get demo user for update test",
+            "GET",
+            "admin/users?q=demo@civicsign.com",
+            200
+        )
+        
+        if not success or not users:
+            self.token = user_token
+            return False
+        
+        demo_user = next((u for u in users if u["email"] == DEMO_EMAIL), None)
+        if not demo_user:
+            self.log("Demo user not found", "fail")
+            self.token = user_token
+            return False
+        
+        demo_user_id = demo_user["user_id"]
+        
+        # Update plan to free
+        success, resp = self.test(
+            "Update demo user plan to free",
+            "PATCH",
+            f"admin/users/{demo_user_id}",
+            200,
+            data={"plan": "free"}
+        )
+        
+        if success and resp.get("plan") == "free":
+            self.log("Admin updated user plan successfully", "pass")
+            # Restore to pro
+            self.test(
+                "Restore demo user plan to pro",
+                "PATCH",
+                f"admin/users/{demo_user_id}",
+                200,
+                data={"plan": "pro"}
+            )
+            self.token = user_token
+            return True
+        
+        self.token = user_token
+        return False
+
+    def test_admin_self_guard(self):
+        """Test admin cannot deactivate or demote themselves"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        # Try to deactivate own account (should fail with 400)
+        success, resp = self.test(
+            "Admin try to deactivate own account (should fail)",
+            "PATCH",
+            f"admin/users/{self.admin_user_id}",
+            400,
+            data={"active": False}
+        )
+        
+        if success:
+            self.log("Admin self-guard working: cannot deactivate own account", "pass")
+        else:
+            self.log("Admin self-guard failed: should return 400", "fail")
+        
+        # Try to demote own account (should fail with 400)
+        success2, resp2 = self.test(
+            "Admin try to demote own account (should fail)",
+            "PATCH",
+            f"admin/users/{self.admin_user_id}",
+            400,
+            data={"role": "user"}
+        )
+        
+        self.token = user_token
+        
+        if success2:
+            self.log("Admin self-guard working: cannot demote own account", "pass")
+            return True
+        else:
+            self.log("Admin self-guard failed: should return 400", "fail")
+            return False
+
+    def test_admin_envelopes_list(self):
+        """Test GET /admin/envelopes"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        success, resp = self.test(
+            "GET /admin/envelopes",
+            "GET",
+            "admin/envelopes",
+            200
+        )
+        
+        self.token = user_token
+        
+        if success and isinstance(resp, list):
+            self.log(f"Admin envelopes list: {len(resp)} envelopes", "pass")
+            return True
+        return False
+
+    def test_admin_envelopes_filter(self):
+        """Test GET /admin/envelopes with status filter"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        url = f"{BASE_URL}/admin/envelopes?status=completed"
+        h = {"Authorization": f"Bearer {self.admin_token}"}
+        
+        self.tests_run += 1
+        self.log("Testing admin envelopes filter...", "info")
+        
+        try:
+            r = requests.get(url, headers=h, timeout=30)
+            if r.status_code == 200:
+                envs = r.json()
+                self.tests_passed += 1
+                self.log(f"PASS - Admin envelopes filter returned {len(envs)} completed envelope(s)", "pass")
+                self.token = user_token
+                return True
+            else:
+                self.log(f"FAIL - Expected 200, got {r.status_code}", "fail")
+                self.token = user_token
+                return False
+        except Exception as e:
+            self.log(f"FAIL - Error: {str(e)}", "fail")
+            self.token = user_token
+            return False
+
+    def test_admin_contacts_list(self):
+        """Test GET /admin/contact-messages"""
+        user_token = self.token
+        self.token = self.admin_token
+        
+        success, resp = self.test(
+            "GET /admin/contact-messages",
+            "GET",
+            "admin/contact-messages",
+            200
+        )
+        
+        self.token = user_token
+        
+        if success and isinstance(resp, list):
+            self.log(f"Admin contacts list: {len(resp)} message(s)", "pass")
+            return True
+        return False
+
+    def test_admin_contact_handle(self):
+        """Test PATCH /admin/contact-messages/{id} - mark as handled"""
+        # First create a contact message
+        success, resp = self.test(
+            "Submit contact message for admin test",
+            "POST",
+            "contact",
+            200,
+            data={
+                "name": "Test Contact",
+                "email": "test@contact.com",
+                "subject": "Test Subject",
+                "message": "Test message for admin handling"
+            }
+        )
+        
+        if not success:
+            return False
+        
+        # Now get the contact messages as admin
+        user_token = self.token
+        self.token = self.admin_token
+        
+        success, messages = self.test(
+            "Get contact messages",
+            "GET",
+            "admin/contact-messages",
+            200
+        )
+        
+        if not success or not messages:
+            self.token = user_token
+            return False
+        
+        # Find the test message
+        test_msg = next((m for m in messages if m["email"] == "test@contact.com"), None)
+        if not test_msg:
+            self.log("Test contact message not found", "fail")
+            self.token = user_token
+            return False
+        
+        contact_id = test_msg["contact_id"]
+        
+        # Mark as handled
+        success, resp = self.test(
+            "Mark contact message as handled",
+            "PATCH",
+            f"admin/contact-messages/{contact_id}",
+            200,
+            data={"handled": True}
+        )
+        
+        if success and resp.get("handled") is True:
+            self.log("Contact message marked as handled", "pass")
+            # Reopen it
+            self.test(
+                "Reopen contact message",
+                "PATCH",
+                f"admin/contact-messages/{contact_id}",
+                200,
+                data={"handled": False}
+            )
+            self.token = user_token
+            return True
+        
+        self.token = user_token
+        return False
+
+    def test_non_admin_blocked(self):
+        """Test that non-admin user cannot access admin endpoints"""
+        # Use demo user token (non-admin)
+        success, resp = self.test(
+            "Non-admin try to access /admin/metrics (should fail)",
+            "GET",
+            "admin/metrics",
+            403
+        )
+        
+        if success:
+            self.log("Non-admin correctly blocked from admin endpoints (403)", "pass")
+            return True
+        return False
+
     def run_all(self):
         """Run all tests"""
         print("\n" + "="*60)
-        print("CIVICSIGN BACKEND API TEST SUITE - PHASE 3")
+        print("CIVICSIGN BACKEND API TEST SUITE - PHASE 4")
         print("="*60 + "\n")
 
         # Auth tests
@@ -891,6 +1295,31 @@ class CivicSignTester:
         print("\n--- PHASE 3: REMINDER & EXPIRATION TESTS ---")
         self.test_send_reminder()
         self.test_expiration()
+
+        # Phase 4: Settings & Profile tests
+        print("\n--- PHASE 4: SETTINGS & PROFILE TESTS ---")
+        self.test_profile_update()
+        self.test_email_uniqueness()
+        self.test_password_change()
+        self.test_subscription_update()
+
+        # Phase 4: Admin tests
+        print("\n--- PHASE 4: ADMIN TESTS ---")
+        if not self.test_admin_login():
+            self.log("Admin login failed, skipping admin tests", "fail")
+        else:
+            self.test_admin_metrics()
+            self.test_admin_users_list()
+            self.test_admin_users_search()
+            self.test_admin_update_user()
+            self.test_admin_self_guard()
+            self.test_admin_envelopes_list()
+            self.test_admin_envelopes_filter()
+            self.test_admin_contacts_list()
+            self.test_admin_contact_handle()
+        
+        # Test non-admin access control
+        self.test_non_admin_blocked()
 
         # Logout
         print("\n--- CLEANUP ---")

@@ -26,6 +26,7 @@ from models import (
     TemplateCreate, TemplateUse, BulkSend, RemindRequest,
 )
 from auth import auth_router, get_current_user, seed_admin
+from admin import admin_router
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -766,6 +767,7 @@ async def signer_decline(token: str, body: DeclineRequest, request: Request):
 # --------------------------------------------------------------------------
 app.include_router(auth_router)
 app.include_router(api_router)
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,

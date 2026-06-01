@@ -108,3 +108,31 @@ class BulkSend(BaseModel):
 
 class RemindRequest(BaseModel):
     base_url: Optional[str] = None
+
+
+# ---- User profile / account settings ----
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    mobile: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
+
+class SubscriptionUpdate(BaseModel):
+    plan: str  # free | pro | business
+
+
+# ---- Admin ----
+class AdminUserUpdate(BaseModel):
+    role: Optional[str] = None      # user | admin
+    active: Optional[bool] = None
+    plan: Optional[str] = None      # free | pro | business
+
+
+class ContactHandle(BaseModel):
+    handled: bool = True
+
