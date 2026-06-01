@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/new", label: "New Envelope", icon: FilePlus2, testid: "nav-new" },
+  { to: "/templates", label: "Templates", icon: LayoutTemplate, testid: "nav-templates" },
 ];
 
 function SidebarContent({ user, onLogout, onNavigate }) {

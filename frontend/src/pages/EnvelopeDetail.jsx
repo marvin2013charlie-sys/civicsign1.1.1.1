@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Download, Copy, Loader2, Fingerprint, Ban, FileText, ExternalLink,
-  Clock, Eye, PenLine, CheckCircle2, XCircle, Send,
+  Clock, Eye, PenLine, CheckCircle2, XCircle, Send, Bell, CalendarClock,
 } from "lucide-react";
 
 const ACTION_ICON = (action) => {
@@ -65,6 +65,16 @@ export default function EnvelopeDetail() {
     catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
   };
 
+  const sendReminder = async () => {
+    try {
+      const { data } = await api.post(`/envelopes/${id}/remind`, { base_url: window.location.origin });
+      toast.success(`Reminder sent to ${data.reminded} recipient(s)`);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   const copy = (t) => { navigator.clipboard.writeText(t); toast.success("Link copied"); };
   const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 
@@ -78,6 +88,9 @@ export default function EnvelopeDetail() {
       title="Envelope"
       actions={
         <div className="flex gap-2">
+          {["sent", "viewed"].includes(env.status) && (
+            <Button variant="outline" onClick={sendReminder} data-testid="send-reminder-button"><Bell className="mr-1.5 h-4 w-4" /> Remind</Button>
+          )}
           {env.status === "completed" && (
             <Button onClick={download} data-testid="download-completed-pdf-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
               <Download className="mr-1.5 h-4 w-4" /> Download
@@ -97,6 +110,11 @@ export default function EnvelopeDetail() {
             <div>
               <h2 className="font-heading text-xl font-bold text-[var(--c-ink)]">{env.title}</h2>
               <p className="text-xs text-[var(--muted-foreground)]">Created {fmt(env.created_at)} · {env.document?.page_count} page(s)</p>
+              {env.expires_at && (
+                <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium" style={{ color: env.status === "expired" ? "#B45309" : "var(--muted-foreground)" }}>
+                  <CalendarClock className="h-3.5 w-3.5" /> {env.status === "expired" ? "Expired" : "Expires"} {fmt(env.expires_at)}
+                </p>
+              )}
             </div>
           </div>
           <StatusBadge status={env.status} />

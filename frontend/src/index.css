@@ -25,6 +25,7 @@
   --status-viewed-bg: #E6F2FA; --status-viewed-fg: #0F1720; --status-viewed-border: #0284C7;
   --status-completed-bg: #EAF7EE; --status-completed-fg: #0F1720; --status-completed-border: #16A34A;
   --status-declined-bg: #FDECEC; --status-declined-fg: #0F1720; --status-declined-border: #DC2626;
+  --status-expired-bg: #F4EFE6; --status-expired-fg: #0F1720; --status-expired-border: #B45309;
 }
 
 @layer base {

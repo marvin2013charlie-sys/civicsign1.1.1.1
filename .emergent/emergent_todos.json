@@ -1,34 +1,22 @@
 [
   {
-    "content": "Backend: /api/contact endpoint + ContactRequest model",
+    "content": "Compile-check frontend (esbuild) for Phase 3 pages",
     "status": "completed"
   },
   {
-    "content": "Shared SiteHeader, SiteFooter, CookieBanner, LegalLayout components",
-    "status": "completed"
+    "content": "Visual verification of Templates, Save-as-template, Bulk send, Reminders, Expiration via screenshots",
+    "status": "in_progress"
   },
   {
-    "content": "Privacy Policy, Terms & Conditions, Cookie Policy pages",
-    "status": "completed"
+    "content": "Run testing_agent_v3 for Phase 3 end-to-end (frontend + backend)",
+    "status": "pending"
   },
   {
-    "content": "About Us page",
-    "status": "completed"
+    "content": "Fix any bugs found by testing agent",
+    "status": "pending"
   },
   {
-    "content": "Contact Us page (working form -> /api/contact)",
-    "status": "completed"
-  },
-  {
-    "content": "Enhance Landing (metrics, use-cases, pricing, testimonials, FAQ) + footer links",
-    "status": "completed"
-  },
-  {
-    "content": "Routes in App.js for all new pages",
-    "status": "completed"
-  },
-  {
-    "content": "Verify: pages render, footer links, contact form submit, cookie banner",
-    "status": "completed"
+    "content": "Update plan.md, mark Phase 3 COMPLETED, finish",
+    "status": "pending"
   }
 ]

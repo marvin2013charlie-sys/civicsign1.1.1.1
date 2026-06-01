@@ -507,10 +507,345 @@ class CivicSignTester:
             return True
         return False
 
+    # ========== PHASE 3: TEMPLATE TESTS ==========
+    def test_save_as_template(self):
+        """Test saving an envelope as a template"""
+        # Create a new envelope with recipients and fields
+        with open(SAMPLE_PDF, "rb") as f:
+            success, resp = self.test(
+                "Upload PDF for template",
+                "POST",
+                "envelopes",
+                200,
+                data={"title": "Template Test Document"},
+                files={"file": ("sample.pdf", f, "application/pdf")}
+            )
+        if not success:
+            return False
+
+        template_env_id = resp["envelope_id"]
+
+        # Add recipient and field
+        success, resp = self.test(
+            "Add recipient for template",
+            "PUT",
+            f"envelopes/{template_env_id}",
+            200,
+            data={
+                "recipients": [{"name": "Signer Role", "email": "signer@test.com", "order": 1}]
+            }
+        )
+        if not success:
+            return False
+
+        recipient_id = resp["recipients"][0]["recipient_id"]
+
+        success, resp = self.test(
+            "Add field for template",
+            "PUT",
+            f"envelopes/{template_env_id}",
+            200,
+            data={
+                "fields": [{
+                    "recipient_id": recipient_id,
+                    "page": 0,
+                    "type": "signature",
+                    "x": 0.1,
+                    "y": 0.8,
+                    "w": 0.3,
+                    "h": 0.05,
+                    "required": True
+                }]
+            }
+        )
+        if not success:
+            return False
+
+        # Save as template
+        success, resp = self.test(
+            "Save envelope as template",
+            "POST",
+            f"templates/from-envelope/{template_env_id}",
+            200,
+            data={
+                "name": "Test Template",
+                "description": "A test template for automated testing"
+            }
+        )
+        if success and "template_id" in resp:
+            self.template_id = resp["template_id"]
+            self.log(f"Template created: {self.template_id}", "pass")
+            return True
+        return False
+
+    def test_list_templates(self):
+        """Test listing templates"""
+        success, resp = self.test(
+            "List templates",
+            "GET",
+            "templates",
+            200
+        )
+        if success and isinstance(resp, list):
+            self.log(f"Listed {len(resp)} template(s)", "pass")
+            return True
+        return False
+
+    def test_use_template(self):
+        """Test creating an envelope from a template"""
+        if not hasattr(self, 'template_id') or not self.template_id:
+            self.log("No template_id available", "fail")
+            return False
+
+        success, resp = self.test(
+            "Use template to create envelope",
+            "POST",
+            f"templates/{self.template_id}/use",
+            200,
+            data={
+                "recipients": [
+                    {
+                        "role_id": "role_placeholder",  # Will be replaced by actual role_id
+                        "name": "John Doe",
+                        "email": "john@test.com"
+                    }
+                ]
+            }
+        )
+        
+        # If failed due to role_id, get the template first
+        if not success:
+            success2, tpl_resp = self.test(
+                "Get template details",
+                "GET",
+                f"templates/{self.template_id}",
+                200
+            )
+            if success2 and tpl_resp.get("roles"):
+                role_id = tpl_resp["roles"][0]["role_id"]
+                success, resp = self.test(
+                    "Use template with correct role_id",
+                    "POST",
+                    f"templates/{self.template_id}/use",
+                    200,
+                    data={
+                        "recipients": [
+                            {
+                                "role_id": role_id,
+                                "name": "John Doe",
+                                "email": "john@test.com"
+                            }
+                        ]
+                    }
+                )
+
+        if success and "envelope_id" in resp:
+            self.log(f"Envelope created from template: {resp['envelope_id']}", "pass")
+            return True
+        return False
+
+    def test_bulk_send(self):
+        """Test bulk sending with a single-role template"""
+        if not hasattr(self, 'template_id') or not self.template_id:
+            self.log("No template_id available", "fail")
+            return False
+
+        success, resp = self.test(
+            "Bulk send template",
+            "POST",
+            f"templates/{self.template_id}/bulk-send",
+            200,
+            data={
+                "base_url": "https://esign-platform-hub.preview.emergentagent.com",
+                "message": "Bulk test message",
+                "rows": [
+                    {"name": "Alice Bulk", "email": "alice@bulk.test"},
+                    {"name": "Bob Bulk", "email": "bob@bulk.test"}
+                ]
+            }
+        )
+        if success and resp.get("created") == 2:
+            self.log(f"Bulk sent {resp['created']} envelopes", "pass")
+            return True
+        return False
+
+    def test_delete_template(self):
+        """Test deleting a template"""
+        if not hasattr(self, 'template_id') or not self.template_id:
+            self.log("No template_id available", "fail")
+            return False
+
+        success, resp = self.test(
+            "Delete template",
+            "DELETE",
+            f"templates/{self.template_id}",
+            200
+        )
+        if success:
+            self.log("Template deleted successfully", "pass")
+            return True
+        return False
+
+    # ========== PHASE 3: REMINDER & EXPIRATION TESTS ==========
+    def test_send_reminder(self):
+        """Test sending a reminder for an active envelope"""
+        # Create and send an envelope first
+        with open(SAMPLE_PDF, "rb") as f:
+            success, resp = self.test(
+                "Upload PDF for reminder test",
+                "POST",
+                "envelopes",
+                200,
+                data={"title": "Reminder Test Document"},
+                files={"file": ("sample.pdf", f, "application/pdf")}
+            )
+        if not success:
+            return False
+
+        reminder_env_id = resp["envelope_id"]
+
+        # Add recipient and field
+        success, resp = self.test(
+            "Add recipient for reminder test",
+            "PUT",
+            f"envelopes/{reminder_env_id}",
+            200,
+            data={
+                "recipients": [{"name": "Charlie Reminder", "email": "charlie@test.com", "order": 1}]
+            }
+        )
+        if not success:
+            return False
+
+        recipient_id = resp["recipients"][0]["recipient_id"]
+
+        success, resp = self.test(
+            "Add field for reminder test",
+            "PUT",
+            f"envelopes/{reminder_env_id}",
+            200,
+            data={
+                "fields": [{
+                    "recipient_id": recipient_id,
+                    "page": 0,
+                    "type": "signature",
+                    "x": 0.1,
+                    "y": 0.8,
+                    "w": 0.3,
+                    "h": 0.05,
+                    "required": True
+                }]
+            }
+        )
+        if not success:
+            return False
+
+        # Send
+        success, resp = self.test(
+            "Send envelope for reminder test",
+            "POST",
+            f"envelopes/{reminder_env_id}/send",
+            200,
+            data={"base_url": "https://esign-platform-hub.preview.emergentagent.com"}
+        )
+        if not success:
+            return False
+
+        # Send reminder
+        success, resp = self.test(
+            "Send reminder",
+            "POST",
+            f"envelopes/{reminder_env_id}/remind",
+            200,
+            data={"base_url": "https://esign-platform-hub.preview.emergentagent.com"}
+        )
+        if success and resp.get("reminded") == 1:
+            self.log(f"Reminder sent to {resp['reminded']} recipient(s)", "pass")
+            return True
+        return False
+
+    def test_expiration(self):
+        """Test sending an envelope with expiration"""
+        with open(SAMPLE_PDF, "rb") as f:
+            success, resp = self.test(
+                "Upload PDF for expiration test",
+                "POST",
+                "envelopes",
+                200,
+                data={"title": "Expiration Test Document"},
+                files={"file": ("sample.pdf", f, "application/pdf")}
+            )
+        if not success:
+            return False
+
+        expiry_env_id = resp["envelope_id"]
+
+        # Add recipient and field
+        success, resp = self.test(
+            "Add recipient for expiration test",
+            "PUT",
+            f"envelopes/{expiry_env_id}",
+            200,
+            data={
+                "recipients": [{"name": "Diana Expiry", "email": "diana@test.com", "order": 1}]
+            }
+        )
+        if not success:
+            return False
+
+        recipient_id = resp["recipients"][0]["recipient_id"]
+
+        success, resp = self.test(
+            "Add field for expiration test",
+            "PUT",
+            f"envelopes/{expiry_env_id}",
+            200,
+            data={
+                "fields": [{
+                    "recipient_id": recipient_id,
+                    "page": 0,
+                    "type": "signature",
+                    "x": 0.1,
+                    "y": 0.8,
+                    "w": 0.3,
+                    "h": 0.05,
+                    "required": True
+                }]
+            }
+        )
+        if not success:
+            return False
+
+        # Send with expiration
+        success, resp = self.test(
+            "Send envelope with 7-day expiration",
+            "POST",
+            f"envelopes/{expiry_env_id}/send",
+            200,
+            data={
+                "base_url": "https://esign-platform-hub.preview.emergentagent.com",
+                "expires_in_days": 7
+            }
+        )
+        if not success:
+            return False
+
+        # Verify expiration was set
+        success, resp = self.test(
+            "Verify expiration was set",
+            "GET",
+            f"envelopes/{expiry_env_id}",
+            200
+        )
+        if success and resp.get("expires_at"):
+            self.log(f"Expiration set: {resp['expires_at']}", "pass")
+            return True
+        return False
+
     def run_all(self):
         """Run all tests"""
         print("\n" + "="*60)
-        print("CIVICSIGN BACKEND API TEST SUITE")
+        print("CIVICSIGN BACKEND API TEST SUITE - PHASE 3")
         print("="*60 + "\n")
 
         # Auth tests
@@ -543,6 +878,19 @@ class CivicSignTester:
         # Decline test
         print("\n--- DECLINE FLOW TEST ---")
         self.test_decline_flow()
+
+        # Phase 3: Template tests
+        print("\n--- PHASE 3: TEMPLATE TESTS ---")
+        self.test_save_as_template()
+        self.test_list_templates()
+        self.test_use_template()
+        self.test_bulk_send()
+        self.test_delete_template()
+
+        # Phase 3: Reminder & Expiration tests
+        print("\n--- PHASE 3: REMINDER & EXPIRATION TESTS ---")
+        self.test_send_reminder()
+        self.test_expiration()
 
         # Logout
         print("\n--- CLEANUP ---")

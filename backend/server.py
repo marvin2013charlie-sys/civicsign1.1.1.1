@@ -1,6 +1,7 @@
 """CIVICSIGN backend — FastAPI app: auth, envelopes, signer flow, finalization."""
 import os
 import uuid
+import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -20,7 +21,10 @@ from starlette.middleware.cors import CORSMiddleware
 from db import db, upload_file, download_file, delete_file
 import pdf_service
 import email_service
-from models import EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest, ContactRequest
+from models import (
+    EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest, ContactRequest,
+    TemplateCreate, TemplateUse, BulkSend, RemindRequest,
+)
 from auth import auth_router, get_current_user, seed_admin
 
 logging.basicConfig(level=logging.INFO,
@@ -80,6 +84,75 @@ async def get_envelope_owned(envelope_id: str, user: dict) -> dict:
     if not env:
         raise HTTPException(status_code=404, detail="Envelope not found")
     return env
+
+
+async def copy_gridfs(file_id: str, filename: str = "document.pdf") -> str:
+    """Duplicate a stored file into a new GridFS object so each entity owns its bytes."""
+    data = await download_file(file_id)
+    return await upload_file(data, filename)
+
+
+def _expired(env: dict) -> bool:
+    exp = env.get("expires_at")
+    return bool(exp and env.get("status") in ("sent", "viewed") and exp < now_iso())
+
+
+async def maybe_expire(env: dict) -> dict:
+    """Lazily mark an envelope expired when accessed past its expiry."""
+    if _expired(env):
+        env["status"] = "expired"
+        env.setdefault("audit_events", []).append(
+            audit_event("system", "Envelope expired", "-", "Expiration date passed"))
+        await db.envelopes.update_one(
+            {"envelope_id": env["envelope_id"]},
+            {"$set": {"status": "expired", "audit_events": env["audit_events"],
+                      "updated_at": now_iso()}})
+    return env
+
+
+def build_envelope_from_template(tpl: dict, owner: dict, new_file_id: str,
+                                 role_to_recipient: dict):
+    """Create a draft envelope dict from a template + a {role_id: {name,email}} map."""
+    recipients = []
+    rid_by_role = {}
+    for role in sorted(tpl["roles"], key=lambda r: r.get("order", 1)):
+        info = role_to_recipient.get(role["role_id"]) or {}
+        rid = f"rcp_{uuid.uuid4().hex[:10]}"
+        rid_by_role[role["role_id"]] = rid
+        recipients.append({
+            "recipient_id": rid,
+            "name": (info.get("name") or role["name"]).strip(),
+            "email": (info.get("email") or "").lower().strip(),
+            "order": role.get("order", 1), "color": role.get("color", "#1FB8A6"),
+            "status": "pending", "access_token": uuid.uuid4().hex,
+            "viewed_at": None, "signed_at": None, "signer_name": None,
+        })
+    fields = []
+    for f in tpl["fields"]:
+        if f["role_id"] not in rid_by_role:
+            continue
+        fields.append({
+            "field_id": f"fld_{uuid.uuid4().hex[:10]}",
+            "recipient_id": rid_by_role[f["role_id"]], "page": f["page"],
+            "type": f["type"], "x": f["x"], "y": f["y"], "w": f["w"], "h": f["h"],
+            "required": f.get("required", True), "label": f.get("label"), "value": None,
+        })
+    return {
+        "envelope_id": f"env_{uuid.uuid4().hex[:16]}",
+        "owner_id": owner["user_id"], "owner_name": owner.get("name") or owner["email"],
+        "title": tpl["name"], "message": "", "status": "draft",
+        "signing_order": tpl.get("signing_order", "sequential"),
+        "document": {"original_filename": tpl["document"]["original_filename"],
+                     "file_type": tpl["document"]["file_type"], "file_id": new_file_id,
+                     "page_count": tpl["document"]["page_count"],
+                     "pages": tpl["document"]["pages"]},
+        "recipients": recipients, "fields": fields,
+        "audit_events": [audit_event(owner["email"], "Envelope created", "-",
+                                     f"From template: {tpl['name']}")],
+        "created_at": now_iso(), "updated_at": now_iso(),
+        "sent_at": None, "completed_at": None, "expires_at": None,
+        "completed_file_id": None, "doc_hash": None, "template_id": tpl["template_id"],
+    }
 
 
 async def finalize_envelope_doc(env: dict):
@@ -198,8 +271,8 @@ async def create_envelope(
         "audit_events": [audit_event(user["email"], "Envelope created", client_ip(request),
                                      f"Uploaded {fname}" + (" (converted to PDF)" if is_docx else ""))],
         "created_at": now_iso(), "updated_at": now_iso(),
-        "sent_at": None, "completed_at": None,
-        "completed_file_id": None, "doc_hash": None,
+        "sent_at": None, "completed_at": None, "expires_at": None,
+        "completed_file_id": None, "doc_hash": None, "template_id": None,
     }
     await db.envelopes.insert_one(dict(envelope))
     envelope.pop("_id", None)
@@ -219,7 +292,7 @@ async def stats(user: dict = Depends(get_current_user)):
     items = await db.envelopes.find(
         {"owner_id": user["user_id"]},
         {"_id": 0, "status": 1, "created_at": 1, "completed_at": 1}).to_list(2000)
-    counts = {"draft": 0, "sent": 0, "viewed": 0, "completed": 0, "declined": 0}
+    counts = {"draft": 0, "sent": 0, "viewed": 0, "completed": 0, "declined": 0, "expired": 0}
     for it in items:
         s = it.get("status", "draft")
         counts[s] = counts.get(s, 0) + 1
@@ -238,7 +311,8 @@ async def stats(user: dict = Depends(get_current_user)):
 
 @api_router.get("/envelopes/{envelope_id}")
 async def get_envelope(envelope_id: str, user: dict = Depends(get_current_user)):
-    return await get_envelope_owned(envelope_id, user)
+    env = await get_envelope_owned(envelope_id, user)
+    return await maybe_expire(env)
 
 
 @api_router.put("/envelopes/{envelope_id}")
@@ -302,15 +376,21 @@ async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
             raise HTTPException(status_code=400,
                                 detail=f"Recipient {r['name']} has no fields assigned")
     msg = body.message if body.message is not None else env.get("message")
+    expires_at = None
+    if body.expires_in_days and body.expires_in_days > 0:
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)).isoformat()
     env["status"] = "sent"
     env["sent_at"] = now_iso()
     env["message"] = msg
+    env["expires_at"] = expires_at
     env["audit_events"].append(
         audit_event(user["email"], "Sent for signature", client_ip(request),
-                    f"{len(env['recipients'])} recipient(s), {env['signing_order']} order"))
+                    f"{len(env['recipients'])} recipient(s), {env['signing_order']} order"
+                    + (f", expires in {body.expires_in_days} days" if expires_at else "")))
     await db.envelopes.update_one(
         {"envelope_id": envelope_id},
         {"$set": {"status": "sent", "sent_at": env["sent_at"], "message": msg,
+                  "expires_at": expires_at,
                   "recipients": env["recipients"], "audit_events": env["audit_events"],
                   "updated_at": now_iso()}})
     base = (body.base_url or "").rstrip("/")
@@ -323,6 +403,34 @@ async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
             email_service.send_signing_invite(
                 r["email"], r["name"], env["owner_name"], env["title"], link, msg)
     return {"status": "sent", "links": links}
+
+
+@api_router.post("/envelopes/{envelope_id}/remind")
+async def remind_envelope(envelope_id: str, body: RemindRequest, request: Request,
+                          user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    env = await maybe_expire(env)
+    if env["status"] not in ("sent", "viewed"):
+        raise HTTPException(status_code=400, detail="Only active envelopes can be reminded")
+    base = (body.base_url or request.headers.get("origin", "")).rstrip("/")
+    reminded = []
+    for r in env["recipients"]:
+        if can_sign(env, r):
+            link = f"{base}/sign/{r['access_token']}" if base else None
+            if link:
+                email_service.send_signing_invite(
+                    r["email"], r["name"], env["owner_name"], env["title"], link,
+                    env.get("message"))
+            reminded.append(r["email"])
+    if not reminded:
+        raise HTTPException(status_code=400, detail="No recipients are currently awaiting signature")
+    env["audit_events"].append(
+        audit_event(user["email"], "Reminder sent", client_ip(request),
+                    f"Reminded {len(reminded)} recipient(s)"))
+    await db.envelopes.update_one(
+        {"envelope_id": envelope_id},
+        {"$set": {"audit_events": env["audit_events"], "updated_at": now_iso()}})
+    return {"reminded": len(reminded), "emails": reminded}
 
 
 @api_router.post("/envelopes/{envelope_id}/void")
@@ -369,6 +477,130 @@ async def envelope_completed(envelope_id: str, user: dict = Depends(get_current_
 
 
 # --------------------------------------------------------------------------
+# Templates (authenticated)
+# --------------------------------------------------------------------------
+async def get_template_owned(template_id: str, user: dict) -> dict:
+    tpl = await db.templates.find_one(
+        {"template_id": template_id, "owner_id": user["user_id"]}, {"_id": 0})
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return tpl
+
+
+@api_router.post("/templates/from-envelope/{envelope_id}")
+async def create_template(envelope_id: str, body: TemplateCreate,
+                          user: dict = Depends(get_current_user)):
+    env = await get_envelope_owned(envelope_id, user)
+    if not env["recipients"] or not env["fields"]:
+        raise HTTPException(status_code=400,
+                            detail="Add recipients and fields before saving as a template")
+    new_file = await copy_gridfs(env["document"]["file_id"],
+                                 env["document"]["original_filename"])
+    role_map, roles = {}, []
+    for r in sorted(env["recipients"], key=lambda x: x.get("order", 1)):
+        role_id = f"role_{uuid.uuid4().hex[:10]}"
+        role_map[r["recipient_id"]] = role_id
+        roles.append({"role_id": role_id, "name": r["name"], "order": r.get("order", 1),
+                      "color": r.get("color", "#1FB8A6")})
+    fields = [{
+        "field_id": f"fld_{uuid.uuid4().hex[:10]}", "role_id": role_map[f["recipient_id"]],
+        "page": f["page"], "type": f["type"], "x": f["x"], "y": f["y"], "w": f["w"],
+        "h": f["h"], "required": f.get("required", True), "label": f.get("label"),
+    } for f in env["fields"] if f["recipient_id"] in role_map]
+    tpl = {
+        "template_id": f"tpl_{uuid.uuid4().hex[:16]}", "owner_id": user["user_id"],
+        "name": body.name.strip() or env["title"], "description": (body.description or "").strip(),
+        "document": {"original_filename": env["document"]["original_filename"],
+                     "file_type": env["document"]["file_type"], "file_id": new_file,
+                     "page_count": env["document"]["page_count"],
+                     "pages": env["document"]["pages"]},
+        "signing_order": env.get("signing_order", "sequential"),
+        "roles": roles, "fields": fields, "use_count": 0,
+        "created_at": now_iso(), "updated_at": now_iso(),
+    }
+    await db.templates.insert_one(dict(tpl))
+    tpl.pop("_id", None)
+    return tpl
+
+
+@api_router.get("/templates")
+async def list_templates(user: dict = Depends(get_current_user)):
+    return await db.templates.find({"owner_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api_router.get("/templates/{template_id}")
+async def get_template(template_id: str, user: dict = Depends(get_current_user)):
+    return await get_template_owned(template_id, user)
+
+
+@api_router.delete("/templates/{template_id}")
+async def delete_template(template_id: str, user: dict = Depends(get_current_user)):
+    tpl = await get_template_owned(template_id, user)
+    await delete_file(tpl["document"]["file_id"])
+    await db.templates.delete_one({"template_id": template_id})
+    return {"ok": True}
+
+
+@api_router.get("/templates/{template_id}/file")
+async def template_file(template_id: str, user: dict = Depends(get_current_user)):
+    tpl = await get_template_owned(template_id, user)
+    data = await download_file(tpl["document"]["file_id"])
+    return FastResponse(content=data, media_type="application/pdf",
+                        headers={"Content-Disposition": "inline; filename=template.pdf"})
+
+
+@api_router.post("/templates/{template_id}/use")
+async def use_template(template_id: str, body: TemplateUse,
+                       user: dict = Depends(get_current_user)):
+    tpl = await get_template_owned(template_id, user)
+    role_to = {a.role_id: {"name": a.name, "email": a.email} for a in body.recipients}
+    role_ids = {r["role_id"] for r in tpl["roles"]}
+    for rid in role_ids:
+        if rid not in role_to or not role_to[rid]["email"]:
+            raise HTTPException(status_code=400, detail="Provide a recipient for every role")
+    new_file = await copy_gridfs(tpl["document"]["file_id"], tpl["document"]["original_filename"])
+    env = build_envelope_from_template(tpl, user, new_file, role_to)
+    await db.envelopes.insert_one(dict(env))
+    await db.templates.update_one({"template_id": template_id}, {"$inc": {"use_count": 1}})
+    env.pop("_id", None)
+    return {"envelope_id": env["envelope_id"]}
+
+
+@api_router.post("/templates/{template_id}/bulk-send")
+async def bulk_send_template(template_id: str, body: BulkSend, request: Request,
+                             user: dict = Depends(get_current_user)):
+    tpl = await get_template_owned(template_id, user)
+    if len(tpl["roles"]) != 1:
+        raise HTTPException(status_code=400,
+                            detail="Bulk send is available for single-signer templates only")
+    if not body.rows:
+        raise HTTPException(status_code=400, detail="Add at least one recipient row")
+    role_id = tpl["roles"][0]["role_id"]
+    base = (body.base_url or request.headers.get("origin", "")).rstrip("/")
+    created = []
+    for row in body.rows:
+        new_file = await copy_gridfs(tpl["document"]["file_id"], tpl["document"]["original_filename"])
+        env = build_envelope_from_template(
+            tpl, user, new_file, {role_id: {"name": row.name, "email": row.email}})
+        env["status"] = "sent"
+        env["sent_at"] = now_iso()
+        env["message"] = body.message or ""
+        rcp = env["recipients"][0]
+        env["audit_events"].append(
+            audit_event(user["email"], "Sent for signature", client_ip(request), "Bulk send"))
+        await db.envelopes.insert_one(dict(env))
+        link = f"{base}/sign/{rcp['access_token']}" if base else None
+        if link:
+            email_service.send_signing_invite(
+                rcp["email"], rcp["name"], env["owner_name"], env["title"], link, body.message)
+        created.append({"envelope_id": env["envelope_id"], "name": rcp["name"],
+                        "email": rcp["email"], "sign_url": link})
+    await db.templates.update_one({"template_id": template_id},
+                                  {"$inc": {"use_count": len(created)}})
+    return {"created": len(created), "envelopes": created}
+
+
+# --------------------------------------------------------------------------
 # Signer flow (public, token-based — no account required)
 # --------------------------------------------------------------------------
 async def _find_by_token(token: str):
@@ -384,6 +616,7 @@ async def _find_by_token(token: str):
 @api_router.get("/sign/{token}")
 async def signer_view(token: str, request: Request):
     env, recipient = await _find_by_token(token)
+    env = await maybe_expire(env)
     signable = can_sign(env, recipient)
     if recipient["status"] == "pending" and env["status"] in ("sent", "viewed") and signable:
         for r in env["recipients"]:
@@ -543,6 +776,20 @@ app.add_middleware(
 )
 
 
+async def expiry_loop():
+    """Periodically mark overdue active envelopes as expired."""
+    while True:
+        try:
+            now = now_iso()
+            await db.envelopes.update_many(
+                {"status": {"$in": ["sent", "viewed"]},
+                 "expires_at": {"$ne": None, "$lt": now}},
+                {"$set": {"status": "expired", "updated_at": now}})
+        except Exception as e:
+            logger.warning(f"expiry loop: {e}")
+        await asyncio.sleep(300)
+
+
 @app.on_event("startup")
 async def startup():
     try:
@@ -551,9 +798,12 @@ async def startup():
         await db.envelopes.create_index("owner_id")
         await db.envelopes.create_index("envelope_id", unique=True)
         await db.envelopes.create_index("recipients.access_token")
+        await db.templates.create_index("owner_id")
+        await db.templates.create_index("template_id", unique=True)
     except Exception as e:
         logger.warning(f"index creation: {e}")
     await seed_admin()
+    asyncio.create_task(expiry_loop())
     try:
         mem = Path("/app/memory")
         mem.mkdir(parents=True, exist_ok=True)

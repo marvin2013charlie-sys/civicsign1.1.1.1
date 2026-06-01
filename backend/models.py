@@ -54,6 +54,7 @@ class EnvelopeUpdate(BaseModel):
 class SendRequest(BaseModel):
     base_url: Optional[str] = None
     message: Optional[str] = None
+    expires_in_days: Optional[int] = None
 
 
 class SignFieldValue(BaseModel):
@@ -76,3 +77,34 @@ class ContactRequest(BaseModel):
     email: EmailStr
     subject: Optional[str] = None
     message: str = Field(min_length=1)
+
+
+# ---- Templates ----
+class TemplateCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
+
+class RoleAssignment(BaseModel):
+    role_id: str
+    name: str
+    email: EmailStr
+
+
+class TemplateUse(BaseModel):
+    recipients: List[RoleAssignment]
+
+
+class BulkRow(BaseModel):
+    name: str
+    email: EmailStr
+
+
+class BulkSend(BaseModel):
+    base_url: Optional[str] = None
+    message: Optional[str] = None
+    rows: List[BulkRow]
+
+
+class RemindRequest(BaseModel):
+    base_url: Optional[str] = None

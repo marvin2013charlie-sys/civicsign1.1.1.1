@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft, Send, Loader2, FileText, Copy, CheckCircle2, ExternalLink, Mail,
 } from "lucide-react";
 
@@ -18,6 +21,7 @@ export default function SendReview() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(null); // {links}
+  const [expiresIn, setExpiresIn] = useState("none");
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +49,10 @@ export default function SendReview() {
   const doSend = async () => {
     setSending(true);
     try {
-      const { data } = await api.post(`/envelopes/${id}/send`, { base_url: window.location.origin, message });
+      const { data } = await api.post(`/envelopes/${id}/send`, {
+        base_url: window.location.origin, message,
+        expires_in_days: expiresIn === "none" ? null : Number(expiresIn),
+      });
       setSent({ links: data.links });
       toast.success("Sent for signature!");
     } catch (err) {
@@ -123,6 +130,19 @@ export default function SendReview() {
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p><p className="truncate text-xs text-[var(--muted-foreground)]">{r.email}</p></div>
                 </div>
               ))}
+            </div>
+            <div className="mt-4">
+              <Label className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Expiration</Label>
+              <Select value={expiresIn} onValueChange={setExpiresIn}>
+                <SelectTrigger className="mt-1" data-testid="send-expiry-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No expiration</SelectItem>
+                  <SelectItem value="3">Expires in 3 days</SelectItem>
+                  <SelectItem value="7">Expires in 7 days</SelectItem>
+                  <SelectItem value="14">Expires in 14 days</SelectItem>
+                  <SelectItem value="30">Expires in 30 days</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={doSend} disabled={sending} className="mt-5 w-full" data-testid="send-submit-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
               {sending ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Sending…</> : <><Send className="mr-1.5 h-4 w-4" /> Send for signature</>}

@@ -9,10 +9,14 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft, Plus, Trash2, ZoomIn, ZoomOut, Send, UserPlus, Loader2,
-  GripVertical, X, Users, ListOrdered,
+  GripVertical, X, Users, ListOrdered, LayoutTemplate,
 } from "lucide-react";
 
 const COLORS = ["#1FB8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"];
@@ -112,6 +116,10 @@ export default function PrepareStudio() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newRec, setNewRec] = useState({ name: "", email: "" });
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tplName, setTplName] = useState("");
+  const [tplDesc, setTplDesc] = useState("");
+  const [savingTpl, setSavingTpl] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -209,6 +217,30 @@ export default function PrepareStudio() {
     finally { setSaving(false); }
   };
 
+  const openTemplateDialog = () => {
+    if (recipients.length === 0 || fields.length === 0) {
+      toast.error("Add recipients and fields before saving as a template");
+      return;
+    }
+    setTplName(env?.title || "Untitled template");
+    setTplDesc("");
+    setTplOpen(true);
+  };
+
+  const saveAsTemplate = async () => {
+    setSavingTpl(true);
+    try {
+      await persist();
+      await api.post(`/templates/from-envelope/${id}`, { name: tplName, description: tplDesc });
+      toast.success("Template saved");
+      setTplOpen(false);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
   const pages = env?.document?.pages || [];
   const renderWidth = Math.round(pageWidth * zoom);
 
@@ -229,6 +261,9 @@ export default function PrepareStudio() {
             <span className="w-10 text-center text-xs text-[var(--muted-foreground)]">{Math.round(zoom * 100)}%</span>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.6, z + 0.1))} data-testid="prepare-zoom-in-button"><ZoomIn className="h-4 w-4" /></Button>
           </div>
+          <Button variant="ghost" className="hidden sm:inline-flex" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-save-template-button">
+            <LayoutTemplate className="mr-1.5 h-4 w-4" /> Save as template
+          </Button>
           <Button variant="outline" onClick={saveAndExit} disabled={saving} data-testid="prepare-save-button">Save & exit</Button>
           <Button onClick={continueToSend} disabled={saving} data-testid="prepare-send-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />} Continue to send
@@ -335,6 +370,31 @@ export default function PrepareStudio() {
       <div className="border-t border-[var(--c-border)] bg-[var(--card)] p-2 text-center text-xs text-[var(--muted-foreground)] lg:hidden">
         For full field placement, use a larger screen. Recipients & fields panel is optimized for desktop.
       </div>
+
+      <Dialog open={tplOpen} onOpenChange={setTplOpen}>
+        <DialogContent data-testid="save-template-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading">Save as template</DialogTitle>
+            <DialogDescription>Reuse this document, its fields, and recipient roles anytime.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="tpl-name">Template name</Label>
+              <Input id="tpl-name" value={tplName} onChange={(e) => setTplName(e.target.value)} className="mt-1" data-testid="template-name-input" />
+            </div>
+            <div>
+              <Label htmlFor="tpl-desc">Description (optional)</Label>
+              <Textarea id="tpl-desc" rows={3} value={tplDesc} onChange={(e) => setTplDesc(e.target.value)} className="mt-1" data-testid="template-desc-input" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTplOpen(false)}>Cancel</Button>
+            <Button onClick={saveAsTemplate} disabled={savingTpl} data-testid="template-save-submit" style={{ background: "var(--c-primary)", color: "#fff" }}>
+              {savingTpl ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <LayoutTemplate className="mr-1.5 h-4 w-4" />} Save template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

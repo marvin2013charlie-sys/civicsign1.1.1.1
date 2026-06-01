@@ -6,6 +6,7 @@ const MAP = {
   viewed: { label: "Viewed", v: "viewed" },
   completed: { label: "Completed", v: "completed" },
   declined: { label: "Declined", v: "declined" },
+  expired: { label: "Expired", v: "expired" },
   signed: { label: "Signed", v: "completed" },
   pending: { label: "Pending", v: "draft" },
 };

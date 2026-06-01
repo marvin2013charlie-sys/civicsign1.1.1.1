@@ -15,6 +15,7 @@ import PrepareStudio from "@/pages/PrepareStudio";
 import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
+import Templates from "@/pages/Templates";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -59,6 +60,7 @@ function AppRoutes() {
       <Route path="/sign/:token" element={<SignerFlow />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
+      <Route path="/templates" element={<Protected><Templates /></Protected>} />
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
       <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />
       <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />
