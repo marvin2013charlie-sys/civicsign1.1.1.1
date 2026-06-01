@@ -72,6 +72,22 @@ def _send(to_email, subject, html, attachment_bytes=None, attachment_name="docum
         return "error"
 
 
+def is_configured() -> bool:
+    """Whether real email delivery (SendGrid) is configured."""
+    return _enabled()
+
+
+def send_password_reset(to_email, name, reset_url):
+    body = (
+        f"<p>Hi {name or 'there'},</p>"
+        f"<p>A password reset was requested for your CIVICSIGN account. "
+        f"Click the button below to choose a new password. This link expires in 1 hour.</p>"
+        f"<p style=\"color:#8a9299;font-size:13px\">If you didn't request this, you can safely ignore this email.</p>"
+    )
+    html = _shell("Reset your password", body, "Reset password", reset_url)
+    return _send(to_email, "Reset your CIVICSIGN password", html)
+
+
 def send_signing_invite(to_email, signer_name, sender_name, doc_title, sign_url, message=None):
     extra = f'<p style="background:#F2ECE3;border-left:3px solid {BRAND};padding:10px 14px;border-radius:6px;margin:14px 0">\u201c{message}\u201d</p>' if message else ""
     body = (

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck, Eye, Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -84,13 +84,22 @@ function SidebarContent({ user, onLogout, onNavigate }) {
 }
 
 export const AppShell = ({ children, title, actions }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, impersonation, stopImpersonation } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [exiting, setExiting] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate("/login");
+  };
+
+  const handleExitImpersonation = () => {
+    setExiting(true);
+    // Restore the admin session, then hard-reload into the admin console so the
+    // route guards re-evaluate against the admin identity cleanly.
+    stopImpersonation();
+    window.location.href = "/admin/users";
   };
 
   return (
@@ -114,6 +123,31 @@ export const AppShell = ({ children, title, actions }) => {
       )}
 
       <div className="lg:pl-64">
+        {/* Impersonation banner */}
+        {impersonation && (
+          <div
+            data-testid="impersonation-banner"
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-sm font-medium text-[var(--c-ink)]"
+            style={{ background: "var(--status-viewed-bg)", borderBottom: "1px solid var(--c-border)" }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Eye className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+              Viewing as <b data-testid="impersonation-target">{impersonation.name || impersonation.email}</b>
+              <span className="hidden text-[var(--muted-foreground)] sm:inline">({impersonation.email})</span>
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExitImpersonation}
+              disabled={exiting}
+              data-testid="exit-impersonation-button"
+              className="h-7 border-[var(--c-ink)]/20 bg-[var(--card)]"
+            >
+              {exiting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LogOut className="mr-1.5 h-3.5 w-3.5" />}
+              Exit impersonation
+            </Button>
+          </div>
+        )}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--c-border)] bg-[var(--c-paper)]/90 px-4 backdrop-blur sm:px-6">
           <button className="lg:hidden" onClick={() => setOpen(true)} data-testid="mobile-menu-button">
             <Menu className="h-5 w-5" />

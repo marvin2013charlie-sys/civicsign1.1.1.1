@@ -1,22 +1,38 @@
 [
   {
-    "content": "Create dedicated AdminLogin page (/admin/login) with admin-only gate + dark branding",
+    "content": "Backend: invert token precedence in auth.py to header-first (Bearer overrides cookie) for impersonation",
     "status": "completed"
   },
   {
-    "content": "Wire routing: add /admin/login, route AdminProtected redirects to /admin/login",
+    "content": "AuthContext: add impersonation state + startImpersonation/stopImpersonation helpers",
     "status": "completed"
   },
   {
-    "content": "AdminShell logout -> /admin/login; add 'Admin sign in' link on main Login page",
+    "content": "AppShell: add impersonation banner with Exit button",
     "status": "completed"
   },
   {
-    "content": "Compile/lint + verify admin portal flow + fix literal unicode escapes",
+    "content": "AdminUsers.jsx: remove role dropdown (read-only badge), make rows link to detail page",
     "status": "completed"
   },
   {
-    "content": "Update plan.md + finish",
+    "content": "Create AdminUserDetail.jsx page (diagnostics, plan/active mgmt, reset link, impersonation OTP dialog)",
     "status": "completed"
+  },
+  {
+    "content": "Create public ResetPassword.jsx page",
+    "status": "completed"
+  },
+  {
+    "content": "App.js: add /admin/users/:userId and /reset-password routes",
+    "status": "completed"
+  },
+  {
+    "content": "Lint frontend (esbuild) + restart backend, fix errors",
+    "status": "completed"
+  },
+  {
+    "content": "Run testing_agent_v3 for impersonation, reset, diagnostics flows",
+    "status": "in_progress"
   }
 ]

@@ -152,3 +152,18 @@ class ChatRequest(BaseModel):
 class AccountDelete(BaseModel):
     confirm: str
 
+
+# ---- Admin: impersonation & password reset ----
+class ImpersonateVerify(BaseModel):
+    request_id: str
+    otp: str
+
+
+class SendReset(BaseModel):
+    base_url: Optional[str] = None
+
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str = Field(min_length=6)
+

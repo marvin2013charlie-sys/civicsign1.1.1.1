@@ -6,14 +6,18 @@ contact-message inbox.
 """
 import io
 import csv
+import os
+import uuid
+import secrets
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 
+import email_service
 from db import db
-from auth import require_admin
-from models import AdminUserUpdate, ContactHandle
+from auth import require_admin, _public_user, create_access_token, create_password_reset
+from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset
 
 logger = logging.getLogger("civicsign.admin")
 
@@ -214,10 +218,12 @@ async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends
         raise HTTPException(status_code=404, detail="User not found")
 
     updates = {}
-    if body.role is not None:
-        if body.role not in ROLES:
-            raise HTTPException(status_code=400, detail="Invalid role")
-        updates["role"] = body.role
+    # Role promotion/demotion is intentionally NOT allowed from the portal.
+    # Admin accounts can only be provisioned on the backend (seed/env).
+    if body.role is not None and body.role != target.get("role", "user"):
+        raise HTTPException(
+            status_code=403,
+            detail="Admin roles can only be assigned on the backend. Signed-up users cannot be promoted to admin from the portal.")
     if body.plan is not None:
         if body.plan not in PLANS:
             raise HTTPException(status_code=400, detail="Invalid plan")
@@ -228,17 +234,145 @@ async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends
     if not updates:
         raise HTTPException(status_code=400, detail="No changes provided")
 
-    # Guard rails: an admin cannot demote or deactivate their own account
-    if user_id == admin["user_id"]:
-        if updates.get("active") is False:
-            raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
-        if updates.get("role") == "user":
-            raise HTTPException(status_code=400, detail="You cannot remove your own admin access")
+    # Guard rail: an admin cannot deactivate their own account
+    if user_id == admin["user_id"] and updates.get("active") is False:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
 
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.users.update_one({"user_id": user_id}, {"$set": updates})
     fresh = await db.users.find_one({"user_id": user_id})
     return _clean_user(fresh)
+
+
+@admin_router.get("/users/{user_id}")
+async def user_detail(user_id: str, admin: dict = Depends(require_admin)):
+    """Full account detail + help/diagnostics for one user."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target = _clean_user(target)
+
+    envs = await db.envelopes.find(
+        {"owner_id": user_id},
+        {"_id": 0, "envelope_id": 1, "title": 1, "status": 1,
+         "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(2000)
+
+    stats = {s: 0 for s in STATUSES}
+    for e in envs:
+        stats[e.get("status", "draft")] = stats.get(e.get("status", "draft"), 0) + 1
+    templates_count = await db.templates.count_documents({"owner_id": user_id})
+
+    email_ok = email_service.is_configured()
+    diagnostics = {
+        "email_configured": email_ok,
+        "sender_email": os.environ.get("SENDER_EMAIL") or None,
+        "account_active": target.get("active", True),
+        "auth_provider": target.get("auth_provider", "password"),
+        "can_send_email": email_ok,
+        "email_note": (
+            "SendGrid is configured \u2014 invites & notifications are emailed."
+            if email_ok else
+            "SendGrid is NOT configured (skip-mode). Recipients get shareable links instead of emails; "
+            "set SENDGRID_API_KEY and SENDER_EMAIL to enable real delivery."),
+    }
+
+    return {
+        "user": target,
+        "stats": {
+            "total": len(envs),
+            "completed": stats.get("completed", 0),
+            "sent": stats.get("sent", 0),
+            "viewed": stats.get("viewed", 0),
+            "draft": stats.get("draft", 0),
+            "declined": stats.get("declined", 0),
+            "expired": stats.get("expired", 0),
+            "templates": templates_count,
+        },
+        "recent_envelopes": envs[:10],
+        "diagnostics": diagnostics,
+    }
+
+
+@admin_router.post("/users/{user_id}/send-reset")
+async def send_password_reset_link(user_id: str, body: SendReset, admin: dict = Depends(require_admin)):
+    """Generate a password-reset link for a user. Emails it when SendGrid is
+    configured; otherwise returns the link so the admin can share it."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not target.get("password_hash") and target.get("auth_provider") == "google":
+        raise HTTPException(status_code=400, detail="This account signs in with Google and has no password to reset.")
+
+    token = await create_password_reset(user_id)
+    base = (body.base_url or "").rstrip("/")
+    reset_link = f"{base}/reset-password?token={token}"
+    status = email_service.send_password_reset(target["email"], target.get("name"), reset_link)
+    await db.admin_audit.insert_one({
+        "audit_id": f"aud_{uuid.uuid4().hex[:12]}", "action": "send_password_reset",
+        "admin_id": admin["user_id"], "admin_email": admin["email"],
+        "target_user_id": user_id, "target_email": target["email"],
+        "at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"reset_link": reset_link, "emailed": status == "sent",
+            "email_status": status, "email": target["email"]}
+
+
+@admin_router.post("/users/{user_id}/impersonate/request")
+async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)):
+    """Step 1 of impersonation: issue a one-time OTP (shown on-screen in dev mode)."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="You cannot impersonate another admin account.")
+    if target.get("active") is False:
+        raise HTTPException(status_code=400, detail="Reactivate this account before entering it.")
+
+    request_id = f"imp_{uuid.uuid4().hex[:16]}"
+    otp = f"{secrets.randbelow(900000) + 100000}"
+    await db.impersonation_otps.insert_one({
+        "request_id": request_id, "admin_id": admin["user_id"],
+        "target_user_id": user_id, "otp": otp, "used": False,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    logger.info(f"Impersonation OTP for admin={admin['email']} target={target['email']} otp={otp}")
+    # dev_mode True -> OTP returned in response since email is not live.
+    return {"request_id": request_id, "otp": otp, "dev_mode": True,
+            "expires_in": 300, "target_email": target["email"]}
+
+
+@admin_router.post("/users/{user_id}/impersonate/verify")
+async def impersonate_verify(user_id: str, body: ImpersonateVerify, admin: dict = Depends(require_admin)):
+    """Step 2: verify the OTP and mint an access token for the target user."""
+    rec = await db.impersonation_otps.find_one({
+        "request_id": body.request_id, "admin_id": admin["user_id"], "target_user_id": user_id})
+    if not rec or rec.get("used"):
+        raise HTTPException(status_code=400, detail="Invalid or already-used verification code")
+    try:
+        expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
+    if (body.otp or "").strip() != rec["otp"]:
+        raise HTTPException(status_code=400, detail="Incorrect verification code")
+
+    await db.impersonation_otps.update_one({"request_id": body.request_id}, {"$set": {"used": True}})
+
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token = create_access_token(target["user_id"], target["email"])
+    await db.admin_audit.insert_one({
+        "audit_id": f"aud_{uuid.uuid4().hex[:12]}", "action": "impersonate",
+        "admin_id": admin["user_id"], "admin_email": admin["email"],
+        "target_user_id": user_id, "target_email": target["email"],
+        "at": datetime.now(timezone.utc).isoformat(),
+    })
+    logger.info(f"Impersonation GRANTED admin={admin['email']} -> target={target['email']}")
+    return {"access_token": token, "user": _public_user(target)}
 
 
 @admin_router.get("/envelopes")

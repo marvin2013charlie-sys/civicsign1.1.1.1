@@ -17,10 +17,12 @@ import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
 import Settings from "@/pages/Settings";
+import ResetPassword from "@/pages/ResetPassword";
 import { AdminShell } from "@/components/AdminShell";
 import AdminOverview from "@/pages/admin/AdminOverview";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
 import AdminContacts from "@/pages/admin/AdminContacts";
 import About from "@/pages/About";
@@ -73,6 +75,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/sign/:token" element={<SignerFlow />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
@@ -81,6 +84,7 @@ function AppRoutes() {
       <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
         <Route index element={<AdminOverview />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="users/:userId" element={<AdminUserDetail />} />
         <Route path="envelopes" element={<AdminEnvelopes />} />
         <Route path="contacts" element={<AdminContacts />} />
       </Route>

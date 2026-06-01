@@ -4,6 +4,7 @@ single `get_current_user` dependency.
 """
 import os
 import uuid
+import secrets
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -16,6 +17,7 @@ from db import db, delete_file
 from models import (
     RegisterRequest, LoginRequest, GoogleSessionRequest,
     ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
+    ResetPassword,
 )
 
 logger = logging.getLogger("civicsign.auth")
@@ -86,11 +88,14 @@ def _public_user(doc: dict) -> dict:
 
 
 async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("access_token")
+    # The Authorization: Bearer header takes precedence over the session cookie so
+    # an admin can supply an impersonation token that overrides their own cookie.
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
     if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+        token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -312,6 +317,51 @@ async def delete_account(body: AccountDelete, response: Response,
     clear_auth_cookies(response)
     logger.info(f"Account deleted: {user.get('email')}")
     return {"ok": True, "message": "Your account and all associated data have been deleted."}
+
+
+async def create_password_reset(user_id: str) -> str:
+    """Create a one-time password-reset token (valid 1 hour)."""
+    token = secrets.token_urlsafe(32)
+    await db.password_resets.insert_one({
+        "token": token, "user_id": user_id, "used": False,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return token
+
+
+async def _valid_reset(token: str) -> dict:
+    rec = await db.password_resets.find_one({"token": token})
+    if not rec or rec.get("used"):
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has already been used")
+    try:
+        expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=400, detail="This reset link has expired. Ask an admin for a new one.")
+    return rec
+
+
+@auth_router.get("/reset-info")
+async def reset_info(token: str):
+    rec = await _valid_reset(token)
+    user = await db.users.find_one({"user_id": rec["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"email": user["email"], "name": user.get("name", "")}
+
+
+@auth_router.post("/reset-password")
+async def reset_password(body: ResetPassword):
+    rec = await _valid_reset(body.token)
+    await db.users.update_one(
+        {"user_id": rec["user_id"]},
+        {"$set": {"password_hash": hash_password(body.new_password),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}})
+    await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
+    logger.info(f"Password reset completed for user {rec['user_id']}")
+    return {"ok": True, "message": "Your password has been reset. You can now sign in."}
 
 
 async def seed_admin():

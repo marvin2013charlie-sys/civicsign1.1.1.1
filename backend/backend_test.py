@@ -374,10 +374,355 @@ class Phase5Tester:
             self.tests_run += 1
             self.log(f"❌ FAILED - Exception: {str(e)}", "ERROR")
 
+    def test_admin_user_management(self):
+        """Test admin user management endpoints (Phase 6)."""
+        self.log("\n" + "="*60, "SECTION")
+        self.log("TESTING: ADMIN USER MANAGEMENT (PHASE 6)", "SECTION")
+        self.log("="*60, "SECTION")
+        
+        if not self.admin_token:
+            self.log("❌ Admin token not available, skipping user management tests", "SKIP")
+            return
+        
+        headers = {"Authorization": f"Bearer {self.admin_token}"}
+        
+        # Test 1: List all users
+        success, response = self.test(
+            "List All Users",
+            "GET",
+            "admin/users",
+            200,
+            headers=headers,
+            description="Fetching all users from admin portal"
+        )
+        
+        if not success or not response:
+            self.log("❌ Failed to get users list, skipping further tests", "ERROR")
+            return
+        
+        users = response
+        self.log(f"   Found {len(users)} users", "INFO")
+        
+        # Find demo user for testing
+        demo_user = next((u for u in users if u.get("email") == "demo@civicsign.com"), None)
+        if not demo_user:
+            self.log("❌ Demo user not found, skipping user detail tests", "ERROR")
+            return
+        
+        demo_user_id = demo_user["user_id"]
+        self.log(f"   Demo user ID: {demo_user_id}", "INFO")
+        
+        # Test 2: Get user detail
+        success, detail = self.test(
+            "Get User Detail",
+            "GET",
+            f"admin/users/{demo_user_id}",
+            200,
+            headers=headers,
+            description="Fetching detailed user information with diagnostics"
+        )
+        
+        if success and detail:
+            # Verify structure
+            if "user" in detail and "stats" in detail and "diagnostics" in detail:
+                self.log("   ✓ User detail has correct structure", "INFO")
+                self.log(f"   User: {detail['user'].get('email')}", "INFO")
+                self.log(f"   Total envelopes: {detail['stats'].get('total')}", "INFO")
+                self.log(f"   Account active: {detail['diagnostics'].get('account_active')}", "INFO")
+                self.log(f"   Email configured: {detail['diagnostics'].get('email_configured')}", "INFO")
+            else:
+                self.log("   ✗ User detail missing expected fields", "WARN")
+        
+        # Test 3: Update user plan
+        self.test(
+            "Update User Plan",
+            "PATCH",
+            f"admin/users/{demo_user_id}",
+            200,
+            data={"plan": "business"},
+            headers=headers,
+            description="Updating user's subscription plan"
+        )
+        
+        # Test 4: Update user active status
+        self.test(
+            "Update User Active Status",
+            "PATCH",
+            f"admin/users/{demo_user_id}",
+            200,
+            data={"active": True},
+            headers=headers,
+            description="Updating user's active status"
+        )
+        
+        # Test 5: Try to promote user to admin (should fail with 403)
+        self.test(
+            "Try to Promote User to Admin (should fail)",
+            "PATCH",
+            f"admin/users/{demo_user_id}",
+            403,
+            data={"role": "admin"},
+            headers=headers,
+            description="Attempting to promote user to admin (should be blocked)"
+        )
+        
+        # Test 6: Non-admin cannot access admin endpoints
+        if self.demo_token:
+            demo_headers = {"Authorization": f"Bearer {self.demo_token}"}
+            self.test(
+                "Non-admin Access to Admin Endpoint (should fail)",
+                "GET",
+                "admin/users",
+                403,
+                headers=demo_headers,
+                description="Verifying non-admin users cannot access admin endpoints"
+            )
+
+    def test_password_reset_flow(self):
+        """Test password reset link generation and usage (Phase 6)."""
+        self.log("\n" + "="*60, "SECTION")
+        self.log("TESTING: PASSWORD RESET FLOW (PHASE 6)", "SECTION")
+        self.log("="*60, "SECTION")
+        
+        if not self.admin_token:
+            self.log("❌ Admin token not available, skipping password reset tests", "SKIP")
+            return
+        
+        # Create a throwaway account for testing
+        test_email = f"reset_test_{int(datetime.now().timestamp())}@example.com"
+        test_password = "Test1234!"
+        
+        self.log(f"Creating test account: {test_email}", "INFO")
+        success, response = self.test(
+            "Register Test Account for Reset",
+            "POST",
+            "auth/register",
+            200,
+            data={
+                "name": "Reset Test User",
+                "email": test_email,
+                "password": test_password
+            },
+            description="Creating a test account for password reset testing"
+        )
+        
+        if not success or 'user' not in response:
+            self.log("❌ Failed to create test account, skipping reset tests", "ERROR")
+            return
+        
+        test_user_id = response['user']['user_id']
+        admin_headers = {"Authorization": f"Bearer {self.admin_token}"}
+        
+        # Test 1: Generate password reset link
+        success, reset_response = self.test(
+            "Generate Password Reset Link",
+            "POST",
+            f"admin/users/{test_user_id}/send-reset",
+            200,
+            data={"base_url": "https://esign-platform-hub.preview.emergentagent.com"},
+            headers=admin_headers,
+            description="Admin generating password reset link for user"
+        )
+        
+        if not success or 'reset_link' not in reset_response:
+            self.log("❌ Failed to generate reset link, skipping further tests", "ERROR")
+            return
+        
+        reset_link = reset_response['reset_link']
+        reset_token = reset_link.split("token=")[-1]
+        email_status = reset_response.get('email_status')
+        
+        self.log(f"   Reset link generated: {reset_link[:50]}...", "INFO")
+        self.log(f"   Email status: {email_status}", "INFO")
+        
+        # Verify email is in skip-mode
+        if email_status == "skipped":
+            self.log("   ✓ Email is in skip-mode as expected", "INFO")
+        else:
+            self.log(f"   ⚠ Email status is '{email_status}', expected 'skipped'", "WARN")
+        
+        # Test 2: Get reset token info
+        success, info = self.test(
+            "Get Reset Token Info",
+            "GET",
+            f"auth/reset-info?token={reset_token}",
+            200,
+            description="Fetching account info from reset token"
+        )
+        
+        if success and info:
+            self.log(f"   Email from token: {info.get('email')}", "INFO")
+            if info.get('email') == test_email:
+                self.log("   ✓ Token email matches test account", "INFO")
+        
+        # Test 3: Try invalid token (should fail)
+        self.test(
+            "Get Reset Info with Invalid Token (should fail)",
+            "GET",
+            "auth/reset-info?token=invalidtoken123",
+            400,
+            description="Verifying invalid tokens are rejected"
+        )
+        
+        # Test 4: Reset password with valid token
+        new_password = "NewPass1234!"
+        self.test(
+            "Reset Password with Valid Token",
+            "POST",
+            "auth/reset-password",
+            200,
+            data={"token": reset_token, "new_password": new_password},
+            description="Resetting password using the generated token"
+        )
+        
+        # Test 5: Try to login with old password (should fail)
+        self.test(
+            "Login with Old Password (should fail)",
+            "POST",
+            "auth/login",
+            401,
+            data={"email": test_email, "password": test_password},
+            description="Verifying old password no longer works"
+        )
+        
+        # Test 6: Login with new password (should succeed)
+        success, login_response = self.test(
+            "Login with New Password",
+            "POST",
+            "auth/login",
+            200,
+            data={"email": test_email, "password": new_password},
+            description="Verifying new password works"
+        )
+        
+        # Test 7: Try to reuse the same token (should fail)
+        self.test(
+            "Reuse Reset Token (should fail)",
+            "POST",
+            "auth/reset-password",
+            400,
+            data={"token": reset_token, "new_password": "AnotherPass1234!"},
+            description="Verifying reset tokens are single-use"
+        )
+
+    def test_impersonation_flow(self):
+        """Test admin impersonation OTP flow (Phase 6)."""
+        self.log("\n" + "="*60, "SECTION")
+        self.log("TESTING: ADMIN IMPERSONATION FLOW (PHASE 6)", "SECTION")
+        self.log("="*60, "SECTION")
+        
+        if not self.admin_token or not self.demo_token:
+            self.log("❌ Admin or demo token not available, skipping impersonation tests", "SKIP")
+            return
+        
+        admin_headers = {"Authorization": f"Bearer {self.admin_token}"}
+        
+        # Get demo user ID
+        success, users = self.test(
+            "Get Users List for Impersonation",
+            "GET",
+            "admin/users",
+            200,
+            headers=admin_headers,
+            description="Fetching users to find demo user for impersonation"
+        )
+        
+        if not success or not users:
+            self.log("❌ Failed to get users, skipping impersonation tests", "ERROR")
+            return
+        
+        demo_user = next((u for u in users if u.get("email") == "demo@civicsign.com"), None)
+        if not demo_user:
+            self.log("❌ Demo user not found, skipping impersonation tests", "ERROR")
+            return
+        
+        demo_user_id = demo_user["user_id"]
+        
+        # Test 1: Request impersonation OTP
+        success, otp_response = self.test(
+            "Request Impersonation OTP",
+            "POST",
+            f"admin/users/{demo_user_id}/impersonate/request",
+            200,
+            headers=admin_headers,
+            description="Admin requesting OTP to impersonate demo user"
+        )
+        
+        if not success or 'otp' not in otp_response:
+            self.log("❌ Failed to get OTP, skipping verification tests", "ERROR")
+            return
+        
+        request_id = otp_response['request_id']
+        otp = otp_response['otp']
+        dev_mode = otp_response.get('dev_mode', False)
+        
+        self.log(f"   Request ID: {request_id}", "INFO")
+        self.log(f"   OTP: {otp}", "INFO")
+        self.log(f"   Dev mode: {dev_mode}", "INFO")
+        
+        if dev_mode:
+            self.log("   ✓ Dev mode enabled, OTP returned in response", "INFO")
+        
+        # Test 2: Verify OTP with wrong code (should fail)
+        self.test(
+            "Verify Impersonation with Wrong OTP (should fail)",
+            "POST",
+            f"admin/users/{demo_user_id}/impersonate/verify",
+            400,
+            data={"request_id": request_id, "otp": "000000"},
+            headers=admin_headers,
+            description="Attempting to verify with incorrect OTP"
+        )
+        
+        # Test 3: Verify OTP with correct code
+        success, verify_response = self.test(
+            "Verify Impersonation with Correct OTP",
+            "POST",
+            f"admin/users/{demo_user_id}/impersonate/verify",
+            200,
+            data={"request_id": request_id, "otp": otp},
+            headers=admin_headers,
+            description="Verifying with correct OTP to get impersonation token"
+        )
+        
+        if success and 'access_token' in verify_response:
+            imp_token = verify_response['access_token']
+            imp_user = verify_response.get('user', {})
+            self.log(f"   ✓ Impersonation token obtained", "INFO")
+            self.log(f"   Impersonating: {imp_user.get('email')}", "INFO")
+            
+            # Test 4: Use impersonation token to access user's data
+            imp_headers = {"Authorization": f"Bearer {imp_token}"}
+            success, me_response = self.test(
+                "Access User Data with Impersonation Token",
+                "GET",
+                "auth/me",
+                200,
+                headers=imp_headers,
+                description="Using impersonation token to access user's account"
+            )
+            
+            if success and me_response:
+                self.log(f"   Logged in as: {me_response.get('email')}", "INFO")
+                if me_response.get('email') == demo_user['email']:
+                    self.log("   ✓ Impersonation successful, viewing as target user", "INFO")
+        
+        # Test 5: Try to impersonate admin account (should fail)
+        admin_user = next((u for u in users if u.get("role") == "admin"), None)
+        if admin_user:
+            self.test(
+                "Try to Impersonate Admin Account (should fail)",
+                "POST",
+                f"admin/users/{admin_user['user_id']}/impersonate/request",
+                400,
+                headers=admin_headers,
+                description="Attempting to impersonate another admin (should be blocked)"
+            )
+
     def run_all_tests(self):
-        """Run all Phase 5 tests."""
+        """Run all Phase 5 & 6 tests."""
         self.log("\n" + "="*80, "HEADER")
-        self.log("CIVICSIGN PHASE 5 BACKEND API TESTS", "HEADER")
+        self.log("CIVICSIGN PHASE 5 & 6 BACKEND API TESTS", "HEADER")
         self.log("="*80 + "\n", "HEADER")
         
         # Login as admin
@@ -396,6 +741,11 @@ class Phase5Tester:
         self.test_account_deletion()
         self.test_admin_analytics()
         self.test_admin_csv_exports()
+        
+        # Phase 6 tests
+        self.test_admin_user_management()
+        self.test_password_reset_flow()
+        self.test_impersonation_flow()
         
         # Print summary
         self.log("\n" + "="*80, "SUMMARY")
