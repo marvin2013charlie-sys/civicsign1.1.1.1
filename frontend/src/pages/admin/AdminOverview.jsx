@@ -83,7 +83,7 @@ export default function AdminOverview() {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <p className="text-sm font-semibold text-[var(--c-ink)]">New signups \u00b7 last 14 days</p>
+          <p className="text-sm font-semibold text-[var(--c-ink)]">New signups · last 14 days</p>
           <div className="mt-3 h-40">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={m.signup_series} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
@@ -96,7 +96,7 @@ export default function AdminOverview() {
           </div>
         </div>
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes created \u00b7 last 14 days</p>
+          <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes created · last 14 days</p>
           <div className="mt-3 h-40">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={m.envelope_series} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>

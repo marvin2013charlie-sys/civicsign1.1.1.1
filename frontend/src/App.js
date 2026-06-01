@@ -19,6 +19,7 @@ import Templates from "@/pages/Templates";
 import Settings from "@/pages/Settings";
 import { AdminShell } from "@/components/AdminShell";
 import AdminOverview from "@/pages/admin/AdminOverview";
+import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
 import AdminContacts from "@/pages/admin/AdminContacts";
@@ -51,8 +52,8 @@ function PublicOnly({ children }) {
 function AdminProtected({ children }) {
   const { user } = useAuth();
   if (user === null) return <FullLoader />;
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== "admin") return <Navigate to="/dashboard" replace />;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if (user.role !== "admin") return <Navigate to="/admin/login" replace />;
   return children;
 }
 
@@ -76,6 +77,7 @@ function AppRoutes() {
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
+      <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
         <Route index element={<AdminOverview />} />
         <Route path="users" element={<AdminUsers />} />

@@ -104,6 +104,14 @@
 - **Deeper admin analytics** in /api/admin/metrics: signing funnel (Sent\u2192Viewed\u2192Completed), avg time-to-sign, decline/expired rates, top active users \u2014 surfaced on the Admin Overview.
 - **Admin CSV export** buttons (Users / Envelopes / Contacts) via /api/admin/export/*.csv.
 
+### Phase 6 — Dedicated Admin Portal (separate login) ✅ COMPLETE — VERIFIED (live flow)
+**Status:** DONE & TESTED (manual browser flow). Built a **separate, dark-branded admin portal** at `/admin/login` for internal team:
+- Dedicated AdminLogin page (CIVICSIGN Admin / "Internal console — authorized team members only"), email+password only.
+- Admin-only gate: a valid but non-admin account is logged out + shown "This portal is for internal team members only." Verified: admin → /admin; demo (non-admin) → stays on /admin/login.
+- AdminProtected now redirects unauthenticated/non-admin users to `/admin/login`; AdminShell "Sign out" returns to `/admin/login`.
+- Added an "Internal team? Admin sign in" link on the main user login page.
+- Fixed recurring literal-unicode-escape issue (used real —, ·, …, • characters in JSX text/attributes across the new admin/settings files).
+
 **User stories (Phase 4)**
 1. As a product owner, I can remove all “Made with Emergent” branding/badges from CIVICSIGN.
 2. As an internal team member, I can access a dedicated **Admin Dashboard** (role-based) to oversee the platform.

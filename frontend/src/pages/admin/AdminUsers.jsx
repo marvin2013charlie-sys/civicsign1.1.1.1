@@ -65,7 +65,7 @@ export default function AdminUsers() {
 
       <div className="relative mt-5 max-w-sm">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email\u2026" className="pl-9" data-testid="admin-users-search" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email…" className="pl-9" data-testid="admin-users-search" />
       </div>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-users-table">

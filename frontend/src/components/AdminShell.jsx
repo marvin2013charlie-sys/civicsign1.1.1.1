@@ -62,7 +62,7 @@ export const AdminShell = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const handleLogout = async () => { await logout(); navigate("/login"); };
+  const handleLogout = async () => { await logout(); navigate("/admin/login"); };
   const goApp = () => navigate("/dashboard");
 
   return (

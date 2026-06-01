@@ -50,7 +50,7 @@ export default function AdminEnvelopes() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by document title\u2026" className="pl-9" data-testid="admin-envelopes-search" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by document title…" className="pl-9" data-testid="admin-envelopes-search" />
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-full sm:w-44" data-testid="admin-envelopes-status-filter"><SelectValue /></SelectTrigger>
@@ -85,7 +85,7 @@ export default function AdminEnvelopes() {
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--c-paper-2)]"><FileText className="h-4 w-4" style={{ color: "var(--c-primary)" }} /></span>
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[var(--c-ink)]">{e.title}</p>
-                    <p className="truncate text-xs text-[var(--muted-foreground)]">{e.recipient_count} signer(s) \u00b7 {e.document?.page_count} page(s)</p>
+                    <p className="truncate text-xs text-[var(--muted-foreground)]">{e.recipient_count} signer(s) · {e.document?.page_count} page(s)</p>
                   </div>
                 </div>
                 <div className="col-span-3 truncate text-sm text-[var(--muted-foreground)]">{e.owner_name}</div>

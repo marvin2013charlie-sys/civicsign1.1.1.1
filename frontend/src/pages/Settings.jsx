@@ -313,7 +313,7 @@ function SubscriptionTab() {
           );
         })}
       </div>
-      <p className="mt-4 text-xs text-[var(--muted-foreground)]">Plans are illustrative for now \u2014 no payment is collected. Billing integration is coming soon.</p>
+      <p className="mt-4 text-xs text-[var(--muted-foreground)]">Plans are illustrative for now — no payment is collected. Billing integration is coming soon.</p>
     </div>
   );
 }
@@ -364,7 +364,7 @@ function AiAssistant() {
         </span>
         <div>
           <p className="text-sm font-semibold text-[var(--c-ink)]">CivicSign Assistant</p>
-          <p className="text-xs text-[var(--muted-foreground)]">AI-powered help \u00b7 available 24/7</p>
+          <p className="text-xs text-[var(--muted-foreground)]">AI-powered help · available 24/7</p>
         </div>
       </div>
 
@@ -400,7 +400,7 @@ function AiAssistant() {
 
       <div className="flex items-center gap-2 border-t border-[var(--c-border)] p-3">
         <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown}
-          placeholder="Ask the assistant\u2026" data-testid="help-ai-input" />
+          placeholder="Ask the assistant…" data-testid="help-ai-input" />
         <Button onClick={send} disabled={loading || !input.trim()} data-testid="help-ai-send"
           style={{ background: "var(--c-primary)", color: "#fff" }}>
           <SendHorizonal className="h-4 w-4" />

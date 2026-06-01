@@ -104,6 +104,13 @@ export default function Login() {
           <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
             New to CIVICSIGN? <Link to="/register" className="font-semibold text-[var(--c-primary)]">Create an account</Link>
           </p>
+
+          <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-[var(--c-border)] pt-4 text-xs text-[var(--muted-foreground)]">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <Link to="/admin/login" className="font-medium transition-colors hover:text-[var(--c-ink)]" data-testid="login-admin-portal-link">
+              Internal team? Admin sign in
+            </Link>
+          </div>
         </div>
       </div>
     </div>

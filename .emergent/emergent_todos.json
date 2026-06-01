@@ -1,38 +1,18 @@
 [
   {
-    "content": "Backend: AI chat assistant endpoint (assistant.py) via Emergent key (Gemini - key lacks OpenAI access) + wire router",
+    "content": "Create dedicated AdminLogin page (/admin/login) with admin-only gate + dark branding",
     "status": "completed"
   },
   {
-    "content": "Backend: account deletion endpoint (cascade delete envelopes/templates/files) + model",
+    "content": "Wire routing: add /admin/login, route AdminProtected redirects to /admin/login",
     "status": "completed"
   },
   {
-    "content": "Backend: sample_templates.py + seed system templates + endpoints + allow use/bulk/file for samples",
+    "content": "AdminShell logout -> /admin/login; add 'Admin sign in' link on main Login page",
     "status": "completed"
   },
   {
-    "content": "Backend: deeper admin analytics in /admin/metrics + CSV export endpoints",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: AI chat widget in Settings Help tab",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: account deletion 'Danger zone' + no-prefill on change-password",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: Starter templates section on Templates page",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: AdminOverview deeper analytics + CSV export buttons",
-    "status": "completed"
-  },
-  {
-    "content": "Compile/lint + run testing_agent_v3 + fix multi-role Use dialog bug",
+    "content": "Compile/lint + verify admin portal flow + fix literal unicode escapes",
     "status": "completed"
   },
   {
