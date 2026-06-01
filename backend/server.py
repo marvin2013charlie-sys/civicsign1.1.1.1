@@ -20,7 +20,7 @@ from starlette.middleware.cors import CORSMiddleware
 from db import db, upload_file, download_file, delete_file
 import pdf_service
 import email_service
-from models import EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest
+from models import EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest, ContactRequest
 from auth import auth_router, get_current_user, seed_admin
 
 logging.basicConfig(level=logging.INFO,
@@ -124,6 +124,35 @@ async def finalize_envelope_doc(env: dict):
 @api_router.get("/")
 async def root():
     return {"service": "CIVICSIGN", "status": "ok"}
+
+
+@api_router.post("/contact")
+async def contact(body: ContactRequest, request: Request):
+    """Public contact form submission (stored; email is best-effort skip-mode)."""
+    doc = {
+        "contact_id": f"msg_{uuid.uuid4().hex[:16]}",
+        "name": body.name.strip(),
+        "email": body.email.lower().strip(),
+        "subject": (body.subject or "General enquiry").strip(),
+        "message": body.message.strip(),
+        "ip": client_ip(request),
+        "created_at": now_iso(),
+        "handled": False,
+    }
+    await db.contact_messages.insert_one(dict(doc))
+    try:
+        support = os.environ.get("SENDER_EMAIL") or os.environ.get("ADMIN_EMAIL")
+        if support:
+            from email_service import _shell, _send
+            html = _shell(
+                "New contact message",
+                f"<p><b>{doc['name']}</b> ({doc['email']}) wrote:</p>"
+                f"<p><b>{doc['subject']}</b></p><p>{doc['message']}</p>",
+            )
+            _send(support, f"[CIVICSIGN] Contact: {doc['subject']}", html)
+    except Exception as e:
+        logger.warning(f"contact email skipped: {e}")
+    return {"ok": True, "message": "Thanks! We'll get back to you within 1 business day."}
 
 
 # --------------------------------------------------------------------------

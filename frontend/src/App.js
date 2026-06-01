@@ -15,6 +15,11 @@ import PrepareStudio from "@/pages/PrepareStudio";
 import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import Terms from "@/pages/Terms";
+import CookiePolicy from "@/pages/CookiePolicy";
 
 const FullLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-[var(--c-paper)]">
@@ -44,6 +49,11 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/cookies" element={<CookiePolicy />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/sign/:token" element={<SignerFlow />} />

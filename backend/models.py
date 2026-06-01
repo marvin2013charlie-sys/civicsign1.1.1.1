@@ -69,3 +69,10 @@ class SignSubmit(BaseModel):
 
 class DeclineRequest(BaseModel):
     reason: Optional[str] = None
+
+
+class ContactRequest(BaseModel):
+    name: str
+    email: EmailStr
+    subject: Optional[str] = None
+    message: str = Field(min_length=1)

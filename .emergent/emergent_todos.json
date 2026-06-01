@@ -1,34 +1,34 @@
 [
   {
-    "content": "Phase 1: Core POC — ALL 6 STEPS PASS",
+    "content": "Backend: /api/contact endpoint + ContactRequest model",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Get design guidelines (bold & fresh CIVICSIGN identity)",
+    "content": "Shared SiteHeader, SiteFooter, CookieBanner, LegalLayout components",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Build backend (auth, documents, envelopes, recipients, fields, signing, finalize, audit, email)",
+    "content": "Privacy Policy, Terms & Conditions, Cookie Policy pages",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Build frontend (landing, auth, dashboard, prep studio, send, signer flow, tracking, completion)",
+    "content": "About Us page",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Verify core in-browser (landing, login, upload, PDF render, field placement)",
+    "content": "Contact Us page (working form -> /api/contact)",
     "status": "completed"
   },
   {
-    "content": "Phase 2: All user stories covered in development",
+    "content": "Enhance Landing (metrics, use-cases, pricing, testimonials, FAQ) + footer links",
     "status": "completed"
   },
   {
-    "content": "Phase 2: End-to-End Testing using Testing Agent — Backend 95.5%, Frontend 100%, Integration 100%, no critical bugs",
+    "content": "Routes in App.js for all new pages",
     "status": "completed"
   },
   {
-    "content": "Deliver research + competitive roadmap document (CIVICSIGN_RESEARCH_AND_ROADMAP.md)",
+    "content": "Verify: pages render, footer links, contact form submit, cookie banner",
     "status": "completed"
   }
 ]
