@@ -93,7 +93,8 @@
 
 ---
 
-### Phase 3 — Add Authentication + Templates + Hardening
+### Phase 3 — Add Authentication + Templates + Power Features ✅ COMPLETE — VERIFIED (iteration_2.json)
+**Status:** DONE & TESTED. Backend + Frontend fully integrated. Email/pw JWT + Emergent Google auth (Phase 2), plus Phase 3 power features: **Templates** (save-as-template from prepared envelope, list, use → pre-filled draft envelope, delete), **Bulk Send** (single-signer templates → many recipients via "Name, email" rows with copyable sign links), **Reminders** (resend invites on sent/viewed envelopes from Envelope Detail), and **Envelope Expiration** (3/7/14/30-day options in Send Review, lazy expiry + background expiry loop, expiry shown on Envelope Detail). testing_agent_v3 results: Frontend 100%, Integration 100%, Backend 92.9% (only 3 "failures" are correct RFC `.test` TLD email rejections — not bugs). No critical/UI/integration issues. SendGrid remains in skip-mode (fallback sign links shown in UI).
 **Goal:** production-ready sender accounts, templates, and reliability improvements.
 
 **User stories (Phase 3)**
@@ -122,8 +123,8 @@
 
 ### Phase 4+ — Competitive Enhancements
 **User stories (Phase 4+)**
-1. As a sender, I can bulk send the same template to many recipients.
-2. As a sender, I can configure reminders and expiry dates.
+1. ✅ DONE (delivered in Phase 3) As a sender, I can bulk send the same template to many recipients.
+2. ✅ DONE (delivered in Phase 3) As a sender, I can configure reminders and expiry dates.
 3. As a sender, I can add advanced fields (dropdowns, radio, validations).
 4. As a sender, I can collect payments or IDs before signing (optional).
 5. As an admin, I can view analytics (time-to-sign, completion rate) and manage org settings.

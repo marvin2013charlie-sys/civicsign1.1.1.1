@@ -5,18 +5,18 @@
   },
   {
     "content": "Visual verification of Templates, Save-as-template, Bulk send, Reminders, Expiration via screenshots",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Run testing_agent_v3 for Phase 3 end-to-end (frontend + backend)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Fix any bugs found by testing agent",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Update plan.md, mark Phase 3 COMPLETED, finish",
-    "status": "pending"
+    "status": "completed"
   }
 ]
