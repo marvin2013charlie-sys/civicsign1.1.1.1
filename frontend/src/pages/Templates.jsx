@@ -59,21 +59,21 @@ function UseDialog({ template, open, onOpenChange }) {
           <DialogTitle className="font-heading">Use “{template.name}”</DialogTitle>
           <DialogDescription>Assign a recipient to each role, then send.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          {template.roles.map((r) => (
-            <div key={r.role_id} className="rounded-lg border border-[var(--c-border)] p-3">
+        <div className="max-h-[55vh] space-y-4 overflow-y-auto cs-scroll pr-1">
+          {template.roles.map((r, idx) => (
+            <div key={r.role_id} data-testid="use-role-block" className="rounded-lg border border-[var(--c-border)] p-3">
               <div className="mb-2 flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full" style={{ background: r.color }} />
-                <span className="text-sm font-semibold text-[var(--c-ink)]">Role: {r.name}</span>
+                <span className="text-sm font-semibold text-[var(--c-ink)]">Role {idx + 1}: {r.name}</span>
                 <span className="ml-auto text-xs text-[var(--muted-foreground)]">#{r.order}</span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Input placeholder="Recipient name" value={map[r.role_id]?.name || ""}
                   onChange={(e) => setMap((m) => ({ ...m, [r.role_id]: { ...m[r.role_id], name: e.target.value } }))}
-                  data-testid="use-role-name" />
+                  data-testid={`use-role-name-${idx}`} />
                 <Input type="email" placeholder="email@company.com" value={map[r.role_id]?.email || ""}
                   onChange={(e) => setMap((m) => ({ ...m, [r.role_id]: { ...m[r.role_id], email: e.target.value } }))}
-                  data-testid="use-role-email" />
+                  data-testid={`use-role-email-${idx}`} />
               </div>
             </div>
           ))}

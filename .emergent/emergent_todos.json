@@ -1,6 +1,6 @@
 [
   {
-    "content": "Backend: AI chat assistant endpoint (assistant.py) using OpenAI gpt-5.4 via Emergent key + wire router",
+    "content": "Backend: AI chat assistant endpoint (assistant.py) via Emergent key (Gemini - key lacks OpenAI access) + wire router",
     "status": "completed"
   },
   {
@@ -8,32 +8,32 @@
     "status": "completed"
   },
   {
-    "content": "Backend: sample_templates.py (generate 5 PDFs: NDA, IP Deed, Shareholder, Offer, Onboarding) + seed system templates + endpoints + allow use/bulk/file for samples",
+    "content": "Backend: sample_templates.py + seed system templates + endpoints + allow use/bulk/file for samples",
     "status": "completed"
   },
   {
-    "content": "Backend: deeper admin analytics in /admin/metrics + CSV export endpoints (users/envelopes/contacts)",
+    "content": "Backend: deeper admin analytics in /admin/metrics + CSV export endpoints",
     "status": "completed"
   },
   {
     "content": "Frontend: AI chat widget in Settings Help tab",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
-    "content": "Frontend: account deletion 'Danger zone' in Settings Profile + no-prefill on change-password",
-    "status": "in_progress"
+    "content": "Frontend: account deletion 'Danger zone' + no-prefill on change-password",
+    "status": "completed"
   },
   {
     "content": "Frontend: Starter templates section on Templates page",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Frontend: AdminOverview deeper analytics + CSV export buttons",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Compile/lint + run testing_agent_v3 + fix bugs",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
     "content": "Update plan.md + finish",
