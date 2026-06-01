@@ -27,6 +27,8 @@ from models import (
 )
 from auth import auth_router, get_current_user, seed_admin
 from admin import admin_router
+from assistant import assistant_router
+from sample_templates import seed_sample_templates
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -488,6 +490,16 @@ async def get_template_owned(template_id: str, user: dict) -> dict:
     return tpl
 
 
+async def get_usable_template(template_id: str, user: dict) -> dict:
+    """Return a template the user may use: their own OR a shared sample template."""
+    tpl = await db.templates.find_one(
+        {"template_id": template_id,
+         "$or": [{"owner_id": user["user_id"]}, {"is_sample": True}]}, {"_id": 0})
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return tpl
+
+
 @api_router.post("/templates/from-envelope/{envelope_id}")
 async def create_template(envelope_id: str, body: TemplateCreate,
                           user: dict = Depends(get_current_user)):
@@ -529,9 +541,14 @@ async def list_templates(user: dict = Depends(get_current_user)):
     return await db.templates.find({"owner_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 
+@api_router.get("/templates/samples")
+async def list_sample_templates(user: dict = Depends(get_current_user)):
+    return await db.templates.find({"is_sample": True}, {"_id": 0}).sort("name", 1).to_list(100)
+
+
 @api_router.get("/templates/{template_id}")
 async def get_template(template_id: str, user: dict = Depends(get_current_user)):
-    return await get_template_owned(template_id, user)
+    return await get_usable_template(template_id, user)
 
 
 @api_router.delete("/templates/{template_id}")
@@ -544,7 +561,7 @@ async def delete_template(template_id: str, user: dict = Depends(get_current_use
 
 @api_router.get("/templates/{template_id}/file")
 async def template_file(template_id: str, user: dict = Depends(get_current_user)):
-    tpl = await get_template_owned(template_id, user)
+    tpl = await get_usable_template(template_id, user)
     data = await download_file(tpl["document"]["file_id"])
     return FastResponse(content=data, media_type="application/pdf",
                         headers={"Content-Disposition": "inline; filename=template.pdf"})
@@ -553,7 +570,7 @@ async def template_file(template_id: str, user: dict = Depends(get_current_user)
 @api_router.post("/templates/{template_id}/use")
 async def use_template(template_id: str, body: TemplateUse,
                        user: dict = Depends(get_current_user)):
-    tpl = await get_template_owned(template_id, user)
+    tpl = await get_usable_template(template_id, user)
     role_to = {a.role_id: {"name": a.name, "email": a.email} for a in body.recipients}
     role_ids = {r["role_id"] for r in tpl["roles"]}
     for rid in role_ids:
@@ -570,7 +587,7 @@ async def use_template(template_id: str, body: TemplateUse,
 @api_router.post("/templates/{template_id}/bulk-send")
 async def bulk_send_template(template_id: str, body: BulkSend, request: Request,
                              user: dict = Depends(get_current_user)):
-    tpl = await get_template_owned(template_id, user)
+    tpl = await get_usable_template(template_id, user)
     if len(tpl["roles"]) != 1:
         raise HTTPException(status_code=400,
                             detail="Bulk send is available for single-signer templates only")
@@ -768,6 +785,7 @@ async def signer_decline(token: str, body: DeclineRequest, request: Request):
 app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(admin_router)
+app.include_router(assistant_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -805,6 +823,7 @@ async def startup():
     except Exception as e:
         logger.warning(f"index creation: {e}")
     await seed_admin()
+    await seed_sample_templates()
     asyncio.create_task(expiry_loop())
     try:
         mem = Path("/app/memory")

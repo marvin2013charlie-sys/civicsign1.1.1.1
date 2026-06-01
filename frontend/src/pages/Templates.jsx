@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutTemplate, MoreVertical, Trash2, Play, Users, PenLine, Loader2,
-  Send, Copy, FilePlus2, CheckCircle2, Layers,
+  Send, Copy, FilePlus2, CheckCircle2, Layers, Sparkles,
 } from "lucide-react";
 
 function UseDialog({ template, open, onOpenChange }) {
@@ -173,14 +173,19 @@ function BulkDialog({ template, open, onOpenChange }) {
 export default function Templates() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
+  const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [useT, setUseT] = useState(null);
   const [bulkT, setBulkT] = useState(null);
 
   const load = async () => {
     try {
-      const { data } = await api.get("/templates");
-      setTemplates(data);
+      const [tpls, smp] = await Promise.all([
+        api.get("/templates"),
+        api.get("/templates/samples"),
+      ]);
+      setTemplates(tpls.data);
+      setSamples(smp.data);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
@@ -213,6 +218,45 @@ export default function Templates() {
       <p className="text-sm text-[var(--muted-foreground)]">
         Reusable documents with pre-placed fields and recipient roles. Create one by preparing a document and choosing <b>Save as template</b> in the editor.
       </p>
+
+      {/* Starter templates (shared sample library) */}
+      {samples.length > 0 && (
+        <div className="mt-6" data-testid="starter-templates-section">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+            <h2 className="font-heading text-base font-semibold text-[var(--c-ink)]">Starter templates</h2>
+          </div>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Ready-made documents you can send right away. Just add recipients.</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {samples.map((t) => (
+              <div key={t.template_id} data-testid="sample-template-card" className="flex flex-col rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+                <div className="flex items-start justify-between">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--c-paper-2)]"><LayoutTemplate className="h-5 w-5" style={{ color: "var(--c-primary)" }} /></span>
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "var(--status-sent-bg)", color: "var(--c-ink)" }}>Sample</span>
+                </div>
+                <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">{t.name}</h3>
+                {t.description ? <p className="mt-0.5 line-clamp-2 text-sm text-[var(--muted-foreground)]">{t.description}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--muted-foreground)]">
+                  <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {t.roles?.length} role(s)</span>
+                  <span className="flex items-center gap-1"><PenLine className="h-3.5 w-3.5" /> {t.fields?.length} field(s)</span>
+                  <span className="flex items-center gap-1"><Layers className="h-3.5 w-3.5" /> {t.document?.page_count} page(s)</span>
+                </div>
+                <div className="mt-4 flex flex-1 items-end gap-2">
+                  <Button className="flex-1" onClick={() => setUseT(t)} data-testid="sample-use-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                    <Play className="mr-1.5 h-4 w-4" /> Use
+                  </Button>
+                  {t.roles?.length === 1 && (
+                    <Button variant="outline" onClick={() => setBulkT(t)} data-testid="sample-bulk-button">
+                      <Send className="mr-1.5 h-4 w-4" /> Bulk
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <h2 className="mt-8 font-heading text-base font-semibold text-[var(--c-ink)]">Your templates</h2>
+        </div>
+      )}
 
       {loading ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-xl" />)}</div>

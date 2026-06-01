@@ -28,4 +28,16 @@ export async function fetchPdfBlobUrl(path) {
   return URL.createObjectURL(res.data);
 }
 
+export async function downloadCsv(path, filename) {
+  const res = await api.get(path, { responseType: "blob" });
+  const url = URL.createObjectURL(res.data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default api;

@@ -12,10 +12,10 @@ import jwt
 import httpx
 from fastapi import APIRouter, Request, Response, HTTPException, Depends
 
-from db import db
+from db import db, delete_file
 from models import (
     RegisterRequest, LoginRequest, GoogleSessionRequest,
-    ProfileUpdate, PasswordChange, SubscriptionUpdate,
+    ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
 )
 
 logger = logging.getLogger("civicsign.auth")
@@ -271,6 +271,47 @@ async def update_subscription(body: SubscriptionUpdate, user: dict = Depends(get
         {"$set": {"plan": plan, "plan_updated_at": datetime.now(timezone.utc).isoformat()}})
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return _public_user(fresh)
+
+
+@auth_router.delete("/account")
+async def delete_account(body: AccountDelete, response: Response,
+                         user: dict = Depends(get_current_user)):
+    """Permanently delete the current user's account and ALL of their data
+    (envelopes, templates and stored documents). Requires typed confirmation."""
+    if (body.confirm or "").strip().upper() != "DELETE":
+        raise HTTPException(status_code=400, detail='Type "DELETE" to confirm account deletion')
+
+    uid = user["user_id"]
+    # Delete envelope documents from GridFS, then the envelopes
+    envs = await db.envelopes.find(
+        {"owner_id": uid}, {"_id": 0, "document": 1, "completed_file_id": 1}).to_list(10000)
+    for e in envs:
+        try:
+            fid = (e.get("document") or {}).get("file_id")
+            if fid:
+                await delete_file(fid)
+            if e.get("completed_file_id"):
+                await delete_file(e["completed_file_id"])
+        except Exception:
+            pass
+    await db.envelopes.delete_many({"owner_id": uid})
+
+    # Delete user-owned template documents, then templates (never sample templates)
+    tpls = await db.templates.find(
+        {"owner_id": uid}, {"_id": 0, "document": 1}).to_list(5000)
+    for t in tpls:
+        try:
+            fid = (t.get("document") or {}).get("file_id")
+            if fid:
+                await delete_file(fid)
+        except Exception:
+            pass
+    await db.templates.delete_many({"owner_id": uid})
+
+    await db.users.delete_one({"user_id": uid})
+    clear_auth_cookies(response)
+    logger.info(f"Account deleted: {user.get('email')}")
+    return {"ok": True, "message": "Your account and all associated data have been deleted."}
 
 
 async def seed_admin():

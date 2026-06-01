@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, downloadCsv } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Search, FileText } from "lucide-react";
+import { Search, FileText, Download } from "lucide-react";
 
 export default function AdminEnvelopes() {
   const [items, setItems] = useState([]);
@@ -36,8 +37,15 @@ export default function AdminEnvelopes() {
 
   return (
     <div data-testid="admin-envelopes">
-      <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Envelopes</h1>
-      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Read-only oversight of all documents across the platform.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Envelopes</h1>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Read-only oversight of all documents across the platform.</p>
+        </div>
+        <Button variant="outline" onClick={() => downloadCsv("/admin/export/envelopes.csv", "civicsign_envelopes.csv")} data-testid="admin-export-envelopes">
+          <Download className="mr-1.5 h-4 w-4" /> Export CSV
+        </Button>
+      </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">

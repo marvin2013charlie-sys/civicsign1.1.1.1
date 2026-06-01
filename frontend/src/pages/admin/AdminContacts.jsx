@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, downloadCsv } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, CheckCircle2, RotateCcw, Inbox } from "lucide-react";
+import { Mail, CheckCircle2, RotateCcw, Inbox, Download } from "lucide-react";
 
 export default function AdminContacts() {
   const [items, setItems] = useState([]);
@@ -35,8 +35,15 @@ export default function AdminContacts() {
 
   return (
     <div data-testid="admin-contacts">
-      <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Contact inbox</h1>
-      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Messages submitted through the public contact form.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Contact inbox</h1>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Messages submitted through the public contact form.</p>
+        </div>
+        <Button variant="outline" onClick={() => downloadCsv("/admin/export/contacts.csv", "civicsign_contacts.csv")} data-testid="admin-export-contacts">
+          <Download className="mr-1.5 h-4 w-4" /> Export CSV
+        </Button>
+      </div>
 
       {loading ? (
         <div className="mt-5 space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>

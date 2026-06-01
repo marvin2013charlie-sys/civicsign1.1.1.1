@@ -4,10 +4,12 @@ All endpoints require an authenticated user whose `role == "admin"`.
 Provides platform analytics, user management, envelope oversight, and a
 contact-message inbox.
 """
+import io
+import csv
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from db import db
 from auth import require_admin
@@ -30,11 +32,13 @@ def _clean_user(doc: dict) -> dict:
 
 @admin_router.get("/metrics")
 async def metrics(admin: dict = Depends(require_admin)):
-    """Platform-wide KPIs + 14-day signup/envelope series."""
+    """Platform-wide KPIs + 14-day signup/envelope series + deeper analytics."""
     users = await db.users.find(
-        {}, {"_id": 0, "created_at": 1, "plan": 1, "role": 1, "active": 1}).to_list(20000)
+        {}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "created_at": 1,
+             "plan": 1, "role": 1, "active": 1}).to_list(20000)
     envs = await db.envelopes.find(
-        {}, {"_id": 0, "status": 1, "created_at": 1}).to_list(50000)
+        {}, {"_id": 0, "status": 1, "created_at": 1, "sent_at": 1,
+             "completed_at": 1, "owner_id": 1}).to_list(50000)
 
     status_counts = {s: 0 for s in STATUSES}
     for e in envs:
@@ -55,7 +59,7 @@ async def metrics(admin: dict = Depends(require_admin)):
     completed = status_counts.get("completed", 0)
     completion_rate = round((completed / total_envelopes) * 100) if total_envelopes else 0
 
-    templates_total = await db.templates.count_documents({})
+    templates_total = await db.templates.count_documents({"is_sample": {"$ne": True}})
     contacts_total = await db.contact_messages.count_documents({})
     contacts_unhandled = await db.contact_messages.count_documents({"handled": False})
 
@@ -69,6 +73,53 @@ async def metrics(admin: dict = Depends(require_admin)):
         created = sum(1 for e in envs if (e.get("created_at") or "")[:10] == d)
         signup_series.append({"date": label, "count": signups})
         envelope_series.append({"date": label, "count": created})
+
+    # ---- Deeper analytics ----
+    ever_sent = sum(1 for e in envs if e.get("sent_at"))
+    declined = status_counts.get("declined", 0)
+    expired = status_counts.get("expired", 0)
+    reached_viewed = sum(1 for e in envs if e.get("status") in ("viewed", "completed"))
+
+    durations = []
+    for e in envs:
+        if e.get("status") == "completed" and e.get("sent_at") and e.get("completed_at"):
+            try:
+                t0 = datetime.fromisoformat(e["sent_at"])
+                t1 = datetime.fromisoformat(e["completed_at"])
+                hrs = (t1 - t0).total_seconds() / 3600.0
+                if hrs >= 0:
+                    durations.append(hrs)
+            except Exception:
+                pass
+    avg_tts = round(sum(durations) / len(durations), 1) if durations else 0
+
+    # Top active users (by owned envelope count)
+    top_agg = await db.envelopes.aggregate([
+        {"$group": {"_id": "$owner_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}, {"$limit": 5},
+    ]).to_list(5)
+    umap = {u["user_id"]: u for u in users}
+    top_users = []
+    for a in top_agg:
+        u = umap.get(a["_id"])
+        if not u:
+            continue
+        top_users.append({"name": u.get("name") or u.get("email"),
+                          "email": u.get("email"), "count": a["count"]})
+
+    analytics = {
+        "avg_time_to_sign_hours": avg_tts,
+        "declined": declined,
+        "expired": expired,
+        "decline_rate": round((declined / ever_sent) * 100) if ever_sent else 0,
+        "expired_rate": round((expired / ever_sent) * 100) if ever_sent else 0,
+        "funnel": [
+            {"stage": "Sent", "count": ever_sent},
+            {"stage": "Viewed", "count": reached_viewed},
+            {"stage": "Completed", "count": completed},
+        ],
+        "top_users": top_users,
+    }
 
     return {
         "totals": {
@@ -86,7 +137,54 @@ async def metrics(admin: dict = Depends(require_admin)):
         "plan_counts": plan_counts,
         "signup_series": signup_series,
         "envelope_series": envelope_series,
+        "analytics": analytics,
     }
+
+
+def _csv_response(headers, rows, filename):
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(headers)
+    for r in rows:
+        writer.writerow(r)
+    return Response(
+        content=buf.getvalue(), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@admin_router.get("/export/users.csv")
+async def export_users(admin: dict = Depends(require_admin)):
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(20000)
+    rows = [[u.get("name", ""), u.get("email", ""), u.get("role", "user"),
+             u.get("plan", "free"), "yes" if u.get("active", True) else "no",
+             u.get("mobile") or "", u.get("created_at", "")] for u in users]
+    return _csv_response(
+        ["Name", "Email", "Role", "Plan", "Active", "Mobile", "Created"],
+        rows, "civicsign_users.csv")
+
+
+@admin_router.get("/export/envelopes.csv")
+async def export_envelopes(admin: dict = Depends(require_admin)):
+    envs = await db.envelopes.find(
+        {}, {"_id": 0, "title": 1, "owner_name": 1, "status": 1, "recipients": 1,
+             "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(50000)
+    rows = [[e.get("title", ""), e.get("owner_name", ""), e.get("status", ""),
+             len(e.get("recipients", []) or []), e.get("created_at", ""),
+             e.get("sent_at") or "", e.get("completed_at") or ""] for e in envs]
+    return _csv_response(
+        ["Title", "Owner", "Status", "Recipients", "Created", "Sent", "Completed"],
+        rows, "civicsign_envelopes.csv")
+
+
+@admin_router.get("/export/contacts.csv")
+async def export_contacts(admin: dict = Depends(require_admin)):
+    items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(20000)
+    rows = [[c.get("name", ""), c.get("email", ""), c.get("subject", ""),
+             (c.get("message", "") or "").replace("\n", " "),
+             "yes" if c.get("handled") else "no", c.get("created_at", "")] for c in items]
+    return _csv_response(
+        ["Name", "Email", "Subject", "Message", "Handled", "Created"],
+        rows, "civicsign_contacts.csv")
 
 
 @admin_router.get("/users")

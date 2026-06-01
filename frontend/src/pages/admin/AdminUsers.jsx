@@ -1,14 +1,15 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, downloadCsv } from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Search, ShieldCheck } from "lucide-react";
+import { Search, ShieldCheck, Download } from "lucide-react";
 
 const PLAN_BADGE = {
   free: { bg: "var(--status-draft-bg)", fg: "var(--c-ink)" },
@@ -52,8 +53,15 @@ export default function AdminUsers() {
 
   return (
     <div data-testid="admin-users">
-      <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Users</h1>
-      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Manage roles, plans, and account access.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Users</h1>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Manage roles, plans, and account access.</p>
+        </div>
+        <Button variant="outline" onClick={() => downloadCsv("/admin/export/users.csv", "civicsign_users.csv")} data-testid="admin-export-users">
+          <Download className="mr-1.5 h-4 w-4" /> Export CSV
+        </Button>
+      </div>
 
       <div className="relative mt-5 max-w-sm">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />

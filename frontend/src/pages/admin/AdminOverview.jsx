@@ -21,6 +21,13 @@ const KPI = ({ icon: Icon, label, value, accent }) => (
   </div>
 );
 
+const MiniStat = ({ label, value }) => (
+  <div className="rounded-lg bg-[var(--c-paper-2)] p-3 text-center">
+    <p className="font-heading text-xl font-bold text-[var(--c-ink)]">{value}</p>
+    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{label}</p>
+  </div>
+);
+
 const STATUS_COLORS = {
   draft: "#B08968", sent: "#1FB8A6", viewed: "#0284C7",
   completed: "#16A34A", declined: "#DC2626", expired: "#B45309",
@@ -131,6 +138,45 @@ export default function AdminOverview() {
           </div>
         </div>
       </div>
+
+      {m.analytics && (
+        <div className="mt-5 grid gap-4 lg:grid-cols-3" data-testid="admin-analytics">
+          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5 lg:col-span-2">
+            <p className="text-sm font-semibold text-[var(--c-ink)]">Signing funnel</p>
+            <div className="mt-4 space-y-3">
+              {m.analytics.funnel.map((f) => {
+                const max = m.analytics.funnel[0].count || 1;
+                const pct = Math.round((f.count / max) * 100);
+                return (
+                  <div key={f.stage}>
+                    <div className="flex justify-between text-xs text-[var(--muted-foreground)]"><span>{f.stage}</span><span>{f.count}</span></div>
+                    <div className="mt-1 h-3 rounded-full bg-[var(--c-paper-2)]"><div className="h-3 rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--c-primary)" }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <MiniStat label="Avg time to sign" value={`${m.analytics.avg_time_to_sign_hours}h`} />
+              <MiniStat label="Decline rate" value={`${m.analytics.decline_rate}%`} />
+              <MiniStat label="Expired rate" value={`${m.analytics.expired_rate}%`} />
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-top-users">
+            <p className="text-sm font-semibold text-[var(--c-ink)]">Most active users</p>
+            <div className="mt-3 space-y-2.5">
+              {m.analytics.top_users.length === 0 ? (
+                <p className="text-sm text-[var(--muted-foreground)]">No data yet.</p>
+              ) : m.analytics.top_users.map((u, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--c-paper-2)] text-xs font-bold text-[var(--c-ink)]">{i + 1}</span>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p><p className="truncate text-xs text-[var(--muted-foreground)]">{u.email}</p></div>
+                  <span className="text-sm font-semibold" style={{ color: "var(--c-primary)" }}>{u.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

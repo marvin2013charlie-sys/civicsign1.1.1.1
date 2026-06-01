@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
@@ -12,8 +12,12 @@ import {
   Accordion, AccordionItem, AccordionTrigger, AccordionContent,
 } from "@/components/ui/accordion";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   User, CreditCard, LifeBuoy, Loader2, Save, KeyRound, Check, Mail,
   MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2,
+  Trash2, AlertTriangle, Bot, SendHorizonal,
 } from "lucide-react";
 
 const PLAN_DEFS = [
@@ -39,9 +43,61 @@ const FAQS = [
   { q: "What file types can I upload?", a: "You can upload PDF and Microsoft Word (.docx) documents. Word files are automatically converted to PDF before preparation." },
   { q: "Do my signers need an account?", a: "No. Recipients receive a secure signing link and can complete only their assigned fields without creating an account." },
   { q: "How do reminders and expiration work?", a: "From an envelope's detail page you can send a reminder to pending signers. When sending, you can also set the document to expire in 3, 7, 14, or 30 days." },
-  { q: "Can I reuse documents I send often?", a: "Yes. Prepare a document with fields and roles, then choose 'Save as template'. You can reuse it, or bulk-send single-signer templates to many recipients at once." },
+  { q: "Can I reuse documents I send often?", a: "Yes. Prepare a document with fields and roles, then choose 'Save as template'. You can also use the ready-made Starter templates such as NDA, Offer Letter and more." },
   { q: "How do I change or cancel my plan?", a: "Head to the Subscription tab on this page to switch between Free, Pro, and Business plans at any time." },
 ];
+
+function DeleteAccountDialog({ open, onOpenChange }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => { if (!open) setConfirm(""); }, [open]);
+
+  const del = async () => {
+    setDeleting(true);
+    try {
+      await api.delete("/auth/account", { data: { confirm } });
+      localStorage.removeItem("cs_token");
+      toast.success("Your account and all data have been deleted");
+      await logout();
+      navigate("/");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="delete-account-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 font-heading text-[#B91C1C]">
+            <AlertTriangle className="h-5 w-5" /> Delete account
+          </DialogTitle>
+          <DialogDescription>
+            This permanently deletes your account and <b>all</b> of your envelopes, templates and documents. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div>
+          <Label htmlFor="confirm-delete">Type <span className="font-mono font-semibold">DELETE</span> to confirm</Label>
+          <Input id="confirm-delete" className="mt-1" value={confirm} autoComplete="off"
+            onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" data-testid="delete-confirm-input" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={del} disabled={deleting || confirm.trim().toUpperCase() !== "DELETE"}
+            data-testid="confirm-delete-account-btn"
+            style={{ background: "#DC2626", color: "#fff" }}>
+            {deleting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />} Delete my account
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ProfileTab() {
   const { user, setUser } = useAuth();
@@ -50,6 +106,7 @@ function ProfileTab() {
   const isPasswordAccount = user?.auth_provider !== "google";
   const [pwd, setPwd] = useState({ current_password: "", new_password: "", confirm: "" });
   const [changingPwd, setChangingPwd] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
   useEffect(() => {
     if (user) setForm({ name: user.name || "", email: user.email || "", mobile: user.mobile || "" });
@@ -125,20 +182,21 @@ function ProfileTab() {
             <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
               <KeyRound className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Change password
             </h3>
+            {/* autoComplete=new-password prevents the browser from pre-filling saved credentials */}
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               <div>
                 <Label htmlFor="cur">Current password</Label>
-                <Input id="cur" type="password" className="mt-1" value={pwd.current_password} data-testid="settings-current-password"
+                <Input id="cur" type="password" autoComplete="new-password" className="mt-1" value={pwd.current_password} data-testid="settings-current-password"
                   onChange={(e) => setPwd((p) => ({ ...p, current_password: e.target.value }))} />
               </div>
               <div>
                 <Label htmlFor="new">New password</Label>
-                <Input id="new" type="password" className="mt-1" value={pwd.new_password} data-testid="settings-new-password"
+                <Input id="new" type="password" autoComplete="new-password" className="mt-1" value={pwd.new_password} data-testid="settings-new-password"
                   onChange={(e) => setPwd((p) => ({ ...p, new_password: e.target.value }))} />
               </div>
               <div>
                 <Label htmlFor="conf">Confirm new password</Label>
-                <Input id="conf" type="password" className="mt-1" value={pwd.confirm} data-testid="settings-confirm-password"
+                <Input id="conf" type="password" autoComplete="new-password" className="mt-1" value={pwd.confirm} data-testid="settings-confirm-password"
                   onChange={(e) => setPwd((p) => ({ ...p, confirm: e.target.value }))} />
               </div>
             </div>
@@ -149,9 +207,25 @@ function ProfileTab() {
             </div>
           </div>
         )}
+
+        {/* Danger zone */}
+        <div className="rounded-xl border p-6" style={{ borderColor: "#FCA5A5", background: "#FEF2F2" }} data-testid="danger-zone">
+          <h3 className="flex items-center gap-2 font-heading text-lg font-semibold" style={{ color: "#B91C1C" }}>
+            <AlertTriangle className="h-4 w-4" /> Danger zone
+          </h3>
+          <p className="mt-1 text-sm" style={{ color: "#7F1D1D" }}>
+            Permanently delete your account and all associated envelopes, templates and documents. This action cannot be undone.
+          </p>
+          <div className="mt-4">
+            <Button onClick={() => setDelOpen(true)} data-testid="delete-account-button"
+              style={{ background: "#DC2626", color: "#fff" }}>
+              <Trash2 className="mr-1.5 h-4 w-4" /> Delete account
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="account-summary-card">
+      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 self-start" data-testid="account-summary-card">
         <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Account</h3>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex items-center justify-between">
@@ -170,6 +244,8 @@ function ProfileTab() {
           )}
         </dl>
       </div>
+
+      <DeleteAccountDialog open={delOpen} onOpenChange={setDelOpen} />
     </div>
   );
 }
@@ -242,28 +318,123 @@ function SubscriptionTab() {
   );
 }
 
+function AiAssistant() {
+  const greeting = { role: "assistant", content: "Hi! I'm the CivicSign Assistant. Ask me anything about preparing, sending, signing, templates, reminders or your account." };
+  const [messages, setMessages] = useState([greeting]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    const next = [...messages, { role: "user", content: text }];
+    setMessages(next);
+    setInput("");
+    setLoading(true);
+    try {
+      // history = everything after greeting, excluding the message we're sending now
+      const history = next.slice(1, -1).map((m) => ({ role: m.role, content: m.content }));
+      const { data } = await api.post("/assistant/chat", { message: text, history });
+      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+    } catch (err) {
+      setMessages((m) => [...m, { role: "assistant", content: "Sorry, I couldn't respond right now. Please try again in a moment." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  };
+
+  const suggestions = [
+    "How do I add a signature field?",
+    "How do reminders work?",
+    "What's the difference between the plans?",
+  ];
+
+  return (
+    <div className="flex h-[460px] flex-col rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="help-ai-chat">
+      <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-5 py-3">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)" }}>
+          <Bot className="h-4 w-4 text-white" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-[var(--c-ink)]">CivicSign Assistant</p>
+          <p className="text-xs text-[var(--muted-foreground)]">AI-powered help \u00b7 available 24/7</p>
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 cs-scroll" data-testid="help-ai-messages">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${m.role === "user" ? "rounded-br-sm text-white" : "rounded-bl-sm text-[var(--c-ink)]"}`}
+              style={m.role === "user" ? { background: "var(--c-primary)" } : { background: "var(--c-paper-2)" }}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl rounded-bl-sm bg-[var(--c-paper-2)] px-3.5 py-2 text-sm text-[var(--muted-foreground)]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {messages.length <= 1 && (
+        <div className="flex flex-wrap gap-2 px-5 pb-2">
+          {suggestions.map((s) => (
+            <button key={s} onClick={() => setInput(s)} data-testid="help-ai-suggestion"
+              className="rounded-full border border-[var(--c-border)] px-3 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]">
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 border-t border-[var(--c-border)] p-3">
+        <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown}
+          placeholder="Ask the assistant\u2026" data-testid="help-ai-input" />
+        <Button onClick={send} disabled={loading || !input.trim()} data-testid="help-ai-send"
+          style={{ background: "var(--c-primary)", color: "#fff" }}>
+          <SendHorizonal className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function HelpTab() {
   return (
     <div className="grid gap-5 lg:grid-cols-3">
-      <div className="lg:col-span-2 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-        <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
-          <MessageCircleQuestion className="h-5 w-5" style={{ color: "var(--c-primary)" }} /> Frequently asked questions
-        </h3>
-        <Accordion type="single" collapsible className="mt-3" data-testid="help-faq-accordion">
-          {FAQS.map((f, i) => (
-            <AccordionItem key={i} value={`faq-${i}`}>
-              <AccordionTrigger className="text-left text-sm font-semibold text-[var(--c-ink)]">{f.q}</AccordionTrigger>
-              <AccordionContent className="text-sm text-[var(--muted-foreground)]">{f.a}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+      <div className="lg:col-span-2 space-y-5">
+        <AiAssistant />
+        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
+          <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
+            <MessageCircleQuestion className="h-5 w-5" style={{ color: "var(--c-primary)" }} /> Frequently asked questions
+          </h3>
+          <Accordion type="single" collapsible className="mt-3" data-testid="help-faq-accordion">
+            {FAQS.map((f, i) => (
+              <AccordionItem key={i} value={`faq-${i}`}>
+                <AccordionTrigger className="text-left text-sm font-semibold text-[var(--c-ink)]">{f.q}</AccordionTrigger>
+                <AccordionContent className="text-sm text-[var(--muted-foreground)]">{f.a}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
       </div>
       <div className="space-y-5">
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
             <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
           </span>
-          <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need help?</h3>
+          <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need a human?</h3>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">Our team typically replies within one business day. Send us a message and we'll get right back to you.</p>
           <Link to="/contact" data-testid="help-contact-link">
             <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
