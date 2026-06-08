@@ -18,6 +18,7 @@ import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
 import Settings from "@/pages/Settings";
 import ResetPassword from "@/pages/ResetPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import { AdminShell } from "@/components/AdminShell";
 import AdminOverview from "@/pages/admin/AdminOverview";
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -76,6 +77,7 @@ function AppRoutes() {
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/sign/:token" element={<SignerFlow />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />

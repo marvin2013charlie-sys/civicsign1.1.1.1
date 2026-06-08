@@ -19,6 +19,20 @@ class GoogleSessionRequest(BaseModel):
     session_id: str
 
 
+class VerifyEmail(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResendVerification(BaseModel):
+    email: EmailStr
+
+
+class ForgotPassword(BaseModel):
+    email: EmailStr
+    base_url: Optional[str] = None
+
+
 # ---- Envelope building blocks ----
 class RecipientIn(BaseModel):
     recipient_id: Optional[str] = None
@@ -151,6 +165,12 @@ class ChatRequest(BaseModel):
 # ---- Account ----
 class AccountDelete(BaseModel):
     confirm: str
+
+
+# ---- Billing (Stripe) ----
+class CheckoutRequest(BaseModel):
+    plan_id: str            # pro | business
+    origin_url: str
 
 
 # ---- Admin: impersonation & password reset ----

@@ -33,9 +33,15 @@ export default function Register() {
     if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     setLoading(true);
     try {
-      await register(name, email, password);
-      toast.success("Account created. Welcome to CIVICSIGN!");
-      navigate("/dashboard");
+      const data = await register(name, email, password);
+      if (data?.verification_required) {
+        toast.success("Almost there — verify your email to finish.");
+        navigate("/verify-email", {
+          state: { email: data.email, dev_code: data.dev_code, dev_mode: data.dev_mode },
+        });
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Registration failed");
     } finally {

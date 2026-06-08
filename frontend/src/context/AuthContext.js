@@ -35,8 +35,17 @@ export function AuthProvider({ children }) {
     if (window.location.hash && window.location.hash.includes("session_id=")) {
       return;
     }
-    checkAuth();
-  }, [checkAuth]);
+    let active = true;
+    (async () => {
+      try {
+        const { data } = await api.get("/auth/me");
+        if (active) setUser(data);
+      } catch {
+        if (active) setUser(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
@@ -46,9 +55,27 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password) => {
+    // Registration now requires email verification before a session is issued.
     const { data } = await api.post("/auth/register", { name, email, password });
+    return data; // { verification_required, email, dev_mode, dev_code }
+  };
+
+  const verifyEmail = async (email, code) => {
+    const { data } = await api.post("/auth/verify-email", { email, code });
     if (data.access_token) localStorage.setItem("cs_token", data.access_token);
     setUser(data.user);
+    return data;
+  };
+
+  const resendVerification = async (email) => {
+    const { data } = await api.post("/auth/resend-verification", { email });
+    return data;
+  };
+
+  const forgotPassword = async (email) => {
+    const { data } = await api.post("/auth/forgot-password", {
+      email, base_url: window.location.origin,
+    });
     return data;
   };
 
@@ -106,6 +133,9 @@ export function AuthProvider({ children }) {
         setUser,
         login,
         register,
+        verifyEmail,
+        resendVerification,
+        forgotPassword,
         logout,
         checkAuth,
         setSession,

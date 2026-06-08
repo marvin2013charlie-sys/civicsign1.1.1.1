@@ -13,11 +13,12 @@ import jwt
 import httpx
 from fastapi import APIRouter, Request, Response, HTTPException, Depends
 
+import email_service
 from db import db, delete_file
 from models import (
     RegisterRequest, LoginRequest, GoogleSessionRequest,
     ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
-    ResetPassword,
+    ResetPassword, VerifyEmail, ResendVerification, ForgotPassword,
 )
 
 logger = logging.getLogger("civicsign.auth")
@@ -83,7 +84,40 @@ def _public_user(doc: dict) -> dict:
         "role": doc.get("role", "user"),
         "plan": doc.get("plan", "free"),
         "active": doc.get("active", True),
+        "email_verified": doc.get("email_verified", True),
         "created_at": doc.get("created_at"),
+    }
+
+
+VERIFY_TTL_MIN = 15
+
+
+async def _issue_verification_code(user_id: str, email: str, name: str = "") -> str:
+    """Create/replace a 6-digit email verification code (valid 15 min) and send it."""
+    code = f"{secrets.randbelow(900000) + 100000}"
+    await db.email_verifications.update_one(
+        {"email": email},
+        {"$set": {
+            "user_id": user_id, "email": email, "code": code, "attempts": 0,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    status = email_service.send_verification_code(email, name, code)
+    logger.info(f"Verification code for {email}: {code} (email_status={status})")
+    return code
+
+
+def _verification_response(email: str, code: str) -> dict:
+    """In skip-mode (no SendGrid) surface the code so the user can complete signup."""
+    dev = not email_service.is_configured()
+    return {
+        "verification_required": True,
+        "email": email,
+        "dev_mode": dev,
+        "dev_code": code if dev else None,
+        "message": "We sent a 6-digit verification code to your email.",
     }
 
 
@@ -128,20 +162,80 @@ async def register(body: RegisterRequest, response: Response):
     email = body.email.lower().strip()
     existing = await db.users.find_one({"email": email})
     if existing:
-        raise HTTPException(status_code=400, detail="An account with this email already exists")
+        # Allow resuming an unverified signup; block verified accounts.
+        if existing.get("email_verified", True):
+            raise HTTPException(status_code=400, detail="An account with this email already exists")
+        await db.users.update_one(
+            {"user_id": existing["user_id"]},
+            {"$set": {"name": body.name.strip(),
+                      "password_hash": hash_password(body.password),
+                      "updated_at": datetime.now(timezone.utc).isoformat()}})
+        code = await _issue_verification_code(existing["user_id"], email, body.name.strip())
+        return _verification_response(email, code)
+
     user_id = f"user_{uuid.uuid4().hex[:16]}"
     doc = {
         "user_id": user_id, "email": email, "name": body.name.strip(),
         "password_hash": hash_password(body.password), "picture": None,
         "mobile": None, "auth_provider": "password",
-        "role": "user", "plan": "free", "active": True,
+        "role": "user", "plan": "free", "active": True, "email_verified": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
-    access = create_access_token(user_id, email)
-    refresh = create_refresh_token(user_id)
+    code = await _issue_verification_code(user_id, email, body.name.strip())
+    # No session is issued until the email is verified.
+    return _verification_response(email, code)
+
+
+@auth_router.post("/verify-email")
+async def verify_email(body: VerifyEmail, response: Response):
+    email = body.email.lower().strip()
+    rec = await db.email_verifications.find_one({"email": email})
+    if not rec:
+        raise HTTPException(status_code=400, detail="No pending verification for this email. Please sign up again.")
+    try:
+        expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=400, detail="This code has expired. Request a new one.")
+    if (body.code or "").strip() != rec["code"]:
+        await db.email_verifications.update_one({"email": email}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Incorrect verification code")
+
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"email_verified": True, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    await db.email_verifications.delete_one({"email": email})
+
+    # Welcome email (best-effort; skip-mode logs only)
+    try:
+        email_service.send_welcome(email, user.get("name"))
+    except Exception as e:
+        logger.warning(f"welcome email failed: {e}")
+
+    user["email_verified"] = True
+    access = create_access_token(user["user_id"], email)
+    refresh = create_refresh_token(user["user_id"])
     set_auth_cookies(response, access, refresh)
-    return {"user": _public_user(doc), "access_token": access}
+    logger.info(f"Email verified for {email}")
+    return {"user": _public_user(user), "access_token": access}
+
+
+@auth_router.post("/resend-verification")
+async def resend_verification(body: ResendVerification):
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found for this email")
+    if user.get("email_verified", True):
+        raise HTTPException(status_code=400, detail="This email is already verified. Please sign in.")
+    code = await _issue_verification_code(user["user_id"], email, user.get("name", ""))
+    return _verification_response(email, code)
 
 
 @auth_router.post("/login")
@@ -152,6 +246,8 @@ async def login(body: LoginRequest, response: Response):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if user.get("active") is False:
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Contact support.")
+    if user.get("email_verified", True) is False:
+        raise HTTPException(status_code=403, detail="Please verify your email address to continue. We can send you a new code.")
     access = create_access_token(user["user_id"], email)
     refresh = create_refresh_token(user["user_id"])
     set_auth_cookies(response, access, refresh)
@@ -181,7 +277,7 @@ async def google_session(body: GoogleSessionRequest, response: Response):
             "user_id": user_id, "email": email, "name": data.get("name", ""),
             "password_hash": None, "picture": data.get("picture"),
             "mobile": None, "auth_provider": "google",
-            "role": "user", "plan": "free", "active": True,
+            "role": "user", "plan": "free", "active": True, "email_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.users.insert_one(user)
@@ -189,7 +285,8 @@ async def google_session(body: GoogleSessionRequest, response: Response):
         await db.users.update_one(
             {"user_id": user["user_id"]},
             {"$set": {"picture": data.get("picture") or user.get("picture"),
-                      "name": user.get("name") or data.get("name", "")}},
+                      "name": user.get("name") or data.get("name", ""),
+                      "email_verified": True}},
         )
     if user.get("active") is False:
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Contact support.")
@@ -319,6 +416,31 @@ async def delete_account(body: AccountDelete, response: Response,
     return {"ok": True, "message": "Your account and all associated data have been deleted."}
 
 
+@auth_router.post("/forgot-password")
+async def forgot_password(body: ForgotPassword):
+    """Self-service: generate a reset link for an email. Emails it when SendGrid is
+    configured; in skip-mode the link is returned so the user can proceed."""
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email})
+    # Generic response to avoid email enumeration when nothing can be done.
+    generic = {"ok": True, "dev_mode": not email_service.is_configured(), "dev_link": None,
+               "message": "If an account exists for that email, a reset link is on its way."}
+    if not user:
+        return generic
+    if not user.get("password_hash") and user.get("auth_provider") == "google":
+        # Google accounts have no password; nothing to reset.
+        return generic
+
+    token = await create_password_reset(user["user_id"])
+    base = (body.base_url or "").rstrip("/")
+    reset_link = f"{base}/reset-password?token={token}"
+    status = email_service.send_password_reset(email, user.get("name"), reset_link)
+    dev = not email_service.is_configured()
+    return {"ok": True, "dev_mode": dev, "dev_link": reset_link if dev else None,
+            "emailed": status == "sent",
+            "message": "If an account exists for that email, a reset link is on its way."}
+
+
 async def create_password_reset(user_id: str) -> str:
     """Create a one-time password-reset token (valid 1 hour)."""
     token = secrets.token_urlsafe(32)
@@ -331,7 +453,7 @@ async def create_password_reset(user_id: str) -> str:
 
 
 async def _valid_reset(token: str) -> dict:
-    rec = await db.password_resets.find_one({"token": token})
+    rec = await db.password_resets.find_one({"token": token}, {"_id": 0})
     if not rec or rec.get("used"):
         raise HTTPException(status_code=400, detail="This reset link is invalid or has already been used")
     try:
@@ -371,6 +493,8 @@ async def seed_admin():
     await db.users.update_many({"plan": {"$exists": False}}, {"$set": {"plan": "free"}})
     await db.users.update_many({"active": {"$exists": False}}, {"$set": {"active": True}})
     await db.users.update_many({"mobile": {"$exists": False}}, {"$set": {"mobile": None}})
+    # Existing accounts predate email verification — grandfather them as verified.
+    await db.users.update_many({"email_verified": {"$exists": False}}, {"$set": {"email_verified": True}})
 
     # Demo sender account (regular user)
     email = os.environ.get("ADMIN_EMAIL", "demo@civicsign.com").lower()
@@ -381,7 +505,7 @@ async def seed_admin():
             "user_id": f"user_{uuid.uuid4().hex[:16]}", "email": email,
             "name": "CivicSign Demo", "password_hash": hash_password(password),
             "picture": None, "mobile": None, "auth_provider": "password",
-            "role": "user", "plan": "pro", "active": True,
+            "role": "user", "plan": "pro", "active": True, "email_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         logger.info(f"Seeded demo account {email}")
@@ -398,12 +522,12 @@ async def seed_admin():
             "user_id": f"user_{uuid.uuid4().hex[:16]}", "email": admin_email,
             "name": "CivicSign Admin", "password_hash": hash_password(admin_password),
             "picture": None, "mobile": None, "auth_provider": "password",
-            "role": "admin", "plan": "business", "active": True,
+            "role": "admin", "plan": "business", "active": True, "email_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         logger.info(f"Seeded internal admin account {admin_email}")
     else:
-        patch = {"role": "admin", "active": True}
+        patch = {"role": "admin", "active": True, "email_verified": True}
         if not verify_password(admin_password, admin.get("password_hash") or ""):
             patch["password_hash"] = hash_password(admin_password)
         await db.users.update_one({"email": admin_email}, {"$set": patch})

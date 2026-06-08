@@ -1,38 +1,26 @@
 [
   {
-    "content": "Backend: invert token precedence in auth.py to header-first (Bearer overrides cookie) for impersonation",
+    "content": "Backend email_service: add send_verification_code + send_welcome",
     "status": "completed"
   },
   {
-    "content": "AuthContext: add impersonation state + startImpersonation/stopImpersonation helpers",
+    "content": "Backend models: add VerifyEmail, ResendVerification, ForgotPassword",
     "status": "completed"
   },
   {
-    "content": "AppShell: add impersonation banner with Exit button",
+    "content": "Backend auth.py: register issues OTP (no auto-login), verify-email, resend, forgot-password; login blocks unverified; backfill verified; Google verified",
     "status": "completed"
   },
   {
-    "content": "AdminUsers.jsx: remove role dropdown (read-only badge), make rows link to detail page",
+    "content": "Frontend AuthContext + VerifyEmail page + Register/Login updates + Forgot Password dialog",
     "status": "completed"
   },
   {
-    "content": "Create AdminUserDetail.jsx page (diagnostics, plan/active mgmt, reset link, impersonation OTP dialog)",
+    "content": "Lint + curl smoke + visual checks",
     "status": "completed"
   },
   {
-    "content": "Create public ResetPassword.jsx page",
-    "status": "completed"
-  },
-  {
-    "content": "App.js: add /admin/users/:userId and /reset-password routes",
-    "status": "completed"
-  },
-  {
-    "content": "Lint frontend (esbuild) + restart backend, fix errors",
-    "status": "completed"
-  },
-  {
-    "content": "Run testing_agent_v3 for impersonation, reset, diagnostics flows",
-    "status": "completed"
+    "content": "Run testing_agent_v3 for email verification + Stripe billing flows (both)",
+    "status": "in_progress"
   }
 ]

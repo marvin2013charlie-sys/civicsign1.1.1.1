@@ -88,6 +88,38 @@ def send_password_reset(to_email, name, reset_url):
     return _send(to_email, "Reset your CIVICSIGN password", html)
 
 
+def send_verification_code(to_email, name, code):
+    body = (
+        f"<p>Hi {name or 'there'},</p>"
+        f"<p>Welcome to CIVICSIGN! Use the verification code below to confirm your email "
+        f"address and activate your account. This code expires in 15 minutes.</p>"
+        f"<div style=\"margin:18px 0;text-align:center\">"
+        f"<span style=\"display:inline-block;background:#F2ECE3;border:1px solid #E3D7C6;"
+        f"border-radius:12px;padding:14px 24px;font-size:30px;font-weight:700;letter-spacing:8px;"
+        f"color:{INK};font-family:Arial,sans-serif\">{code}</span></div>"
+        f"<p style=\"color:#8a9299;font-size:13px\">If you didn't create a CIVICSIGN account, "
+        f"you can safely ignore this email.</p>"
+    )
+    html = _shell("Verify your email", body)
+    return _send(to_email, f"Your CIVICSIGN verification code: {code}", html)
+
+
+def send_welcome(to_email, name):
+    body = (
+        f"<p>Hi {name or 'there'},</p>"
+        f"<p>Your email is verified and your CIVICSIGN account is ready. \U0001F389</p>"
+        f"<p>You can now prepare documents, add signature fields, and send them for "
+        f"legally binding e-signatures \u2014 each with a tamper-evident audit trail.</p>"
+        f"<ul style=\"color:#3a4650;font-size:14px;line-height:1.7\">"
+        f"<li>Upload a PDF or Word document</li>"
+        f"<li>Drag-and-drop signature, date and text fields</li>"
+        f"<li>Send a secure signing link \u2014 no account required for signers</li>"
+        f"</ul>"
+    )
+    html = _shell("Welcome to CIVICSIGN", body)
+    return _send(to_email, "Welcome to CIVICSIGN \U0001F389", html)
+
+
 def send_signing_invite(to_email, signer_name, sender_name, doc_title, sign_url, message=None):
     extra = f'<p style="background:#F2ECE3;border-left:3px solid {BRAND};padding:10px 14px;border-radius:6px;margin:14px 0">\u201c{message}\u201d</p>' if message else ""
     body = (

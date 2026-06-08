@@ -5,9 +5,12 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { Loader2, ShieldCheck, PenLine, Fingerprint } from "lucide-react";
+import { Loader2, ShieldCheck, PenLine, Fingerprint, KeyRound, Copy, Check } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -21,11 +24,18 @@ function GoogleIcon() {
 }
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, resendVerification, forgotPassword } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Forgot-password dialog state
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotResult, setForgotResult] = useState(null); // { dev_link, message }
+  const [copied, setCopied] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -35,9 +45,57 @@ export default function Login() {
       toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail) || "Login failed");
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || "";
+      // Account exists but email isn't verified yet — route to verification.
+      if (status === 403 && /verify your email/i.test(detail)) {
+        try {
+          const data = await resendVerification(email);
+          toast.info("Please verify your email — we sent you a fresh code.");
+          navigate("/verify-email", {
+            state: { email, dev_code: data.dev_code, dev_mode: data.dev_mode },
+          });
+          return;
+        } catch {
+          navigate("/verify-email", { state: { email } });
+          return;
+        }
+      }
+      toast.error(formatApiError(detail) || "Login failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openForgot = () => {
+    setForgotEmail(email);
+    setForgotResult(null);
+    setCopied(false);
+    setForgotOpen(true);
+  };
+
+  const sendForgot = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) { toast.error("Enter your email"); return; }
+    setForgotSending(true);
+    try {
+      const data = await forgotPassword(forgotEmail);
+      setForgotResult(data);
+      toast.success(data.message || "If an account exists, a reset link is on its way.");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail) || "Could not send reset link");
+    } finally {
+      setForgotSending(false);
+    }
+  };
+
+  const copyForgotLink = async () => {
+    try {
+      await navigator.clipboard.writeText(forgotResult.dev_link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — select and copy manually");
     }
   };
 
@@ -87,7 +145,14 @@ export default function Login() {
                 placeholder="you@company.com" className="mt-1" data-testid="login-email-input" />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button type="button" onClick={openForgot}
+                  className="text-xs font-medium text-[var(--c-primary)] transition-colors hover:opacity-80"
+                  data-testid="login-forgot-password">
+                  Forgot password?
+                </button>
+              </div>
               <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••" className="mt-1" data-testid="login-password-input" />
             </div>
@@ -113,6 +178,57 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* Forgot password dialog */}
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent data-testid="forgot-password-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-heading">
+              <KeyRound className="h-5 w-5" style={{ color: "var(--c-primary)" }} /> Reset your password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your account email to receive a secure link for setting a new password.
+            </DialogDescription>
+          </DialogHeader>
+
+          {forgotResult ? (
+            <div className="space-y-3" data-testid="forgot-password-result">
+              <div className="rounded-lg border border-[var(--c-border)] bg-[var(--status-sent-bg)] p-3 text-sm text-[var(--c-ink)]">
+                {forgotResult.message}
+              </div>
+              {forgotResult.dev_mode && forgotResult.dev_link && (
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)]">Email is in skip-mode — open this link to reset your password:</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <Input readOnly value={forgotResult.dev_link} className="font-mono text-xs" data-testid="forgot-dev-link" onFocus={(e) => e.target.select()} />
+                    <Button size="sm" variant="outline" onClick={copyForgotLink} data-testid="forgot-copy-link">
+                      {copied ? <Check className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <a href={forgotResult.dev_link} className="mt-2 inline-block text-sm font-semibold text-[var(--c-primary)]" data-testid="forgot-open-link">Open reset page</a>
+                </div>
+              )}
+            </div>
+          ) : (
+            <form onSubmit={sendForgot} className="space-y-4">
+              <div>
+                <Label htmlFor="forgot-email">Email</Label>
+                <Input id="forgot-email" type="email" required value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)} placeholder="you@company.com"
+                  className="mt-1" data-testid="forgot-email-input" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setForgotOpen(false)} data-testid="forgot-cancel">Cancel</Button>
+                <Button type="submit" disabled={forgotSending} data-testid="forgot-send-button"
+                  style={{ background: "var(--c-primary)", color: "#fff" }}>
+                  {forgotSending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                  Send reset link
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

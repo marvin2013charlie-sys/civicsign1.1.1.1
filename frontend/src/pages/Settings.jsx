@@ -251,26 +251,106 @@ function ProfileTab() {
 }
 
 function SubscriptionTab() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, checkAuth } = useAuth();
+  const [params, setParams] = useSearchParams();
   const [switching, setSwitching] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const current = user?.plan || "free";
+
+  // When Stripe redirects back with ?session_id=..., poll the backend until the
+  // payment is confirmed (polling is the source of truth for one-time checkout).
+  useEffect(() => {
+    const sessionId = params.get("session_id");
+    if (!sessionId) return;
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+    setVerifying(true);
+
+    const clearSessionParam = () => {
+      const p = new URLSearchParams(params);
+      p.delete("session_id");
+      setParams(p, { replace: true });
+    };
+
+    const poll = async () => {
+      try {
+        const { data } = await api.get(`/billing/status/${sessionId}`);
+        if (cancelled) return;
+        if (data.payment_status === "paid") {
+          await checkAuth();
+          const name = (data.plan_id || "").charAt(0).toUpperCase() + (data.plan_id || "").slice(1);
+          toast.success(`Payment successful — you're now on the ${name} plan`);
+          setVerifying(false);
+          clearSessionParam();
+          return;
+        }
+        if (data.status === "expired") {
+          toast.error("Your payment session expired. Please try again.");
+          setVerifying(false);
+          clearSessionParam();
+          return;
+        }
+        attempts += 1;
+        if (attempts >= maxAttempts) {
+          toast.info("Still processing your payment. Refresh in a moment to see your updated plan.");
+          setVerifying(false);
+          clearSessionParam();
+          return;
+        }
+        setTimeout(poll, 2000);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error("Couldn't verify your payment status. Please refresh.");
+        setVerifying(false);
+        clearSessionParam();
+      }
+    };
+    poll();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const choose = async (planId) => {
     if (planId === current) return;
     setSwitching(planId);
+    // Free is a downgrade — no payment required.
+    if (planId === "free") {
+      try {
+        const { data } = await api.post("/auth/subscription", { plan: planId });
+        setUser(data);
+        toast.success("You're now on the Free plan");
+      } catch (err) {
+        toast.error(formatApiError(err.response?.data?.detail));
+      } finally {
+        setSwitching("");
+      }
+      return;
+    }
+    // Paid plans go through Stripe Checkout.
     try {
-      const { data } = await api.post("/auth/subscription", { plan: planId });
-      setUser(data);
-      toast.success(`You're now on the ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan`);
+      const { data } = await api.post("/billing/checkout", {
+        plan_id: planId, origin_url: window.location.origin,
+      });
+      if (data.url) {
+        window.location.href = data.url; // redirect to Stripe-hosted checkout
+      } else {
+        throw new Error("No checkout URL received");
+      }
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
-    } finally {
       setSwitching("");
     }
   };
 
   return (
     <div>
+      {verifying && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--status-viewed-bg)] px-4 py-3 text-sm" data-testid="payment-verifying-banner">
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--c-primary)" }} />
+          <span className="text-[var(--c-ink)]">Confirming your payment…</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--status-sent-bg)] px-4 py-3 text-sm" data-testid="current-plan-banner">
         <CreditCard className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
         <span className="text-[var(--c-ink)]">You are currently on the <b className="capitalize">{current}</b> plan.</span>
@@ -302,18 +382,21 @@ function SubscriptionTab() {
                   </li>
                 ))}
               </ul>
-              <Button className="mt-5" disabled={isCurrent || switching === p.id} onClick={() => choose(p.id)}
+              <Button className="mt-5" disabled={isCurrent || switching === p.id || verifying} onClick={() => choose(p.id)}
                 data-testid={`plan-select-${p.id}`}
                 variant={isCurrent ? "outline" : "default"}
                 style={isCurrent ? {} : { background: "var(--c-primary)", color: "#fff" }}>
                 {switching === p.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                {isCurrent ? "Current plan" : `Switch to ${p.name}`}
+                {isCurrent ? "Current plan" : p.id === "free" ? "Switch to Free" : `Upgrade to ${p.name}`}
               </Button>
             </div>
           );
         })}
       </div>
-      <p className="mt-4 text-xs text-[var(--muted-foreground)]">Plans are illustrative for now — no payment is collected. Billing integration is coming soon.</p>
+      <p className="mt-4 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+        <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
+        Payments are processed securely by Stripe. Upgrades are charged once and take effect immediately; downgrading to Free is always free.
+      </p>
     </div>
   );
 }
