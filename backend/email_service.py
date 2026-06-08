@@ -1,7 +1,6 @@
-"""SendGrid email delivery for CIVICSIGN. Gracefully skips when no API key is
+"""Resend email delivery for CIVICSIGN. Gracefully skips when no API key is
 configured so the app remains fully functional via shareable signing links."""
 import os
-import base64
 import logging
 
 logger = logging.getLogger("civicsign.email")
@@ -11,7 +10,13 @@ INK = "#0F1720"
 
 
 def _enabled():
-    return bool(os.environ.get("SENDGRID_API_KEY") and os.environ.get("SENDER_EMAIL"))
+    return bool(os.environ.get("RESEND_API_KEY") and os.environ.get("SENDER_EMAIL"))
+
+
+def _from_address():
+    sender = os.environ.get("SENDER_EMAIL", "")
+    name = os.environ.get("SENDER_NAME", "").strip()
+    return f"{name} <{sender}>" if name else sender
 
 
 def _shell(title: str, body_html: str, cta_label: str = None, cta_url: str = None):
@@ -43,37 +48,33 @@ def _shell(title: str, body_html: str, cta_label: str = None, cta_url: str = Non
 
 def _send(to_email, subject, html, attachment_bytes=None, attachment_name="document.pdf"):
     if not _enabled():
-        logger.info(f"[EMAIL skipped] to={to_email} subject={subject!r} (SendGrid not configured)")
+        logger.info(f"[EMAIL skipped] to={to_email} subject={subject!r} (Resend not configured)")
         return "skipped"
     try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import (
-            Mail, Attachment, FileContent, FileName, FileType, Disposition,
-        )
-        message = Mail(
-            from_email=os.environ["SENDER_EMAIL"],
-            to_emails=to_email,
-            subject=subject,
-            html_content=html,
-        )
+        import resend
+        resend.api_key = os.environ["RESEND_API_KEY"]
+        params = {
+            "from": _from_address(),
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+        }
         if attachment_bytes:
-            encoded = base64.b64encode(attachment_bytes).decode()
-            message.attachment = Attachment(
-                FileContent(encoded), FileName(attachment_name),
-                FileType("application/pdf"), Disposition("attachment"),
-            )
-        sg = SendGridAPIClient(os.environ["SENDGRID_API_KEY"])
-        resp = sg.send(message)
-        ok = resp.status_code in (200, 201, 202)
-        logger.info(f"[EMAIL sent] to={to_email} status={resp.status_code}")
-        return "sent" if ok else f"error_{resp.status_code}"
+            params["attachments"] = [{
+                "filename": attachment_name,
+                "content": list(attachment_bytes),
+            }]
+        result = resend.Emails.send(params)
+        email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        logger.info(f"[EMAIL sent] to={to_email} id={email_id}")
+        return "sent" if email_id else "error"
     except Exception as e:  # never block the signing flow on email errors
         logger.error(f"[EMAIL error] to={to_email} err={e}")
         return "error"
 
 
 def is_configured() -> bool:
-    """Whether real email delivery (SendGrid) is configured."""
+    """Whether real email delivery (Resend) is configured."""
     return _enabled()
 
 

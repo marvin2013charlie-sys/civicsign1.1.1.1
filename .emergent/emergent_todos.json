@@ -1,26 +1,22 @@
 [
   {
-    "content": "Backend email_service: add send_verification_code + send_welcome",
+    "content": "Get Resend integration playbook",
     "status": "completed"
   },
   {
-    "content": "Backend models: add VerifyEmail, ResendVerification, ForgotPassword",
+    "content": "Install resend SDK + freeze requirements; add RESEND_API_KEY/SENDER_EMAIL/SENDER_NAME to .env",
     "status": "completed"
   },
   {
-    "content": "Backend auth.py: register issues OTP (no auto-login), verify-email, resend, forgot-password; login blocks unverified; backfill verified; Google verified",
+    "content": "Rewrite email_service.py to send via Resend (keep signatures/returns)",
     "status": "completed"
   },
   {
-    "content": "Frontend AuthContext + VerifyEmail page + Register/Login updates + Forgot Password dialog",
+    "content": "Restart backend + verify real send (sent + id) and dev-mode boxes auto-hide",
     "status": "completed"
   },
   {
-    "content": "Lint + curl smoke + visual checks",
+    "content": "Confirm signup/verify/forgot/signing flows + cleanup test data",
     "status": "completed"
-  },
-  {
-    "content": "Run testing_agent_v3 for email verification + Stripe billing flows (both)",
-    "status": "in_progress"
   }
 ]
