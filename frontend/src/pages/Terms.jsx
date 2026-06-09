@@ -12,7 +12,7 @@ const sections = [
     "You are responsible for maintaining the confidentiality of your account credentials and for all activity under your account. You agree to provide accurate information and to keep it up to date.",
   ] },
   { heading: "Electronic signatures & legal validity", paragraphs: [
-    "You acknowledge that electronic signatures created through the Services are intended to be legally binding under the U.S. ESIGN Act, UETA, and the EU eIDAS Regulation, provided the requirements of intent, consent, attribution, and record retention are met. You are responsible for determining whether electronic signatures are appropriate for your particular documents and jurisdiction.",
+    "You acknowledge that electronic signatures created through the Services are intended to be legally binding under English law, including the Electronic Communications Act 2000 and the UK eIDAS Regulation (Electronic Identification and Trust Services for Electronic Transactions Regulations 2016), and consistent with the Law Commission's 2019 report on the electronic execution of documents, provided the requirements of intent, consent, attribution, and record retention are met. You are responsible for determining whether electronic signatures are appropriate for your particular documents and jurisdiction.",
   ] },
   { heading: "Acceptable use", paragraphs: ["You agree not to:"], list: [
     "Use the Services for unlawful, fraudulent, or deceptive purposes.",
@@ -39,7 +39,7 @@ const sections = [
     "We may suspend or terminate your access to the Services for violation of these Terms or for any conduct that may harm CIVICSIGN or other users. You may stop using the Services at any time.",
   ] },
   { heading: "Governing law", paragraphs: [
-    "These Terms are governed by the laws of the jurisdiction in which CIVICSIGN is established, without regard to conflict-of-law principles.",
+    "These Terms are governed by the laws of England and Wales, and you submit to the exclusive jurisdiction of the courts of England and Wales, without regard to conflict-of-law principles.",
   ] },
   { heading: "Changes to these Terms", paragraphs: [
     "We may update these Terms from time to time. Continued use of the Services after changes take effect constitutes acceptance of the revised Terms.",

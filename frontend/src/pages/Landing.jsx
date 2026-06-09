@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
+import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -42,12 +43,12 @@ const USE_CASES = [
 ];
 
 const PLANS = [
-  { name: "Free", price: "$0", note: "forever", cta: "Start free", to: "/register", highlight: false,
+  { name: "Free", price: "£0", note: "forever", cta: "Start free", to: "/register", highlight: false,
     features: ["5 documents / month", "1 sender", "Draw, type & upload signatures", "Audit trail + Certificate of Completion", "PDF & Word support"] },
-  { name: "Pro", price: "$15", note: "per user / month", cta: "Start free", to: "/register", highlight: true,
+  { name: "Pro", price: "£15", note: "per user / month", cta: "Start free", to: "/register", highlight: true,
     features: ["Unlimited documents", "Reusable templates", "Reminders & expiration", "Multiple recipients & routing", "Email + shareable links"] },
-  { name: "Business", price: "Custom", note: "let's talk", cta: "Contact sales", to: "/contact", highlight: false,
-    features: ["Everything in Pro", "Recipient authentication", "Bulk send", "API & webhooks", "SSO & priority support"] },
+  { name: "Business", price: "£49", note: "per user / month", cta: "Start free", to: "/register", highlight: false,
+    features: ["Everything in Pro", "Recipient authentication", "Bulk send", "API & webhooks", "Priority support"] },
 ];
 
 const TESTIMONIALS = [
@@ -76,7 +77,7 @@ export default function Landing() {
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-              <span className="h-2 w-2 rounded-full" style={{ background: "var(--c-accent)" }} /> ESIGN & eIDAS aligned
+              <span className="h-2 w-2 rounded-full" style={{ background: "var(--c-accent)" }} /> UK eIDAS & ECA 2000 aligned
             </span>
             <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight text-[var(--c-ink)] sm:text-5xl lg:text-6xl">
               Sign documents.<br /><span style={{ color: "var(--c-primary)" }}>Close deals.</span> Done.
@@ -310,6 +311,7 @@ export default function Landing() {
 
       <SiteFooter />
       <CookieBanner />
+      <FloatingAssistant />
     </div>
   );
 }

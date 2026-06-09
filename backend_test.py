@@ -204,8 +204,51 @@ class APITester:
                 check_fn=lambda d: "dev_code" in d and d.get("dev_mode") == True
             )
 
-        # ===== STRIPE BILLING TESTS =====
-        self.log("\n💳 STRIPE BILLING TESTS", Colors.YELLOW)
+        # ===== PUBLIC ASSISTANT TESTS (UK-focused) =====
+        self.log("\n🤖 PUBLIC ASSISTANT TESTS (UK-focused)", Colors.YELLOW)
+
+        # Test 13: POST /api/assistant/chat WITHOUT auth (public endpoint)
+        success, data = self.test(
+            "Public assistant chat (no auth required)",
+            "POST", "assistant/chat", 200,
+            data={"message": "Hello", "history": []},
+            headers={},  # No Authorization header
+            check_fn=lambda d: "reply" in d and len(d.get("reply", "")) > 0
+        )
+
+        # Test 14: Assistant mentions UK law when asked about e-signature legality
+        success, data = self.test(
+            "Assistant mentions UK law (Electronic Communications Act 2000 / UK eIDAS)",
+            "POST", "assistant/chat", 200,
+            data={"message": "Are e-signatures legal in the UK?", "history": []},
+            headers={},  # No Authorization header
+            check_fn=lambda d: (
+                "reply" in d and 
+                ("Electronic Communications Act 2000" in d.get("reply", "") or 
+                 "UK eIDAS" in d.get("reply", "") or
+                 "eIDAS" in d.get("reply", ""))
+            )
+        )
+        if success:
+            self.log(f"   Reply preview: {data.get('reply', '')[:150]}...", Colors.BLUE)
+
+        # Test 15: Assistant quotes prices in GBP (£), not dollars
+        success, data = self.test(
+            "Assistant quotes prices in GBP (£15, £49)",
+            "POST", "assistant/chat", 200,
+            data={"message": "What are your pricing plans?", "history": []},
+            headers={},  # No Authorization header
+            check_fn=lambda d: (
+                "reply" in d and 
+                ("£" in d.get("reply", "") or "GBP" in d.get("reply", "")) and
+                "$" not in d.get("reply", "")
+            )
+        )
+        if success:
+            self.log(f"   Reply preview: {data.get('reply', '')[:150]}...", Colors.BLUE)
+
+        # ===== STRIPE BILLING TESTS (GBP) =====
+        self.log("\n💳 STRIPE BILLING TESTS (GBP)", Colors.YELLOW)
 
         # Use demo account token for billing tests
         current_plan = "free"
@@ -219,18 +262,18 @@ class APITester:
             current_plan = data.get("user", {}).get("plan", "free")
             self.log(f"   Current plan: {current_plan}", Colors.BLUE)
 
-        # Test 13: GET /api/billing/plans (should return Pro $15, Business $49)
+        # Test 16: GET /api/billing/plans (should return currency 'gbp', Pro £15, Business £49)
         self.test(
-            "Get billing plans",
+            "Get billing plans (GBP currency)",
             "GET", "billing/plans", 200,
             check_fn=lambda d: (
-                d.get("currency") == "usd" and
+                d.get("currency") == "gbp" and
                 any(p["id"] == "pro" and p["amount"] == 15.00 for p in d.get("plans", [])) and
                 any(p["id"] == "business" and p["amount"] == 49.00 for p in d.get("plans", []))
             )
         )
 
-        # Test 14: POST /api/billing/checkout for CURRENT plan (should fail with 400)
+        # Test 17: POST /api/billing/checkout for CURRENT plan (should fail with 400)
         if current_plan in ["pro", "business"]:
             self.test(
                 f"Checkout for CURRENT plan ({current_plan}) - should fail",
@@ -238,7 +281,7 @@ class APITester:
                 data={"plan_id": current_plan, "origin_url": "https://civicsign.test"}
             )
 
-        # Test 15: POST /api/billing/checkout for DIFFERENT plan (should succeed)
+        # Test 18: POST /api/billing/checkout for DIFFERENT plan (should succeed)
         target_plan = "business" if current_plan != "business" else "pro"
         success, data = self.test(
             f"Checkout for {target_plan} plan",
@@ -251,14 +294,14 @@ class APITester:
             self.log(f"   Checkout URL: {data.get('url', '')[:60]}...", Colors.BLUE)
             self.log(f"   Session ID: {self.session_id}", Colors.BLUE)
 
-        # Test 16: POST /api/billing/checkout with invalid plan_id (should fail with 400)
+        # Test 19: POST /api/billing/checkout with invalid plan_id (should fail with 400)
         self.test(
             "Checkout with invalid plan_id",
             "POST", "billing/checkout", 400,
             data={"plan_id": "invalid_plan", "origin_url": "https://civicsign.test"}
         )
 
-        # Test 17: GET /api/billing/status/{session_id} before payment (should show pending)
+        # Test 20: GET /api/billing/status/{session_id} before payment (should show pending)
         if self.session_id:
             self.test(
                 "Get checkout status (before payment)",
@@ -269,7 +312,7 @@ class APITester:
         # ===== REGRESSION TESTS =====
         self.log("\n🔄 REGRESSION TESTS", Colors.YELLOW)
 
-        # Test 18: GET /auth/me (should work)
+        # Test 21: GET /auth/me (should work)
         self.test(
             "Get current user (/auth/me)",
             "GET", "auth/me", 200,

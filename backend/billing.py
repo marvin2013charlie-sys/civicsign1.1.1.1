@@ -25,7 +25,7 @@ logger = logging.getLogger("civicsign.billing")
 
 billing_router = APIRouter(prefix="/api", tags=["billing"])
 
-CURRENCY = "usd"
+CURRENCY = "gbp"
 
 # Server-side, fixed plan catalogue. The frontend NEVER sends amounts.
 PLANS = {

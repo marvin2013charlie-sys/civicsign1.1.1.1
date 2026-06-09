@@ -203,7 +203,7 @@ export default function SignerFlow() {
             <div className="mt-5 flex items-start gap-3 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-4">
               <Checkbox id="consent" checked={consented} onCheckedChange={(v) => setConsented(!!v)} data-testid="consent-checkbox" className="mt-0.5" />
               <label htmlFor="consent" className="text-sm text-[var(--c-ink)]">
-                I agree to use electronic records and signatures, and I consent to conduct this transaction electronically in accordance with the ESIGN Act. I understand my actions are legally binding.
+                I agree to use electronic records and signatures, and I consent to conduct this transaction electronically in accordance with the UK Electronic Communications Act 2000 and the UK eIDAS Regulation. I understand my actions are legally binding.
               </label>
             </div>
             <Button className="mt-5 w-full" disabled={!consented} onClick={() => setStarted(true)} data-testid="consent-continue-button" style={{ background: "var(--c-primary)", color: "#fff" }}>

@@ -114,7 +114,7 @@ export default function Login() {
           <h2 className="font-heading text-4xl font-bold leading-tight">Get legally binding signatures, fast.</h2>
           <div className="mt-8 space-y-4 text-white/80">
             <p className="flex items-center gap-3"><PenLine className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Drag-and-drop document preparation</p>
-            <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> ESIGN & eIDAS aligned workflows</p>
+            <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> UK eIDAS & Electronic Communications Act 2000 aligned</p>
             <p className="flex items-center gap-3"><Fingerprint className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Tamper-evident audit trail on every doc</p>
           </div>
         </div>

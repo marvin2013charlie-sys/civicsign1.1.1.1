@@ -1,22 +1,26 @@
 [
   {
-    "content": "Get Resend integration playbook",
+    "content": "Backend: assistant chat public + UK SYSTEM_PROMPT",
     "status": "completed"
   },
   {
-    "content": "Install resend SDK + freeze requirements; add RESEND_API_KEY/SENDER_EMAIL/SENDER_NAME to .env",
+    "content": "FloatingAssistant widget (bottom-right) mounted on Landing main page",
     "status": "completed"
   },
   {
-    "content": "Rewrite email_service.py to send via Resend (keep signatures/returns)",
+    "content": "GBP pricing: billing.py currency=gbp; Settings + Landing show £15/£49/£0",
     "status": "completed"
   },
   {
-    "content": "Restart backend + verify real send (sent + id) and dev-mode boxes auto-hide",
+    "content": "UK e-sign compliance copy (Login, Landing, SiteFooter, Terms, Privacy, SignerFlow)",
     "status": "completed"
   },
   {
-    "content": "Confirm signup/verify/forgot/signing flows + cleanup test data",
+    "content": "Lint + restart + curl/visual verification (all passed)",
     "status": "completed"
+  },
+  {
+    "content": "testing_agent_v3: public assistant + GBP checkout + regression",
+    "status": "in_progress"
   }
 ]

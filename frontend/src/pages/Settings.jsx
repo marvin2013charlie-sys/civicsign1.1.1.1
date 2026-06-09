@@ -22,17 +22,17 @@ import {
 
 const PLAN_DEFS = [
   {
-    id: "free", name: "Free", price: "$0", period: "forever", icon: Sparkles,
+    id: "free", name: "Free", price: "£0", period: "forever", icon: Sparkles,
     tagline: "For individuals getting started",
     features: ["3 documents / month", "Up to 2 recipients", "Draw, type & upload signatures", "Tamper-evident audit trail"],
   },
   {
-    id: "pro", name: "Pro", price: "$15", period: "/ month", icon: Crown,
+    id: "pro", name: "Pro", price: "£15", period: "/ month", icon: Crown,
     tagline: "For professionals & freelancers",
     features: ["Unlimited documents", "Reusable templates", "Reminders & expiration", "Bulk send", "Priority email support"],
   },
   {
-    id: "business", name: "Business", price: "$49", period: "/ month", icon: Building2,
+    id: "business", name: "Business", price: "£49", period: "/ month", icon: Building2,
     tagline: "For growing teams",
     features: ["Everything in Pro", "Team workspaces (soon)", "Custom branding", "Advanced analytics", "Dedicated support"],
   },

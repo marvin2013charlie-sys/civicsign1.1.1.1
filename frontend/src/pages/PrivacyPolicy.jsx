@@ -19,7 +19,7 @@ const sections = [
     "To generate Certificates of Completion and maintain the integrity of signed records.",
     "To communicate with you about your account, documents, and support requests.",
     "To detect, prevent, and address fraud, abuse, and security issues.",
-    "To comply with legal obligations such as the ESIGN Act and eIDAS.",
+    "To comply with legal obligations such as the Electronic Communications Act 2000 and the UK eIDAS Regulation (Electronic Identification and Trust Services for Electronic Transactions Regulations 2016).",
   ] },
   { heading: "Legal bases for processing", paragraphs: [
     "Where the GDPR applies, we process personal data on the bases of performance of a contract, our legitimate interests in operating and improving the Services, compliance with legal obligations, and your consent where required.",

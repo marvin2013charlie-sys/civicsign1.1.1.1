@@ -40,7 +40,7 @@ export const SiteFooter = () => {
             The fresh, fast e-signature platform for modern teams. Upload, drag fields, send — get legally binding signatures with a tamper-evident audit trail.
           </p>
           <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--c-paper)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-            <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> ESIGN & eIDAS aligned
+            <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> UK eIDAS & ECA 2000 aligned
           </p>
         </div>
         {COLS.map((c) => (
