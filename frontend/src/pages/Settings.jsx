@@ -39,7 +39,7 @@ const PLAN_DEFS = [
 ];
 
 const FAQS = [
-  { q: "Are CIVICSIGN signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion \u2014 aligned with ESIGN and eIDAS expectations." },
+  { q: "Are CIVICSIGN signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion \u2014 aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
   { q: "What file types can I upload?", a: "You can upload PDF and Microsoft Word (.docx) documents. Word files are automatically converted to PDF before preparation." },
   { q: "Do my signers need an account?", a: "No. Recipients receive a secure signing link and can complete only their assigned fields without creating an account." },
   { q: "How do reminders and expiration work?", a: "From an envelope's detail page you can send a reminder to pending signers. When sending, you can also set the document to expire in 3, 7, 14, or 30 days." },
@@ -309,7 +309,7 @@ function SubscriptionTab() {
     poll();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // run once on mount to detect a returning Stripe session
 
   const choose = async (planId) => {
     if (planId === current) return;
@@ -333,7 +333,7 @@ function SubscriptionTab() {
         plan_id: planId, origin_url: window.location.origin,
       });
       if (data.url) {
-        window.location.href = data.url; // redirect to Stripe-hosted checkout
+        window.location.assign(data.url); // redirect to Stripe-hosted checkout
       } else {
         throw new Error("No checkout URL received");
       }
@@ -504,7 +504,7 @@ function HelpTab() {
           </h3>
           <Accordion type="single" collapsible className="mt-3" data-testid="help-faq-accordion">
             {FAQS.map((f, i) => (
-              <AccordionItem key={i} value={`faq-${i}`}>
+              <AccordionItem key={f.q} value={`faq-${i}`}>
                 <AccordionTrigger className="text-left text-sm font-semibold text-[var(--c-ink)]">{f.q}</AccordionTrigger>
                 <AccordionContent className="text-sm text-[var(--muted-foreground)]">{f.a}</AccordionContent>
               </AccordionItem>
@@ -518,7 +518,7 @@ function HelpTab() {
             <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
           </span>
           <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need a human?</h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Our team typically replies within one business day. Send us a message and we'll get right back to you.</p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Our team typically replies within one business day. Send us a message and we will get right back to you.</p>
           <Link to="/contact" data-testid="help-contact-link">
             <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
               <Mail className="mr-1.5 h-4 w-4" /> Contact support

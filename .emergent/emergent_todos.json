@@ -16,11 +16,11 @@
     "status": "completed"
   },
   {
-    "content": "Lint + restart + curl/visual verification (all passed)",
+    "content": "Lint + restart + curl/visual verification",
     "status": "completed"
   },
   {
-    "content": "testing_agent_v3: public assistant + GBP checkout + regression",
-    "status": "in_progress"
+    "content": "testing_agent_v3: public assistant + GBP checkout + regression (100% pass)",
+    "status": "completed"
   }
 ]

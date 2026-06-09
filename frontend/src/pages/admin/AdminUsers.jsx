@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError, downloadCsv } from "@/lib/api";
@@ -20,22 +20,23 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
-  const load = useCallback(async (query = "") => {
-    try {
-      const { data } = await api.get("/admin/users", { params: { q: query } });
-      setUsers(data);
-    } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  // Debounced fetch — runs on mount (empty query) and whenever the search box
+  // changes. State is set inside an async callback (deferred), satisfying the
+  // react-hooks rules without a redundant second effect.
   useEffect(() => {
-    const t = setTimeout(() => load(q), 350);
-    return () => clearTimeout(t);
-  }, [q, load]);
+    let active = true;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/admin/users", { params: { q } });
+        if (active) setUsers(data);
+      } catch (err) {
+        toast.error(formatApiError(err.response?.data?.detail));
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, q ? 350 : 0);
+    return () => { active = false; clearTimeout(t); };
+  }, [q]);
 
   const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "\u2014");
 

@@ -78,6 +78,7 @@ async def chat(body: ChatRequest):
     else:
         prompt = body.message
 
+    reply = ""
     try:
         chat_client = LlmChat(
             api_key=api_key,
