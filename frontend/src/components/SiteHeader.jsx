@@ -2,11 +2,18 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, Home, Users } from "lucide-react";
+import { Menu, X, ChevronDown, Home, Users, Scale, UsersRound, PoundSterling, HeartPulse, Heart, HardHat, GraduationCap } from "lucide-react";
 
 const SOLUTIONS = [
-  { to: "/solutions/real-estate", label: "Real Estate", icon: Home, blurb: "ASTs, sales memos & notices" },
-  { to: "/solutions/staffing-agency", label: "Staffing Agency", icon: Users, blurb: "Contracts, RTW & terms of business" },
+  { to: "/solutions/real-estate",       label: "Real Estate",         icon: Home,          blurb: "ASTs, sales memos & notices" },
+  { to: "/solutions/staffing-agency",   label: "Staffing Agency",     icon: Users,         blurb: "Contracts, RTW & terms of business" },
+  { to: "/solutions/legal",             label: "Legal & Solicitors",  icon: Scale,         blurb: "Engagement letters & witnessed deeds" },
+  { to: "/solutions/hr",                label: "HR & People Ops",     icon: UsersRound,    blurb: "Offer letters, contracts & leavers" },
+  { to: "/solutions/financial-services",label: "Financial Services",  icon: PoundSterling, blurb: "Engagement letters & AML declarations" },
+  { to: "/solutions/healthcare",        label: "Healthcare",          icon: HeartPulse,    blurb: "Patient consent & care plans" },
+  { to: "/solutions/charities",         label: "Charities",           icon: Heart,         blurb: "Gift Aid, trustees & volunteers" },
+  { to: "/solutions/construction",      label: "Construction & Trades", icon: HardHat,     blurb: "Quotes, JCT contracts & RAMS" },
+  { to: "/solutions/education",         label: "Education",           icon: GraduationCap, blurb: "Parental consent & staff onboarding" },
 ];
 
 const LINKS = [
@@ -56,11 +63,11 @@ export const SiteHeader = () => {
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${solOpen ? "rotate-180" : ""}`} />
             </button>
             {solOpen && (
-              <div className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-lg" data-testid="nav-solutions-panel">
+              <div className="absolute left-1/2 top-full z-50 mt-2 w-[min(640px,92vw)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-lg" data-testid="nav-solutions-panel">
                 <p className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                   By industry
                 </p>
-                <div className="p-1.5">
+                <div className="grid grid-cols-1 gap-1 p-1.5 sm:grid-cols-2">
                   {SOLUTIONS.map((s) => (
                     <Link
                       key={s.to}
@@ -68,12 +75,12 @@ export const SiteHeader = () => {
                       data-testid={`nav-solution-${s.label.toLowerCase().replace(/\s+/g, "-")}`}
                       className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-[var(--c-paper-2)]"
                     >
-                      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+                      <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
                         <s.icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
                       </span>
-                      <span className="flex-1">
+                      <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-[var(--c-ink)]">{s.label}</span>
-                        <span className="block text-xs text-[var(--muted-foreground)]">{s.blurb}</span>
+                        <span className="block truncate text-xs text-[var(--muted-foreground)]">{s.blurb}</span>
                       </span>
                     </Link>
                   ))}

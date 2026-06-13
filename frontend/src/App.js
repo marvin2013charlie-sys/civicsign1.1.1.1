@@ -35,6 +35,13 @@ import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import RealEstate from "@/pages/solutions/RealEstate";
 import StaffingAgency from "@/pages/solutions/StaffingAgency";
+import Legal from "@/pages/solutions/Legal";
+import HR from "@/pages/solutions/HR";
+import FinancialServices from "@/pages/solutions/FinancialServices";
+import Healthcare from "@/pages/solutions/Healthcare";
+import Charities from "@/pages/solutions/Charities";
+import Construction from "@/pages/solutions/Construction";
+import Education from "@/pages/solutions/Education";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
 import CookiePolicy from "@/pages/CookiePolicy";
@@ -79,6 +86,13 @@ function AppRoutes() {
       <Route path="/contact" element={<Contact />} />
       <Route path="/solutions/real-estate" element={<RealEstate />} />
       <Route path="/solutions/staffing-agency" element={<StaffingAgency />} />
+      <Route path="/solutions/legal" element={<Legal />} />
+      <Route path="/solutions/hr" element={<HR />} />
+      <Route path="/solutions/financial-services" element={<FinancialServices />} />
+      <Route path="/solutions/healthcare" element={<Healthcare />} />
+      <Route path="/solutions/charities" element={<Charities />} />
+      <Route path="/solutions/construction" element={<Construction />} />
+      <Route path="/solutions/education" element={<Education />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/cookies" element={<CookiePolicy />} />
