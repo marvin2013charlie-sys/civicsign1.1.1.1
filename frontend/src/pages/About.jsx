@@ -18,8 +18,8 @@ const VALUES = [
 ];
 
 const STATS = [
-  { icon: FileCheck, value: "500k+", label: "Documents prepared" },
-  { icon: Globe, value: "190+", label: "Countries supported" },
+  { icon: FileCheck, value: "500k+", label: "UK documents prepared" },
+  { icon: Globe, value: "100%", label: "UK-owned & UK-hosted" },
   { icon: ShieldCheck, value: "99.9%", label: "Platform uptime" },
   { icon: Zap, value: "< 3 min", label: "Avg. time to sign" },
 ];
@@ -34,13 +34,13 @@ export default function About() {
       <section className="noise-overlay border-b border-[var(--c-border)]">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:py-24">
           <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-            <Heart className="h-3.5 w-3.5" style={{ color: "var(--c-accent)" }} /> Our story
+            <span aria-hidden="true">&#127468;&#127463;</span> British-built · UK GDPR approved
           </motion.span>
           <h1 className="mt-4 font-heading text-4xl font-bold leading-tight tracking-tight text-[var(--c-ink)] sm:text-5xl">
-            We’re making agreements <span style={{ color: "var(--c-primary)" }}>effortless</span>
+            Britain&rsquo;s own way to <span style={{ color: "var(--c-primary)" }}>sign</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-[var(--muted-foreground)]">
-            CIVICSIGN started with a simple frustration: getting a signature shouldn’t feel like enterprise software from a decade ago. We set out to build a fresh, fast, and genuinely trustworthy way to sign — for everyone, not just big companies.
+            CIVICSIGN started with a simple frustration: getting a signature shouldn&rsquo;t feel like enterprise software from a decade ago. We set out to build a fresh, fast, genuinely trustworthy way to sign &mdash; from the UK, for the UK and beyond. Today CIVICSIGN is the UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform.
           </p>
         </div>
       </section>
@@ -57,7 +57,7 @@ export default function About() {
               To give every team — from freelancers to fast-growing companies — a signing experience that is quick to use, legally sound, and a pleasure to look at. We believe trust should be built in, audit trails should be standard, and pricing should be honest.
             </p>
             <p className="mt-3 text-[var(--muted-foreground)] leading-relaxed">
-              We’re aligned with the U.S. ESIGN Act and EU eIDAS principles, so the documents you complete on CIVICSIGN are designed to hold up when it matters.
+              We&rsquo;re proudly UK-owned and UK-hosted, fully aligned with UK GDPR, the UK eIDAS Regulation and the Electronic Communications Act 2000 &mdash; so the documents you complete on CIVICSIGN are designed to hold up in British courts when it matters.
             </p>
           </div>
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-8 text-white">

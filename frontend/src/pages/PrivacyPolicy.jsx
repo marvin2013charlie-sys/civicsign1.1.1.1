@@ -3,7 +3,7 @@ import { LegalLayout } from "@/components/LegalLayout";
 
 const sections = [
   { heading: "Introduction", paragraphs: [
-    "CIVICSIGN Technologies Inc. (“CIVICSIGN”, “we”, “us”) is committed to protecting your privacy. This Privacy Policy explains what information we collect, how we use it, and the choices you have when you use our electronic signature platform and related services (the “Services”).",
+    "CIVICSIGN Technologies Ltd. (“CIVICSIGN”, “we”, “us”), a company registered in England and Wales, is committed to protecting your privacy. This Privacy Policy explains what information we collect, how we use it, and the choices you have when you use our UK-hosted electronic signature platform and related services (the “Services”). We act as a data controller under UK GDPR and the Data Protection Act 2018.",
     "By using the Services, you agree to the collection and use of information in accordance with this policy.",
   ] },
   { heading: "Information we collect", paragraphs: ["We collect the following categories of information:"], list: [

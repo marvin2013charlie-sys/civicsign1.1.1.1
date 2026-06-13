@@ -3,7 +3,7 @@ import { LegalLayout } from "@/components/LegalLayout";
 
 const sections = [
   { heading: "Acceptance of terms", paragraphs: [
-    "These Terms & Conditions (“Terms”) govern your access to and use of the CIVICSIGN electronic signature platform and related services (the “Services”) provided by CIVICSIGN Technologies Inc. By creating an account or using the Services, you agree to be bound by these Terms.",
+    "These Terms & Conditions (“Terms”) govern your access to and use of the CIVICSIGN electronic signature platform and related services (the “Services”) provided by CIVICSIGN Technologies Ltd., a company registered in England and Wales (registered office: 71-75 Shelton Street, Covent Garden, London WC2H 9JQ, United Kingdom). By creating an account or using the Services, you agree to be bound by these Terms.",
   ] },
   { heading: "Description of the Services", paragraphs: [
     "CIVICSIGN enables users to upload documents, place fields, send documents to recipients, capture electronic signatures, and generate finalized documents with a Certificate of Completion and audit trail.",

@@ -27,8 +27,8 @@ const Feature = ({ icon: Icon, title, children }) => (
 );
 
 const METRICS = [
-  { icon: FileText, value: "500k+", label: "Documents prepared" },
-  { icon: Globe, value: "190+", label: "Countries supported" },
+  { icon: FileText, value: "500k+", label: "UK documents prepared" },
+  { icon: Globe, value: "100%", label: "UK-owned & UK-hosted" },
   { icon: ShieldCheck, value: "99.9%", label: "Platform uptime" },
   { icon: Zap, value: "< 3 min", label: "Avg. time to sign" },
 ];
@@ -58,7 +58,8 @@ const TESTIMONIALS = [
 ];
 
 const FAQS = [
-  ["Are signatures from CIVICSIGN legally binding?", "Yes. CIVICSIGN is designed around the U.S. ESIGN Act, UETA, and EU eIDAS principles — capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
+  ["Are signatures from CIVICSIGN legally binding?", "Yes. CIVICSIGN is built around UK law — the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents — capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
+  ["Is CIVICSIGN UK GDPR compliant?", "Yes. CIVICSIGN is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with strict access controls, encryption in transit, and a clear data-subject rights process you can exercise at any time."],
   ["Do my signers need an account?", "No. Recipients sign through a secure, tokenized link on any device — no account or download required."],
   ["What file types can I upload?", "PDF and Word (.docx) documents. Word files are automatically converted to PDF while preserving your layout."],
   ["How do you keep documents secure?", "We use encryption in transit, hashed passwords, tokenized links, and seal every finalized document with a SHA-256 hash so any change is detectable."],
@@ -77,13 +78,13 @@ export default function Landing() {
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-              <span className="h-2 w-2 rounded-full" style={{ background: "var(--c-accent)" }} /> UK eIDAS & ECA 2000 aligned
+              <span aria-hidden="true">&#127468;&#127463;</span> The UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform
             </span>
             <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight text-[var(--c-ink)] sm:text-5xl lg:text-6xl">
               Sign documents.<br /><span style={{ color: "var(--c-primary)" }}>Close deals.</span> Done.
             </h1>
             <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CIVICSIGN is the fresh, fast e-signature platform for modern teams. Upload, drag fields, send — get legally binding signatures with a tamper-evident audit trail.
+              CIVICSIGN is Britain&rsquo;s own e-signature platform &mdash; built in the UK, UK GDPR compliant, and aligned with the UK eIDAS Regulation and the Electronic Communications Act 2000. Upload, drag fields, send &mdash; get legally binding signatures with a tamper-evident audit trail.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/register">
@@ -94,8 +95,8 @@ export default function Landing() {
               <a href="#how"><Button size="lg" variant="outline">See how it works</Button></a>
             </div>
             <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--muted-foreground)]">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> No signer account needed</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> PDF & Word support</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK GDPR compliant</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK-built &amp; UK-owned</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Audit trail included</span>
             </div>
           </motion.div>

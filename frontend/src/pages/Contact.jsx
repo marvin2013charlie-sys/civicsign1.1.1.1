@@ -16,8 +16,8 @@ import { Mail, MessageSquare, Clock, MapPin, Loader2, CheckCircle2, Send } from 
 const INFO = [
   { icon: Mail, title: "Email us", body: "hello@civicsign.com", sub: "General & sales enquiries" },
   { icon: MessageSquare, title: "Support", body: "support@civicsign.com", sub: "We reply within 1 business day" },
-  { icon: Clock, title: "Hours", body: "Mon – Fri, 9am – 6pm", sub: "Across global time zones" },
-  { icon: MapPin, title: "Office", body: "123 Market Street", sub: "San Francisco, CA" },
+  { icon: Clock, title: "Hours", body: "Mon – Fri, 9am – 6pm", sub: "London time (GMT/BST)" },
+  { icon: MapPin, title: "Registered office", body: "71-75 Shelton Street", sub: "Covent Garden, London WC2H 9JQ, United Kingdom" },
 ];
 
 export default function Contact() {
