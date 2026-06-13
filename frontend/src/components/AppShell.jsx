@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck, Eye, Loader2, BarChart3, Gauge } from "lucide-react";
+import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck, Eye, Loader2, BarChart3, Gauge, PenTool } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +22,7 @@ const NAV = [
   { to: "/new", label: "New Envelope", icon: FilePlus2, testid: "nav-new" },
   { to: "/documents", label: "Documents", icon: FileText, testid: "nav-documents" },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, testid: "nav-templates" },
+  { to: "/manage-pdf", label: "Manage PDF", icon: PenTool, testid: "nav-manage-pdf" },
   { to: "/reports", label: "Reports", icon: BarChart3, testid: "nav-reports" },
   { to: "/usage", label: "Usage", icon: Gauge, testid: "nav-usage" },
   { to: "/settings", label: "Settings", icon: Settings, testid: "nav-settings" },

@@ -31,6 +31,7 @@ from blog_admin import public_router as blog_public_router, admin_router as blog
 from careers import public_router as careers_public_router, admin_router as careers_admin_router
 from assistant import assistant_router
 from billing import billing_router
+from pdf_manager import router as pdf_manager_router
 from sample_templates import seed_sample_templates
 
 logging.basicConfig(level=logging.INFO,
@@ -864,6 +865,7 @@ app.include_router(careers_admin_router)
 app.include_router(careers_public_router)
 app.include_router(assistant_router)
 app.include_router(billing_router)
+app.include_router(pdf_manager_router)
 
 app.add_middleware(
     CORSMiddleware,

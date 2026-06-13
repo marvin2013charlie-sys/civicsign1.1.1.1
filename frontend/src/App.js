@@ -19,6 +19,7 @@ import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
+import ManagePdf from "@/pages/ManagePdf";
 import Settings from "@/pages/Settings";
 import ResetPassword from "@/pages/ResetPassword";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -134,6 +135,7 @@ function AppRoutes() {
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/documents" element={<Protected><Documents /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
+      <Route path="/manage-pdf" element={<Protected><ManagePdf /></Protected>} />
       <Route path="/reports" element={<Protected><Reports /></Protected>} />
       <Route path="/usage" element={<Protected><Usage /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
