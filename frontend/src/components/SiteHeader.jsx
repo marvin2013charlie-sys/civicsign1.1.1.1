@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Menu, X, ChevronDown, Home, Users, Scale, UsersRound, PoundSterling, HeartPulse, Heart, HardHat, GraduationCap, BookOpen } from "lucide-react";
 
 const SOLUTIONS = [
@@ -145,6 +146,7 @@ export const SiteHeader = () => {
           )}
         </nav>
         <div className="flex items-center gap-2">
+          <ThemeToggle className="hidden sm:inline-flex" />
           <Link to="/login" className="hidden sm:block"><Button variant="ghost" data-testid="nav-signin-button">Sign in</Button></Link>
           <Link to="/register"><Button data-testid="nav-getstarted-button" style={{ background: "var(--c-ink)", color: "#fff" }}>Start free</Button></Link>
           <button className="md:hidden" onClick={() => setOpen((o) => !o)} aria-label="menu">

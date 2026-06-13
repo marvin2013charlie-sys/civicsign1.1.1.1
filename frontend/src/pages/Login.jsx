@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,17 @@ function GoogleIcon() {
 export default function Login() {
   const { login, resendVerification, forgotPassword } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Tell the user *why* they landed back on login if it was an auto sign-out.
+  useEffect(() => {
+    if (params.get("reason") === "idle") {
+      toast.info("You were signed out automatically after 10 minutes of inactivity.", { id: "idle-out" });
+    }
+  }, [params]);
 
   // Forgot-password dialog state
   const [forgotOpen, setForgotOpen] = useState(false);

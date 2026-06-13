@@ -18,6 +18,8 @@ try {
   BACKEND_URL = ""; // malformed URL -> same-origin
 }
 export const API_BASE = `${BACKEND_URL}/api`;
+// Bare backend origin (no `/api` suffix) — used for absolute media URLs like avatars.
+export const API_ORIGIN = BACKEND_URL;
 
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 

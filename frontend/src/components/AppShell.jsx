@@ -5,6 +5,17 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { API_ORIGIN } from "@/lib/api";
+
+// Avatars uploaded internally are returned as a relative "/api/auth/avatar/.."
+// path. Prefix with the backend origin so the <img> tag resolves correctly even
+// when the SPA is served from a different host than the API.
+function resolvePicture(picture) {
+  if (!picture) return undefined;
+  if (picture.startsWith("/")) return `${API_ORIGIN}${picture}`;
+  return picture;
+}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
@@ -63,7 +74,7 @@ function SidebarContent({ user, onLogout, onNavigate }) {
       <div className="border-t border-[var(--c-border)] p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
           <Avatar className="h-9 w-9">
-            {user?.picture && <AvatarImage src={user.picture} alt={user?.name} />}
+            {user?.picture && <AvatarImage src={resolvePicture(user.picture)} alt={user?.name} />}
             <AvatarFallback className="bg-[var(--c-primary)] text-white text-xs">
               {(user?.name || user?.email || "U").slice(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -156,7 +167,7 @@ export const AppShell = ({ children, title, actions }) => {
             <Menu className="h-5 w-5" />
           </button>
           <h1 className="font-heading text-lg font-semibold text-[var(--c-ink)]">{title}</h1>
-          <div className="ml-auto flex items-center gap-2">{actions}</div>
+          <div className="ml-auto flex items-center gap-2">{actions}<ThemeToggle /></div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>

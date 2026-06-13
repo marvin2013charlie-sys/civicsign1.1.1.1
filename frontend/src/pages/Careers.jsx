@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Briefcase, MapPin, Globe2, ArrowRight, Heart, Users, Sparkles } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Briefcase, MapPin, Globe2, ArrowRight, Heart, Users, Sparkles, Search, X as XIcon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 const TYPE_LABEL = { "full-time": "Full-time", "part-time": "Part-time", contract: "Contract", internship: "Internship" };
@@ -20,6 +22,7 @@ const VALUES = [
 export default function Careers() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -33,6 +36,15 @@ export default function Careers() {
       }
     })();
   }, []);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter((j) => {
+      const hay = `${j.title} ${j.department} ${j.location} ${j.summary || ""} ${j.workplace || ""} ${j.job_type || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [jobs, query]);
 
   return (
     <div className="min-h-screen bg-[var(--c-paper)]" data-testid="careers-page">
@@ -91,23 +103,51 @@ export default function Careers() {
             <div>
               <h2 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Open positions</h2>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                {loading ? "Loading…" : jobs.length === 0 ? "No open positions right now — check back soon." : `${jobs.length} ${jobs.length === 1 ? "role" : "roles"} open`}
+                {loading ? "Loading…" : visible.length === 0 ? "No matching roles right now." : `${visible.length} ${visible.length === 1 ? "role" : "roles"}${query ? " match your search" : " open"}`}
               </p>
             </div>
+          </div>
+
+          {/* Search bar */}
+          <div className="mt-5 relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <Input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search roles by title, team, location…"
+              className="pl-9 pr-9 bg-[var(--card)]"
+              data-testid="careers-search-input"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                data-testid="careers-search-clear"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--c-ink)]"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           <div className="mt-6 space-y-3">
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
-            ) : jobs.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-12 text-center">
+            ) : visible.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-12 text-center" data-testid="careers-empty-state">
                 <Briefcase className="mx-auto h-8 w-8 text-[var(--muted-foreground)]" />
                 <p className="mt-3 text-sm text-[var(--muted-foreground)]">
-                  We&rsquo;re not actively hiring right now, but we&rsquo;re always happy to hear from exceptional people. Email <a href="mailto:careers@civicsign.app" className="font-semibold text-[var(--c-primary)] hover:underline">careers@civicsign.app</a>.
+                  {query ? (
+                    <>No openings match &ldquo;<b>{query}</b>&rdquo;. Try a different keyword or clear the search.</>
+                  ) : (
+                    <>We&rsquo;re not actively hiring right now, but we&rsquo;re always happy to hear from exceptional people. Email <a href="mailto:careers@civicsign.app" className="font-semibold text-[var(--c-primary)] hover:underline">careers@civicsign.app</a>.</>
+                  )}
                 </p>
               </div>
             ) : (
-              jobs.map((j) => (
+              visible.map((j) => (
                 <Link
                   key={j.slug}
                   to={`/careers/${j.slug}`}

@@ -36,6 +36,7 @@ import AdminTeam from "@/pages/admin/AdminTeam";
 import AdminCareers from "@/pages/admin/AdminCareers";
 import StaffLanding from "@/pages/admin/StaffLanding";
 import RequirePerm from "@/components/RequirePerm";
+import { useIdleLogout } from "@/hooks/useIdleLogout";
 import Careers from "@/pages/Careers";
 import JobDetail from "@/pages/JobDetail";
 import About from "@/pages/About";
@@ -90,12 +91,20 @@ function AdminIndex() {
   return <AdminOverview />;
 }
 
+function IdleLogoutGuard() {
+  // Auto-sign-out after 10 minutes of inactivity (only fires for authenticated sessions).
+  useIdleLogout({ idleMs: 10 * 60 * 1000, warnMs: 60 * 1000 });
+  return null;
+}
+
 function AppRoutes() {
   // Handle Emergent Google OAuth callback BEFORE any route/auth logic (race-safe).
   if (typeof window !== "undefined" && window.location.hash && window.location.hash.includes("session_id=")) {
     return <AuthCallback />;
   }
   return (
+    <>
+      <IdleLogoutGuard />
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/about" element={<About />} />
@@ -146,6 +155,7 @@ function AppRoutes() {
       <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
 

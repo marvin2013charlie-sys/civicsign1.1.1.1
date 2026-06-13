@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, API_ORIGIN } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,9 @@ import {
 import {
   User, CreditCard, LifeBuoy, Loader2, Save, KeyRound, Check, Mail,
   MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2,
-  Trash2, AlertTriangle, Bot, SendHorizonal,
+  Trash2, AlertTriangle, Bot, SendHorizonal, Camera, ImagePlus, ImageOff,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const PLAN_DEFS = [
   {
@@ -106,6 +107,108 @@ function DeleteAccountDialog({ open, onOpenChange }) {
   );
 }
 
+function AvatarCard() {
+  const { user, setUser } = useAuth();
+  const fileRef = React.useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const initials = (user?.name || user?.email || "U").slice(0, 2).toUpperCase();
+  // The backend stores picture as either an absolute URL (Google) or a relative
+  // path like "/api/auth/avatar/{file_id}". Prepend the backend origin only
+  // for the relative case so the <img> tag resolves on the correct host.
+  const rawPicture = user?.picture || "";
+  const pictureSrc = rawPicture && rawPicture.startsWith("/")
+    ? `${API_ORIGIN}${rawPicture}`
+    : rawPicture;
+
+  const onPick = () => fileRef.current?.click();
+
+  const onChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(jpe?g|png|webp|gif)$/i.test(file.type)) {
+      toast.error("Please choose a JPG, PNG, WebP or GIF image"); return;
+    }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image must be under 2 MB"); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/auth/avatar", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUser(data);
+      toast.success("Avatar updated");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onRemove = async () => {
+    setRemoving(true);
+    try {
+      const { data } = await api.delete("/auth/avatar");
+      setUser(data);
+      toast.success("Avatar removed");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="avatar-card">
+      <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Profile picture</h3>
+      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+        Shown to your recipients on the signing page and in audit emails. JPG, PNG, WebP or GIF, up to 2&nbsp;MB.
+      </p>
+      <div className="mt-5 flex items-center gap-5">
+        <div className="relative">
+          <Avatar className="h-20 w-20 ring-2 ring-[var(--c-border)]">
+            {pictureSrc && <AvatarImage src={pictureSrc} alt={user?.name || "Avatar"} />}
+            <AvatarFallback className="bg-[var(--c-primary)] text-lg font-semibold text-white">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <button
+            type="button" onClick={onPick} data-testid="avatar-upload-overlay"
+            aria-label="Change profile picture"
+            className="absolute -bottom-1 -right-1 inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--card)] bg-[var(--c-ink)] text-white shadow-sm transition-transform hover:scale-105"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onPick} disabled={uploading} data-testid="avatar-upload-btn"
+            style={{ background: "var(--c-primary)", color: "#fff" }}>
+            {uploading
+              ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              : <ImagePlus className="mr-1.5 h-4 w-4" />}
+            {pictureSrc ? "Replace photo" : "Upload photo"}
+          </Button>
+          {pictureSrc && (
+            <Button variant="outline" onClick={onRemove} disabled={removing} data-testid="avatar-remove-btn">
+              {removing
+                ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                : <ImageOff className="mr-1.5 h-4 w-4" />}
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+      <input
+        ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={onChange} className="hidden" data-testid="avatar-file-input"
+      />
+    </div>
+  );
+}
+
 function ProfileTab() {
   const { user, setUser } = useAuth();
   const [form, setForm] = useState({
@@ -173,6 +276,7 @@ function ProfileTab() {
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-5">
+        <AvatarCard />
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
           <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Personal information</h3>
           <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Update your name, email and mobile number.</p>

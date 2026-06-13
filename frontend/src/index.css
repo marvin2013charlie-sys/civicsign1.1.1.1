@@ -31,6 +31,27 @@
   --status-expired-bg: #F4EFE6; --status-expired-fg: #0F1720; --status-expired-border: #B45309;
 }
 
+/* Dark mode palette — applied when <html data-theme="dark"> */
+html[data-theme="dark"] {
+  --c-ink: #F4F6F8;
+  --c-ink-2: #E5E9EE;
+  --c-paper: #0B1117;
+  --c-paper-2: #131B23;
+  --c-border: #1F2A35;
+  --c-primary: #2DD4BF;
+  --c-primary-hover: #14B8A6;
+  --c-accent: #FF8B6F;
+  --c-accent-hover: #FF7A5C;
+  --card: #131B23;
+
+  --status-draft-bg: #1A222B; --status-draft-fg: #E5E9EE; --status-draft-border: #2A3744;
+  --status-sent-bg: #0C2A26; --status-sent-fg: #E5E9EE; --status-sent-border: #2DD4BF;
+  --status-viewed-bg: #0C2030; --status-viewed-fg: #E5E9EE; --status-viewed-border: #0284C7;
+  --status-completed-bg: #0F2A1B; --status-completed-fg: #E5E9EE; --status-completed-border: #22C55E;
+  --status-declined-bg: #2A1417; --status-declined-fg: #E5E9EE; --status-declined-border: #EF4444;
+  --status-expired-bg: #2A1F12; --status-expired-fg: #E5E9EE; --status-expired-border: #D97706;
+}
+
 @layer base {
   :root {
     --background: 36 33% 95%;
@@ -58,6 +79,28 @@
     --chart-3: 199 89% 48%;
     --chart-4: 38 92% 50%;
     --chart-5: 84 70% 45%;
+  }
+
+  html[data-theme="dark"] {
+    --background: 210 26% 7%;
+    --foreground: 210 16% 95%;
+    --card: 210 22% 11%;
+    --card-foreground: 210 16% 95%;
+    --popover: 210 22% 11%;
+    --popover-foreground: 210 16% 95%;
+    --primary: 173 65% 51%;
+    --primary-foreground: 210 33% 9%;
+    --secondary: 210 18% 16%;
+    --secondary-foreground: 210 16% 95%;
+    --muted: 210 18% 14%;
+    --muted-foreground: 215 14% 70%;
+    --accent: 16 100% 72%;
+    --accent-foreground: 210 33% 9%;
+    --destructive: 0 78% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 14% 18%;
+    --input: 210 14% 18%;
+    --ring: 173 65% 51%;
   }
 }
 

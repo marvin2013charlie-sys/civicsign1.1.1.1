@@ -1,17 +1,19 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Calendar, Clock, ArrowRight, Tag } from "lucide-react";
+import { BookOpen, Calendar, Clock, ArrowRight, Tag, Search, X as XIcon } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { POSTS as STATIC_POSTS, CATEGORIES, fetchAllPosts } from "@/lib/blogPosts";
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = React.useState("All");
   const [posts, setPosts] = React.useState(STATIC_POSTS);
+  const [query, setQuery] = React.useState("");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -19,7 +21,14 @@ export default function Blog() {
     return () => { cancelled = true; };
   }, []);
 
-  const visible = activeCategory === "All" ? posts : posts.filter((p) => p.category === activeCategory);
+  const byCategory = activeCategory === "All" ? posts : posts.filter((p) => p.category === activeCategory);
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? byCategory.filter((p) => {
+        const hay = `${p.title} ${p.excerpt} ${p.category} ${(p.tags || []).join(" ")}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : byCategory;
   const [featured, ...rest] = visible;
 
   return (
@@ -44,8 +53,30 @@ export default function Blog() {
         </div>
       </section>
 
-      {/* Category filter */}
+      {/* Search + Category filter */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mb-4 relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search articles by title, topic or category…"
+            className="pl-9 pr-9 bg-[var(--card)]"
+            data-testid="blog-search-input"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              data-testid="blog-search-clear"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--c-ink)]"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2" data-testid="blog-categories">
           {CATEGORIES.map((c) => (
             <button
@@ -69,7 +100,9 @@ export default function Blog() {
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
         {visible.length === 0 ? (
           <p className="py-16 text-center text-sm text-[var(--muted-foreground)]" data-testid="blog-empty-state">
-            No posts in this category yet — try another filter.
+            {q
+              ? <>No articles match &ldquo;<b>{query}</b>&rdquo; — try a different keyword or clear the search.</>
+              : "No posts in this category yet — try another filter."}
           </p>
         ) : (
           <>

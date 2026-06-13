@@ -11,10 +11,11 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import httpx
-from fastapi import APIRouter, Request, Response, HTTPException, Depends
+from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File
+from fastapi.responses import Response as FastResponse
 
 import email_service
-from db import db, delete_file
+from db import db, delete_file, upload_file, download_file
 from models import (
     RegisterRequest, LoginRequest, GoogleSessionRequest,
     ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
@@ -528,6 +529,71 @@ async def reset_password(body: ResetPassword):
     await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
     logger.info(f"Password reset completed for user {rec['user_id']}")
     return {"ok": True, "message": "Your password has been reset. You can now sign in."}
+
+
+# ---- Avatar upload ------------------------------------------------------
+ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
+MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+@auth_router.post("/avatar")
+async def upload_avatar(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Upload (or replace) the current user's avatar image. Stored in GridFS and
+    served via GET /api/auth/avatar/{file_id}."""
+    if file.content_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(status_code=400, detail="Please upload a JPG, PNG, WebP or GIF image")
+    data = await file.read()
+    if len(data) > MAX_AVATAR_BYTES:
+        raise HTTPException(status_code=400, detail="Image too large — keep it under 2 MB")
+    if len(data) < 64:
+        raise HTTPException(status_code=400, detail="File looks empty or corrupt")
+    file_id = await upload_file(data, f"avatar_{user['user_id']}", content_type=file.content_type)
+    picture_url = f"/api/auth/avatar/{file_id}"
+    # Clean up previous internally-hosted avatar (best effort)
+    old = (user.get("picture") or "")
+    if old.startswith("/api/auth/avatar/"):
+        try:
+            await delete_file(old.rsplit("/", 1)[-1])
+        except Exception:
+            pass
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"picture": picture_url,
+                  "avatar_content_type": file.content_type,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return _public_user(fresh)
+
+
+@auth_router.delete("/avatar")
+async def delete_avatar(user: dict = Depends(get_current_user)):
+    old = user.get("picture") or ""
+    if old.startswith("/api/auth/avatar/"):
+        try:
+            await delete_file(old.rsplit("/", 1)[-1])
+        except Exception:
+            pass
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"picture": None, "avatar_content_type": None,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return _public_user(fresh)
+
+
+@auth_router.get("/avatar/{file_id}")
+async def get_avatar(file_id: str):
+    """Public avatar fetch — embedded in <img> tags so it does not require a session."""
+    try:
+        data = await download_file(file_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    # Look up the matching user to get the original content-type
+    user = await db.users.find_one({"picture": f"/api/auth/avatar/{file_id}"},
+                                   {"_id": 0, "avatar_content_type": 1})
+    ctype = (user or {}).get("avatar_content_type") or "image/jpeg"
+    return FastResponse(content=data, media_type=ctype,
+                        headers={"Cache-Control": "public, max-age=300"})
 
 
 async def seed_admin():
