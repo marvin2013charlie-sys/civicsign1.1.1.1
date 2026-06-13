@@ -19,6 +19,9 @@
   --c-accent: #FF7A5C;
   --c-accent-hover: #FF6A4A;
 
+  /* Card surface (opaque hex so direct `bg-[var(--card)]` works without `hsl()` wrapping) */
+  --card: #FBF8F2;
+
   /* status tokens */
   --status-draft-bg: #F2ECE3; --status-draft-fg: #16212C; --status-draft-border: #D8C7A6;
   --status-sent-bg: #E6F7F4; --status-sent-fg: #0F1720; --status-sent-border: #1FB8A6;

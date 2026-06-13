@@ -66,7 +66,7 @@ export const FloatingAssistant = () => {
       {open && (
         <div
           data-testid="floating-assistant-panel"
-          className="fixed bottom-24 right-5 z-[300] flex h-[min(560px,75vh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--card)] shadow-2xl"
+          className="fixed bottom-24 right-5 z-[300] flex h-[min(560px,75vh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-2xl"
           style={{ animation: "cs-pop 200ms ease-out" }}
         >
           <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-4 py-3" style={{ background: "var(--c-ink)" }}>
