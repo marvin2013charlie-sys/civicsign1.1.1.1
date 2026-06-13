@@ -56,7 +56,7 @@ export const SiteHeader = () => {
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${solOpen ? "rotate-180" : ""}`} />
             </button>
             {solOpen && (
-              <div className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)] shadow-lg" data-testid="nav-solutions-panel">
+              <div className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-lg" data-testid="nav-solutions-panel">
                 <p className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
                   By industry
                 </p>
