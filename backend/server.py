@@ -906,8 +906,8 @@ async def startup():
         (mem / "test_credentials.md").write_text(
             "# CIVICSIGN Test Credentials\n\n"
             "## Demo sender account (email/password)\n"
-            f"- Email: {os.environ.get('ADMIN_EMAIL','demo@civicsign.com')}\n"
-            f"- Password: {os.environ.get('ADMIN_PASSWORD','Demo1234!')}\n\n"
+            f"- Email: {os.environ.get('ADMIN_EMAIL','user@civicsign.app')}\n"
+            f"- Password: {os.environ.get('ADMIN_PASSWORD','Welcome@2026!')}\n\n"
             "## Auth endpoints\n"
             "- POST /api/auth/register {name,email,password}\n"
             "- POST /api/auth/login {email,password} -> sets cookies + returns access_token\n"

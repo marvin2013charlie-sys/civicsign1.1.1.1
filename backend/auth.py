@@ -523,8 +523,8 @@ async def seed_admin():
     await db.users.update_many({"email_verified": {"$exists": False}}, {"$set": {"email_verified": True}})
 
     # Demo sender account (regular user)
-    email = os.environ.get("ADMIN_EMAIL", "demo@civicsign.com").lower()
-    password = os.environ.get("ADMIN_PASSWORD", "Demo1234!")
+    email = os.environ.get("ADMIN_EMAIL", "user@civicsign.app").lower()
+    password = os.environ.get("ADMIN_PASSWORD", "Welcome@2026!")
     existing = await db.users.find_one({"email": email})
     if not existing:
         await db.users.insert_one({
@@ -540,8 +540,8 @@ async def seed_admin():
                                   {"$set": {"password_hash": hash_password(password)}})
 
     # Internal admin account (role=admin)
-    admin_email = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicsign.com").lower()
-    admin_password = os.environ.get("INTERNAL_ADMIN_PASSWORD", "Admin1234!")
+    admin_email = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicsign.app").lower()
+    admin_password = os.environ.get("INTERNAL_ADMIN_PASSWORD", "Admin@2026!")
     admin = await db.users.find_one({"email": admin_email})
     if not admin:
         await db.users.insert_one({
