@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import {
   Home, FileText, ShieldCheck, Clock, Users, CheckCircle2, ArrowRight,
   Key, FileSignature, ScrollText, PoundSterling, Sparkles,
+  Landmark, Gauge, ClipboardCheck, FileBadge, Stamp as StampIcon,
+  PenLine, Hash, Calendar, Mail, Building2, Briefcase, ChevronDown, Circle, Type as TypeIcon, CheckSquare,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -31,6 +33,67 @@ const STATS = [
   { value: "< 4 hrs", label: "Average tenancy turnaround" },
   { value: "0 paper", label: "Lost contracts, lost initials" },
   { value: "100%", label: "UK-owned & UK-hosted" },
+];
+
+const BENEFITS = [
+  {
+    icon: Gauge,
+    title: "Accelerate transactions",
+    body: "Speed up the process from home or on the go — quick signing of tenancies, sales memos and notices without physical presence or relying on the postal system.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Support compliance",
+    body: "Reduce errors, protect client data and maintain regulatory compliance under UK GDPR through tamper-evident document management and a full audit trail.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Reduce administrative tasks",
+    body: "Spend less time on paperwork and repetitive admin and more time with vendors, landlords and tenants — improving their overall experience.",
+  },
+];
+
+// Field palette mirror — matches what the sender sees in /prepare
+const FIELD_PALETTE = [
+  { icon: PenLine,      label: "Signature" },
+  { icon: Hash,         label: "Initial" },
+  { icon: StampIcon,    label: "Stamp" },
+  { icon: Calendar,     label: "Date Signed" },
+  { icon: Users,        label: "Name" },
+  { icon: Mail,         label: "Email" },
+  { icon: Building2,    label: "Company" },
+  { icon: Briefcase,    label: "Title" },
+  { icon: TypeIcon,     label: "Text" },
+  { icon: CheckSquare,  label: "Checkbox" },
+  { icon: ChevronDown,  label: "Dropdown" },
+  { icon: Circle,       label: "Radio" },
+];
+
+const SOLUTIONS = [
+  {
+    name: "eSignature",
+    badge: "Capabilities",
+    body: "Easily send and sign tenancy agreements, sales memos and statutory notices across virtually any device.",
+    cta: "Start free",
+    to: "/register",
+    primary: true,
+  },
+  {
+    name: "eWitness",
+    badge: "Capabilities",
+    body: "Route documents through one or more individuals to witness the execution of deeds and other important property agreements.",
+    cta: "Talk to sales",
+    to: "/contact",
+    primary: false,
+  },
+  {
+    name: "Audit & Seal",
+    badge: "Capabilities",
+    body: "Tamper-evident sealing with a Certificate of Completion capturing every signer, IP address and timestamp — defensible in UK court.",
+    cta: "How it works",
+    to: "/about",
+    primary: false,
+  },
 ];
 
 export default function RealEstate() {
@@ -126,6 +189,155 @@ export default function RealEstate() {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* HM Land Registry compliance callout */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <div className="grid items-start gap-10 lg:grid-cols-2">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
+              <Landmark className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> HM Land Registry · 2020 update
+            </span>
+            <h2 className="mt-4 font-heading text-3xl font-bold leading-tight text-[var(--c-ink)] sm:text-4xl">
+              By simplifying the transaction process, you can save much more than paper.
+            </h2>
+          </div>
+          <p className="text-lg leading-relaxed text-[var(--muted-foreground)]">
+            HM Land Registry now accepts electronic signatures and electronic witnessing on dispositionary deeds. CIVICSIGN gives UK estate agents, conveyancers and landlords the flexibility and signing experience their clients expect — without sacrificing the legal weight of a wet signature.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-8 sm:grid-cols-3">
+          {BENEFITS.map((b) => (
+            <div key={b.title} data-testid={`realestate-benefit-${b.title.toLowerCase().replace(/\s+/g, "-")}`}>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+                <b.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+              </span>
+              <h3 className="mt-4 font-heading text-lg font-semibold text-[var(--c-ink)]">{b.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{b.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* eSignature for Real Estate — field palette preview */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)] py-20">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2">
+          {/* Visual preview */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}
+            className="relative"
+            data-testid="realestate-form-preview"
+          >
+            <div className="rounded-3xl p-6 sm:p-8" style={{ background: "var(--c-ink)" }}>
+              <div className="overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div className="flex gap-0 text-[var(--c-ink)]">
+                  {/* Field palette rail */}
+                  <div className="hidden w-40 shrink-0 border-r border-[var(--c-border)] bg-[var(--c-paper-2)] px-2 py-3 sm:block">
+                    {FIELD_PALETTE.map((f) => (
+                      <div key={f.label} className="mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium">
+                        <span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--c-primary)" }} />
+                        <f.icon className="h-3 w-3 text-[var(--muted-foreground)]" />
+                        <span className="truncate">{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Document preview */}
+                  <div className="flex-1 p-5 sm:p-6">
+                    <h4 className="font-heading text-base font-bold sm:text-lg">Residential Purchase Agreement</h4>
+                    <div className="mt-3 space-y-1.5">
+                      <div className="h-1.5 w-full rounded bg-[var(--c-paper-2)]" />
+                      <div className="h-1.5 w-4/5 rounded bg-[var(--c-paper-2)]" />
+                      <div className="h-1.5 w-5/6 rounded bg-[var(--c-paper-2)]" />
+                    </div>
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">Text</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Date</p>
+                      </div>
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">Morten Estate Co.</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Brokerage</p>
+                      </div>
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">Text</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Phone Number</p>
+                      </div>
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">brenda@morten.com</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Email Address</p>
+                      </div>
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">Blake Hayes</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Received by Agent</p>
+                      </div>
+                      <div>
+                        <div className="h-7 rounded-md border-2 border-[var(--c-primary)] bg-[var(--status-sent-bg)] px-2 py-1 text-[10px] text-[var(--c-ink)]">Mary Williams</div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">Buyer&rsquo;s Agent</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 flex items-center gap-2">
+                      <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-[var(--c-primary)] bg-[var(--status-sent-bg)]">
+                        <CheckCircle2 className="h-3 w-3" style={{ color: "var(--c-primary)" }} />
+                      </span>
+                      <div className="h-1.5 flex-1 rounded bg-[var(--c-paper-2)]" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Copy */}
+          <div>
+            <h2 className="font-heading text-3xl font-bold leading-tight text-[var(--c-ink)] sm:text-4xl">
+              CIVICSIGN eSignature <br className="hidden sm:block" />for Real Estate
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-[var(--muted-foreground)]">
+              Agents can simplify the way they prepare, send and manage agreements with an all-in-one solution.
+            </p>
+            <p className="mt-4 text-base leading-relaxed text-[var(--muted-foreground)]">
+              Access pre-built UK templates (ASTs, sales memos, Section 21/8 notices). Place 15+ field types — signature, initial, stamp, date signed, name, email, company, title, dropdown, radio and more — in seconds. Send for signature and monitor status in real time.
+            </p>
+            <Link to="/register" className="mt-7 inline-block">
+              <Button size="lg" variant="outline" data-testid="realestate-read-more" className="border-[var(--c-primary)] text-[var(--c-primary)] hover:bg-[var(--status-sent-bg)]">
+                Read more about eSignature <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Which solution is right for you? */}
+      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">
+          Which CIVICSIGN solution is right for you?
+        </h2>
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {SOLUTIONS.map((s) => (
+            <div
+              key={s.name}
+              data-testid={`realestate-solution-${s.name.toLowerCase().replace(/\s+/g, "-")}`}
+              className="flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] p-6"
+            >
+              <h3 className="font-heading text-xl font-bold text-[var(--c-ink)]">{s.name}</h3>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{s.badge}</p>
+              <p className="mt-5 flex-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{s.body}</p>
+              <Link to={s.to} className="mt-6">
+                <Button
+                  variant={s.primary ? "default" : "outline"}
+                  className={s.primary ? "" : "border-[var(--c-ink)]/20 text-[var(--c-ink)]"}
+                  style={s.primary ? { background: "var(--c-primary)", color: "#fff" } : {}}
+                  data-testid={`realestate-solution-cta-${s.name.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {s.cta}
+                </Button>
+              </Link>
+            </div>
+          ))}
+        </div>
+        <Link to="/#features" className="mt-8 inline-flex items-center gap-1 text-sm font-semibold text-[var(--c-primary)] hover:underline" data-testid="realestate-view-more-products">
+          View more capabilities <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </section>
 
       {/* CTA */}
