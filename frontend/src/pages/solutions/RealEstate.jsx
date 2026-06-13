@@ -69,33 +69,6 @@ const FIELD_PALETTE = [
   { icon: Circle,       label: "Radio" },
 ];
 
-const SOLUTIONS = [
-  {
-    name: "eSignature",
-    badge: "Capabilities",
-    body: "Easily send and sign tenancy agreements, sales memos and statutory notices across virtually any device.",
-    cta: "Start free",
-    to: "/register",
-    primary: true,
-  },
-  {
-    name: "eWitness",
-    badge: "Capabilities",
-    body: "Route documents through one or more individuals to witness the execution of deeds and other important property agreements.",
-    cta: "Talk to sales",
-    to: "/contact",
-    primary: false,
-  },
-  {
-    name: "Audit & Seal",
-    badge: "Capabilities",
-    body: "Tamper-evident sealing with a Certificate of Completion capturing every signer, IP address and timestamp — defensible in UK court.",
-    cta: "How it works",
-    to: "/about",
-    primary: false,
-  },
-];
-
 export default function RealEstate() {
   return (
     <div className="min-h-screen bg-[var(--c-paper)] text-[var(--c-ink)]">
@@ -305,39 +278,6 @@ export default function RealEstate() {
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* Which solution is right for you? */}
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">
-          Which CIVICSIGN solution is right for you?
-        </h2>
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {SOLUTIONS.map((s) => (
-            <div
-              key={s.name}
-              data-testid={`realestate-solution-${s.name.toLowerCase().replace(/\s+/g, "-")}`}
-              className="flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] p-6"
-            >
-              <h3 className="font-heading text-xl font-bold text-[var(--c-ink)]">{s.name}</h3>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{s.badge}</p>
-              <p className="mt-5 flex-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{s.body}</p>
-              <Link to={s.to} className="mt-6">
-                <Button
-                  variant={s.primary ? "default" : "outline"}
-                  className={s.primary ? "" : "border-[var(--c-ink)]/20 text-[var(--c-ink)]"}
-                  style={s.primary ? { background: "var(--c-primary)", color: "#fff" } : {}}
-                  data-testid={`realestate-solution-cta-${s.name.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {s.cta}
-                </Button>
-              </Link>
-            </div>
-          ))}
-        </div>
-        <Link to="/#features" className="mt-8 inline-flex items-center gap-1 text-sm font-semibold text-[var(--c-primary)] hover:underline" data-testid="realestate-view-more-products">
-          View more capabilities <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
       </section>
 
       {/* CTA */}
