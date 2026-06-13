@@ -46,9 +46,16 @@ const PLANS = [
   { name: "Free", price: "£0", note: "forever", cta: "Start free", to: "/register", highlight: false,
     features: ["5 documents / month", "1 sender", "Draw, type & upload signatures", "Audit trail + Certificate of Completion", "PDF & Word support"] },
   { name: "Pro", price: "£15", note: "per user / month", cta: "Start free", to: "/register", highlight: true,
-    features: ["Unlimited documents", "Reusable templates", "Reminders & expiration", "Multiple recipients & routing", "Email + shareable links"] },
+    features: [
+      "All Free features, plus:",
+      "Up to 500 documents per user / month",
+      "Simple Electronic Signatures (SES) from your recipients",
+      "Shared team templates for standardised agreements",
+      "Real-time commenting & collaboration",
+      "Custom branding (logo & colours) to build trust",
+    ] },
   { name: "Business", price: "£49", note: "per user / month", cta: "Start free", to: "/register", highlight: false,
-    features: ["Everything in Pro", "Recipient authentication", "Bulk send", "API & webhooks", "Priority support"] },
+    features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send", "API & webhooks", "Priority support"] },
 ];
 
 const TESTIMONIALS = [

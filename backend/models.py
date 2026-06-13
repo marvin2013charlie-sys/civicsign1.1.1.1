@@ -129,6 +129,18 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     mobile: Optional[str] = None
     email: Optional[EmailStr] = None
+    # Extended business profile (UK-friendly)
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    phone: Optional[str] = None        # work / landline
+    country: Optional[str] = None      # ISO country name, defaults to United Kingdom
+    city: Optional[str] = None
+    postcode: Optional[str] = None     # UK postcode style
+    vat_number: Optional[str] = None
+    company_size: Optional[str] = None # "1", "2-10", "11-50", "51-200", "200+"
+    industry: Optional[str] = None
+    timezone: Optional[str] = None     # e.g. "Europe/London"
+    marketing_opt_in: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):

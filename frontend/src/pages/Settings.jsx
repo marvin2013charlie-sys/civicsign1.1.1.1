@@ -24,17 +24,24 @@ const PLAN_DEFS = [
   {
     id: "free", name: "Free", price: "£0", period: "forever", icon: Sparkles,
     tagline: "For individuals getting started",
-    features: ["3 documents / month", "Up to 2 recipients", "Draw, type & upload signatures", "Tamper-evident audit trail"],
+    features: ["5 documents / month", "Up to 2 recipients", "Draw, type & upload signatures", "Tamper-evident audit trail"],
   },
   {
     id: "pro", name: "Pro", price: "£15", period: "/ month", icon: Crown,
-    tagline: "For professionals & freelancers",
-    features: ["Unlimited documents", "Reusable templates", "Reminders & expiration", "Bulk send", "Priority email support"],
+    tagline: "For professionals & growing teams",
+    features: [
+      "All Free features, plus:",
+      "Up to 500 documents per user / month",
+      "Simple Electronic Signatures (SES) from your recipients",
+      "Shared team templates for standardised agreements",
+      "Real-time commenting & collaboration",
+      "Custom branding (logo & colours) to build trust",
+    ],
   },
   {
     id: "business", name: "Business", price: "£49", period: "/ month", icon: Building2,
-    tagline: "For growing teams",
-    features: ["Everything in Pro", "Team workspaces (soon)", "Custom branding", "Advanced analytics", "Dedicated support"],
+    tagline: "For organisations at scale",
+    features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send & advanced routing", "API access & webhooks", "Dedicated priority support"],
   },
 ];
 
@@ -53,7 +60,7 @@ function DeleteAccountDialog({ open, onOpenChange }) {
   const [confirm, setConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => { if (!open) setConfirm(""); }, [open]);
+  useEffect(() => { if (!open) { const t = setTimeout(() => setConfirm(""), 0); return () => clearTimeout(t); } return undefined; }, [open]);
 
   const del = async () => {
     setDeleting(true);
@@ -101,7 +108,12 @@ function DeleteAccountDialog({ open, onOpenChange }) {
 
 function ProfileTab() {
   const { user, setUser } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", mobile: "" });
+  const [form, setForm] = useState({
+    name: "", email: "", mobile: "",
+    company: "", job_title: "", phone: "", country: "United Kingdom",
+    city: "", postcode: "", vat_number: "", company_size: "", industry: "",
+    marketing_opt_in: false,
+  });
   const [saving, setSaving] = useState(false);
   const isPasswordAccount = user?.auth_provider !== "google";
   const [pwd, setPwd] = useState({ current_password: "", new_password: "", confirm: "" });
@@ -109,7 +121,16 @@ function ProfileTab() {
   const [delOpen, setDelOpen] = useState(false);
 
   useEffect(() => {
-    if (user) setForm({ name: user.name || "", email: user.email || "", mobile: user.mobile || "" });
+    if (!user) return undefined;
+    const t = setTimeout(() => setForm({
+      name: user.name || "", email: user.email || "", mobile: user.mobile || "",
+      company: user.company || "", job_title: user.job_title || "", phone: user.phone || "",
+      country: user.country || "United Kingdom", city: user.city || "",
+      postcode: user.postcode || "", vat_number: user.vat_number || "",
+      company_size: user.company_size || "", industry: user.industry || "",
+      marketing_opt_in: !!user.marketing_opt_in,
+    }), 0);
+    return () => clearTimeout(t);
   }, [user]);
 
   const saveProfile = async () => {
@@ -118,6 +139,10 @@ function ProfileTab() {
     try {
       const { data } = await api.put("/auth/profile", {
         name: form.name.trim(), email: form.email.trim(), mobile: form.mobile.trim(),
+        company: form.company.trim(), job_title: form.job_title.trim(), phone: form.phone.trim(),
+        country: form.country.trim(), city: form.city.trim(), postcode: form.postcode.trim(),
+        vat_number: form.vat_number.trim(), company_size: form.company_size,
+        industry: form.industry.trim(), marketing_opt_in: form.marketing_opt_in,
       });
       setUser(data);
       toast.success("Profile updated");
@@ -173,6 +198,96 @@ function ProfileTab() {
             <Button onClick={saveProfile} disabled={saving} data-testid="settings-save-profile"
               style={{ background: "var(--c-primary)", color: "#fff" }}>
               {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />} Save changes
+            </Button>
+          </div>
+        </div>
+
+        {/* ---- Business details ---- */}
+        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="business-details-card">
+          <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
+            <Building2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Business details
+          </h3>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Used on invoices, signing emails and your branded signing page.</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="company">Company / Organisation</Label>
+              <Input id="company" className="mt-1" data-testid="settings-company-input"
+                value={form.company} placeholder="Acme Solicitors Ltd"
+                onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="job_title">Job title</Label>
+              <Input id="job_title" className="mt-1" data-testid="settings-job-title-input"
+                value={form.job_title} placeholder="Managing Director"
+                onChange={(e) => setForm((f) => ({ ...f, job_title: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="phone">Work phone</Label>
+              <Input id="phone" className="mt-1" data-testid="settings-phone-input"
+                value={form.phone} placeholder="+44 20 1234 5678"
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="industry">Industry</Label>
+              <Input id="industry" className="mt-1" data-testid="settings-industry-input"
+                value={form.industry} placeholder="Legal, Property, Recruitment…"
+                onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="company_size">Company size</Label>
+              <select id="company_size" data-testid="settings-company-size-input"
+                value={form.company_size}
+                onChange={(e) => setForm((f) => ({ ...f, company_size: e.target.value }))}
+                className="mt-1 h-10 w-full rounded-md border border-[var(--c-border)] bg-[var(--card)] px-3 text-sm text-[var(--c-ink)]">
+                <option value="">Select size…</option>
+                <option value="1">Just me</option>
+                <option value="2-10">2 – 10</option>
+                <option value="11-50">11 – 50</option>
+                <option value="51-200">51 – 200</option>
+                <option value="200+">200+</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="vat_number">VAT number</Label>
+              <Input id="vat_number" className="mt-1" data-testid="settings-vat-input"
+                value={form.vat_number} placeholder="GB123456789"
+                onChange={(e) => setForm((f) => ({ ...f, vat_number: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input id="city" className="mt-1" data-testid="settings-city-input"
+                value={form.city} placeholder="London"
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="postcode">Postcode</Label>
+              <Input id="postcode" className="mt-1" data-testid="settings-postcode-input"
+                value={form.postcode} placeholder="WC2H 9JQ"
+                onChange={(e) => setForm((f) => ({ ...f, postcode: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="country">Country</Label>
+              <Input id="country" className="mt-1" data-testid="settings-country-input"
+                value={form.country} placeholder="United Kingdom"
+                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} />
+            </div>
+            <label className="sm:col-span-2 flex cursor-pointer items-start gap-2 rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-paper-2)] p-3 text-sm">
+              <input
+                type="checkbox" data-testid="settings-marketing-optin"
+                className="mt-0.5 h-4 w-4 rounded border-[var(--c-border)]"
+                checked={form.marketing_opt_in}
+                onChange={(e) => setForm((f) => ({ ...f, marketing_opt_in: e.target.checked }))}
+              />
+              <span>
+                <strong>Send me product updates & UK e-signature tips</strong>
+                <span className="block text-xs text-[var(--muted-foreground)]">Occasional, no spam. You can opt out anytime — UK GDPR compliant.</span>
+              </span>
+            </label>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <Button onClick={saveProfile} disabled={saving} data-testid="settings-save-business"
+              style={{ background: "var(--c-primary)", color: "#fff" }}>
+              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />} Save business details
             </Button>
           </div>
         </div>
@@ -265,7 +380,7 @@ function SubscriptionTab() {
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 8;
-    setVerifying(true);
+    Promise.resolve().then(() => setVerifying(true));
 
     const clearSessionParam = () => {
       const p = new URLSearchParams(params);

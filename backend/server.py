@@ -235,6 +235,47 @@ async def contact(body: ContactRequest, request: Request):
 # --------------------------------------------------------------------------
 # Envelopes (authenticated sender)
 # --------------------------------------------------------------------------
+
+# Per-plan monthly envelope quota (-1 means unlimited).
+PLAN_MONTHLY_QUOTA = {"free": 5, "pro": 500, "business": -1}
+
+
+def _month_window():
+    """Return (start_iso, label) for the current calendar month in UTC."""
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start.isoformat(), now.strftime("%B %Y")
+
+
+async def _current_month_envelope_count(owner_id: str) -> int:
+    start_iso, _ = _month_window()
+    return await db.envelopes.count_documents({
+        "owner_id": owner_id,
+        "created_at": {"$gte": start_iso},
+    })
+
+
+@api_router.get("/usage")
+async def get_usage(user: dict = Depends(get_current_user)):
+    """Current user's monthly envelope quota usage — powers the dashboard meter."""
+    plan = user.get("plan", "free")
+    limit = PLAN_MONTHLY_QUOTA.get(plan, 5)
+    used = await _current_month_envelope_count(user["user_id"])
+    _, month_label = _month_window()
+    unlimited = limit < 0
+    remaining = None if unlimited else max(0, limit - used)
+    percent = 0 if unlimited else min(100, round((used / limit) * 100) if limit else 0)
+    return {
+        "plan": plan,
+        "month": month_label,
+        "used": used,
+        "limit": limit,
+        "unlimited": unlimited,
+        "remaining": remaining,
+        "percent": percent,
+    }
+
+
 @api_router.post("/envelopes")
 async def create_envelope(
     request: Request,
@@ -242,6 +283,19 @@ async def create_envelope(
     title: str = Form(None),
     user: dict = Depends(get_current_user),
 ):
+    # ---- Enforce monthly plan quota ----
+    plan = user.get("plan", "free")
+    limit = PLAN_MONTHLY_QUOTA.get(plan, 5)
+    if limit >= 0:
+        used = await _current_month_envelope_count(user["user_id"])
+        if used >= limit:
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    f"You've reached your {plan.capitalize()} plan limit of {limit} envelopes this month. "
+                    "Upgrade your plan to send more."
+                ),
+            )
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty file")

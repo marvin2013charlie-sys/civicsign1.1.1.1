@@ -86,6 +86,18 @@ def _public_user(doc: dict) -> dict:
         "active": doc.get("active", True),
         "email_verified": doc.get("email_verified", True),
         "created_at": doc.get("created_at"),
+        # ---- Extended business profile (UK-friendly defaults) ----
+        "company": doc.get("company", ""),
+        "job_title": doc.get("job_title", ""),
+        "phone": doc.get("phone", ""),
+        "country": doc.get("country", "United Kingdom"),
+        "city": doc.get("city", ""),
+        "postcode": doc.get("postcode", ""),
+        "vat_number": doc.get("vat_number", ""),
+        "company_size": doc.get("company_size", ""),
+        "industry": doc.get("industry", ""),
+        "timezone": doc.get("timezone", "Europe/London"),
+        "marketing_opt_in": doc.get("marketing_opt_in", False),
     }
 
 
@@ -329,7 +341,7 @@ async def me(user: dict = Depends(get_current_user)):
 
 @auth_router.put("/profile")
 async def update_profile(body: ProfileUpdate, user: dict = Depends(get_current_user)):
-    """Update the current user's name, mobile, and email (email stays the login identity)."""
+    """Update the current user's profile — name, contact, and extended business details."""
     updates = {}
     if body.name is not None:
         updates["name"] = body.name.strip()
@@ -342,6 +354,14 @@ async def update_profile(body: ProfileUpdate, user: dict = Depends(get_current_u
             if existing:
                 raise HTTPException(status_code=400, detail="That email is already in use by another account")
             updates["email"] = new_email
+    # Extended business profile fields
+    for fld in ("company", "job_title", "phone", "country", "city", "postcode",
+                "vat_number", "company_size", "industry", "timezone"):
+        val = getattr(body, fld, None)
+        if val is not None:
+            updates[fld] = val.strip() if isinstance(val, str) else val
+    if body.marketing_opt_in is not None:
+        updates["marketing_opt_in"] = bool(body.marketing_opt_in)
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})

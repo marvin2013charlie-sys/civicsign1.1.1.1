@@ -187,6 +187,87 @@ backend:
         agent: "main"
         comment: "Already present in the imported repo and previously verified by author. Not modified by this change."
 
+  - task: "Monthly quota endpoint (GET /api/usage)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Returns {plan, month, used, limit, unlimited, remaining, percent}. Limits are
+          PLAN_MONTHLY_QUOTA = {free:5, pro:500, business:-1}. Manual curl returns the right
+          shape for the Pro test user (used:0, limit:500, remaining:500, percent:0).
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ PASSED all tests. GET /api/usage returns correct structure with all required fields:
+          - Pro user: plan="pro", month="June 2026", used=0, limit=500, unlimited=false, remaining=500, percent=0
+          - All field types validated (plan:str, month:str, used:int, limit:int, unlimited:bool, remaining:int, percent:int)
+          - Auth working correctly: returns 401 when unauthenticated
+          - Tested with Pro user (tester@civicsign.app) and verified quota calculations
+
+  - task: "Envelope-creation quota enforcement (POST /api/envelopes 402)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          create_envelope now counts the caller's envelopes in the current calendar month (UTC) and
+          returns HTTP 402 with detail "You've reached your <Plan> plan limit of N envelopes this
+          month. Upgrade your plan to send more." when the count >= limit. Business plan (-1) is
+          unlimited. Tester should manually drop the test user's plan to "free" to exercise the
+          422->402 boundary by sending 6 envelopes, OR insert >=5 fake envelopes for the Free user
+          and confirm POST returns 402.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ PASSED all quota enforcement tests. Comprehensive boundary testing completed:
+          1. Downgraded Pro user to "free" plan (limit=5) via MongoDB
+          2. Inserted 5 fake envelopes for current month to reach quota limit
+          3. Verified GET /api/usage shows quota at limit (used=5, limit=5, remaining=0)
+          4. Attempted 6th envelope creation → correctly returned 402 with message: "You've reached your Free plan limit of 5 envelopes this month. Upgrade your plan to send more."
+          5. Upgraded user back to "pro" plan (limit=500)
+          6. Verified GET /api/usage shows Pro quota (used=5, limit=500, remaining=495)
+          7. Successfully created envelope as Pro user → NOT blocked (status 200)
+          Quota enforcement working correctly for both Free and Pro plans. Cleanup: deleted all test envelopes.
+
+  - task: "Extended user profile (PUT /api/auth/profile + /api/auth/me)"
+    implemented: true
+    working: true
+    file: "backend/auth.py, backend/models.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ProfileUpdate accepts: name, mobile, email, company, job_title, phone, country,
+          city, postcode, vat_number, company_size, industry, timezone, marketing_opt_in.
+          _public_user returns them with sensible UK defaults (country=United Kingdom,
+          timezone=Europe/London). Email uniqueness check still enforced.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ PASSED all extended profile tests. Comprehensive validation completed:
+          1. PUT /api/auth/profile with all extended business fields → 200 with all fields saved correctly:
+             - name, company, job_title, phone, country, city, postcode, vat_number, company_size, industry, marketing_opt_in
+             - Test data: "Acme Solicitors Ltd", "Director", "+44 20 1234 5678", "United Kingdom", "London", "WC2H 9JQ", "GB123456789", "2-10", "Legal", true
+          2. GET /api/auth/me returns all extended profile fields persisted correctly
+          3. New user defaults verified: country="United Kingdom", timezone="Europe/London" (UK-friendly defaults working)
+          4. Email uniqueness check working: PUT with existing email (superadmin@civicsign.app) → 400 with "already in use" message
+          5. Auth working correctly: PUT /api/auth/profile without auth → 401
+          All extended profile fields working as expected with proper validation and UK defaults.
+
 frontend:
   - task: "Admin Billing & Refunds page (AdminBilling.jsx)"
     implemented: true
@@ -231,7 +312,10 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Monthly quota endpoint (GET /api/usage)"
+    - "Envelope-creation quota enforcement (POST /api/envelopes 402)"
+    - "Extended user profile (PUT /api/auth/profile + /api/auth/me)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -250,6 +334,31 @@ agent_communication:
       Please test the four new endpoints. For the Refund endpoint, focus on the validation paths
       (not-found tx, non-paid tx, missing STRIPE_API_KEY, amount > remaining); a fully successful
       Stripe-network refund is not testable until the user provides a real key.
+
+  - agent: "main"
+    message: |
+      ROUND 2 — User wanted: (a) re-worded Pro pricing copy with a 500-doc/month quota,
+      (b) the quota visible on the user dashboard, (c) more profile fields on the user side.
+
+      Backend additions in this round:
+      • New module-level constant PLAN_MONTHLY_QUOTA = {free:5, pro:500, business:-1} in server.py.
+      • New helpers _month_window() and _current_month_envelope_count(owner_id) in server.py.
+      • NEW endpoint GET /api/usage  -> {plan, month, used, limit, unlimited, remaining, percent}.
+      • Hard quota enforcement: POST /api/envelopes now returns 402 with a clear upgrade message
+        when the user reaches their monthly cap (Business is unlimited).
+      • ProfileUpdate model expanded with company, job_title, phone, country, city, postcode,
+        vat_number, company_size, industry, timezone, marketing_opt_in (all optional).
+      • _public_user (returned by /api/auth/me + /api/auth/profile) now includes those fields,
+        with country defaulting to "United Kingdom" and timezone to "Europe/London".
+
+      Frontend in this round: Landing/Settings pricing copy refreshed; Dashboard now shows a
+      monthly quota meter (data-testid="dashboard-quota-card"); Settings has a new Business
+      details card (data-testid="business-details-card") with Company/Job/Phone/Country/City/
+      Postcode/VAT/Industry/Company-size + marketing opt-in.
+
+      Auth credentials are now: super-admin superadmin@civicsign.app / SuperAdmin@2026 and
+      regular demo tester@civicsign.app / TestUser@2026 (the old defaults were deleted).
+      Please test the new backend endpoints + quota enforcement only.
   - agent: "testing"
     message: |
       ✅ BACKEND TESTING COMPLETE - All 4 new admin billing & refunds endpoints PASSED (27/27 tests, 100% success rate).
@@ -265,3 +374,36 @@ agent_communication:
       Test methodology: Created comprehensive test suite (backend_test_admin_billing.py) with fixture transactions inserted via MongoDB and cleaned up after testing. All scenarios from review request covered.
       
       Note: Full Stripe network refund not testable without real STRIPE_API_KEY, but all validation and error handling paths confirmed working as expected.
+  - agent: "testing"
+    message: |
+      ✅ BACKEND TESTING COMPLETE - All THREE NEW backend changes PASSED (19/19 tests, 100% success rate).
+      
+      Tested features (ROUND 2 - Quota System + Extended Profile):
+      
+      1. GET /api/usage (Monthly Quota Endpoint) ✅
+         - Returns correct structure: {plan, month, used, limit, unlimited, remaining, percent}
+         - Pro user: used=0, limit=500, unlimited=false, remaining=500, percent=0
+         - Auth working: 401 when unauthenticated
+      
+      2. POST /api/envelopes Quota Enforcement ✅
+         - Comprehensive boundary testing completed:
+         - Downgraded Pro user to "free" (limit=5), inserted 5 fake envelopes
+         - 6th envelope attempt → 402 with correct message: "You've reached your Free plan limit of 5 envelopes this month. Upgrade your plan to send more."
+         - Upgraded back to "pro" (limit=500) → envelope creation NOT blocked (200)
+         - Quota enforcement working correctly for both Free and Pro plans
+      
+      3. PUT /api/auth/profile + GET /api/auth/me (Extended Profile) ✅
+         - All extended business fields working: company, job_title, phone, country, city, postcode, vat_number, company_size, industry, marketing_opt_in
+         - UK defaults verified: new users get country="United Kingdom", timezone="Europe/London"
+         - Email uniqueness check working: 400 when email already in use
+         - Auth working: 401 when unauthenticated
+      
+      Regression smoke tests: ✅
+      - GET /api/admin/billing/metrics (admin) → 200
+      - GET /api/admin/transactions (admin) → 200
+      - GET /api/stats (regular user) → 200
+      - GET /api/envelopes (regular user) → 200
+      
+      Test methodology: Created comprehensive test suite (backend_test_quota_profile.py) with MongoDB manipulation for quota boundary testing. All test envelopes cleaned up after testing.
+      
+      All backend features working as expected. No issues found.

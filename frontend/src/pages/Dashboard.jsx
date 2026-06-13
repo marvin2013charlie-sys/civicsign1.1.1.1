@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import {
   FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye,
-  CheckCircle2, Clock, Files, TrendingUp, Inbox,
+  CheckCircle2, Clock, Files, TrendingUp, Inbox, Crown, AlertTriangle,
 } from "lucide-react";
 
 const StatCard = ({ icon: Icon, label, value, accent }) => (
@@ -38,14 +38,20 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [envelopes, setEnvelopes] = useState([]);
   const [stats, setStats] = useState(null);
+  const [usage, setUsage] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const load = async () => {
     try {
-      const [e, s] = await Promise.all([api.get("/envelopes"), api.get("/stats")]);
+      const [e, s, u] = await Promise.all([
+        api.get("/envelopes"),
+        api.get("/stats"),
+        api.get("/usage"),
+      ]);
       setEnvelopes(e.data);
       setStats(s.data);
+      setUsage(u.data);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
@@ -53,7 +59,10 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => load(), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const filtered = useMemo(() => {
     return envelopes.filter((e) => {
@@ -103,6 +112,73 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {/* Monthly quota meter */}
+      {!loading && usage && (
+        <div
+          className="mt-4 rounded-xl border bg-[var(--card)] p-5"
+          style={{ borderColor: usage.percent >= 90 && !usage.unlimited ? "#FCA5A5" : "var(--c-border)" }}
+          data-testid="dashboard-quota-card"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+                  <Crown className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+                </span>
+                <p className="font-heading text-sm font-semibold uppercase tracking-wide text-[var(--c-ink)]">
+                  Document quota · {usage.month}
+                </p>
+                <span className="rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
+                  {usage.plan} plan
+                </span>
+              </div>
+              <p className="mt-1 text-2xl font-bold font-heading text-[var(--c-ink)]" data-testid="dashboard-quota-counter">
+                {usage.unlimited ? (
+                  <>Unlimited</>
+                ) : (
+                  <>
+                    {usage.used} <span className="text-base font-medium text-[var(--muted-foreground)]">/ {usage.limit} this month</span>
+                  </>
+                )}
+              </p>
+              {!usage.unlimited && (
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                  {usage.remaining} remaining · resets on the 1st
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {!usage.unlimited && usage.percent >= 80 && (
+                <Button size="sm" variant="outline" onClick={() => navigate("/settings?tab=billing")} data-testid="dashboard-quota-upgrade">
+                  <Crown className="mr-1.5 h-3.5 w-3.5" /> Upgrade plan
+                </Button>
+              )}
+            </div>
+          </div>
+          {!usage.unlimited && (
+            <div className="mt-4">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--c-paper-2)]">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, usage.percent)}%`,
+                    background:
+                      usage.percent >= 90 ? "#DC2626" :
+                      usage.percent >= 70 ? "#F59E0B" : "var(--c-primary)",
+                  }}
+                  data-testid="dashboard-quota-bar"
+                />
+              </div>
+              {usage.percent >= 90 && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-rose-700">
+                  <AlertTriangle className="h-3.5 w-3.5" /> You&rsquo;re almost out of envelopes this month. Upgrade to keep sending.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Chart */}
       {!loading && stats && stats.total > 0 && (
