@@ -11,6 +11,9 @@ import Register from "@/pages/Register";
 import AuthCallback from "@/pages/AuthCallback";
 import Dashboard from "@/pages/Dashboard";
 import NewEnvelope from "@/pages/NewEnvelope";
+import Documents from "@/pages/Documents";
+import Reports from "@/pages/Reports";
+import Usage from "@/pages/Usage";
 import PrepareStudio from "@/pages/PrepareStudio";
 import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
@@ -86,7 +89,10 @@ function AppRoutes() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
+      <Route path="/documents" element={<Protected><Documents /></Protected>} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
+      <Route path="/reports" element={<Protected><Reports /></Protected>} />
+      <Route path="/usage" element={<Protected><Usage /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>

@@ -6,38 +6,42 @@ Replicate the user's private GitHub repo `civicsign` as a UK GDPR-compliant e-si
 - UK ownership / GDPR-approved positioning across the marketing site
 - 500 documents per user/month quota for Pro plan
 - Solutions pages for Real Estate and Staffing Agency
-- Cinematic "Security & Trust" walkthrough page with AI voiceover (in progress)
+- Zoho-Sign-style sidebar with Documents / Reports / Usage nav items
+- Cinematic "Security & Trust" walkthrough page with AI voiceover (still pending)
 
 ## Tech stack
-- Frontend: React (CRA), Tailwind 3.4, shadcn/ui, lucide-react
+- Frontend: React (CRA), Tailwind 3.4, shadcn/ui, lucide-react, recharts
 - Backend: FastAPI, MongoDB (GridFS), PyMuPDF for PDF signing
 - Auth: JWT (custom) + Emergent-managed Google OAuth
 - Integrations planned: OpenAI TTS (Emergent LLM key), Stripe, Resend
 
+## Routes (logged-in)
+- `/dashboard` — original dashboard (stats, quota, envelope list, chart)
+- `/new` — new envelope wizard
+- `/documents` — focused envelope list with search + status filter ⭐ new
+- `/templates` — template library
+- `/reports` — KPIs + 7-day trend + status pie + by-status breakdown ⭐ new
+- `/usage` — full-page quota meter, plan card, billing cycle ⭐ new
+- `/settings` — profile, business details, billing tabs
+
 ## What's been implemented
-- 2026-02-XX (earlier in this session)
+- 2026-02-XX
   - Admin panel: metrics, billing, refunds, audit log endpoints + UI
   - Distinct demo + super-admin credentials
   - UK-branded marketing copy & meta tags
   - 500-docs/month Pro quota + dashboard widget
   - Solutions dropdown + Real Estate / Staffing Agency landing pages
 - 2026-06-13
-  - **Bug fix — mobile login & register UI**
-    - Form was vertically centered with `min-h-screen` + `items-center`, causing the Sign in button to be clipped off-screen when the iOS/Android keyboard opened.
-    - Fixed by switching to `min-h-dvh` + `items-start lg:items-center` so the form is top-aligned and scrollable on mobile while remaining centered on desktop.
-    - Tightened spacing between the Password label, "Forgot password?" link and the password input (added `gap-2`, normalized `mt-1.5`) to remove visual overlap.
-    - Applied same layout fix to `/register`.
-
-## Routes
-- Public: `/`, `/about`, `/contact`, `/solutions/real-estate`, `/solutions/staffing-agency`, `/privacy`, `/terms`, `/cookies`, `/login`, `/register`, `/verify-email`, `/reset-password`, `/sign/:token`
-- Authed: `/dashboard`, `/new`, `/templates`, `/settings`, `/prepare/:id`, `/send/:id`, `/envelope/:id`
-- Admin: `/admin/login`, `/admin`, `/admin/users`, `/admin/users/:userId`, `/admin/envelopes`, `/admin/billing`, `/admin/audit`, `/admin/contacts`
+  - Mobile login/register: switched to `min-h-dvh` + `items-start lg:items-center` so the Sign in button is no longer clipped when the iOS/Android keyboard opens. Tightened spacing around "Forgot password?".
+  - Fixed transparent Solutions dropdown (`bg-[var(--card)]` → `bg-[var(--c-paper)]`).
+  - **New nav items + pages:** Documents, Reports, Usage added to the user sidebar without redesigning the existing shell. Pages reuse existing `/envelopes`, `/stats`, `/usage` APIs.
 
 ## Roadmap (P0/P1/P2)
-- **P0 / In progress**: Cinematic Security & Trust page at `/security` with OpenAI TTS ("fable" voice) via Emergent LLM key
-- **P1**: Stripe payments (key pending from user)
-- **P1**: Resend transactional emails (key pending from user)
-- **P2**: Refactor `server.py` into `/app/backend/routes/`
+- **P0**: Cinematic Security & Trust page at `/security` with OpenAI TTS ("fable") via Emergent LLM key.
+- **P1**: Stripe payments (key pending).
+- **P1**: Resend transactional emails (key pending).
+- **P2**: Refactor `bg-[var(--card)]` callsites (60+) to `bg-[var(--c-paper)]` or fix the `--card` HSL definition.
+- **P2**: Refactor `server.py` into `/app/backend/routes/`.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
