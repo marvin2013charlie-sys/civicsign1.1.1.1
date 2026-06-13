@@ -7,65 +7,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
-
-const POSTS = [
-  {
-    slug: "are-e-signatures-legal-in-the-uk",
-    title: "Are electronic signatures legal in the UK in 2026?",
-    excerpt: "The short answer is yes — and they have been since the Electronic Communications Act 2000. We walk through eIDAS, the Law Commission's 2019 report, and what actually counts as a valid e-signature on a UK contract.",
-    category: "UK Law",
-    date: "Feb 14, 2026",
-    readTime: "6 min read",
-    image: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85",
-  },
-  {
-    slug: "hm-land-registry-electronic-signatures-2026",
-    title: "HM Land Registry & electronic signatures: what conveyancers need to know",
-    excerpt: "Since July 2020 HM Land Registry has accepted electronic signatures on dispositionary deeds. Here's exactly what your audit trail needs to contain, plus a worked example of an electronically signed TR1.",
-    category: "Real Estate",
-    date: "Feb 07, 2026",
-    readTime: "8 min read",
-    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa",
-  },
-  {
-    slug: "gift-aid-electronic-declarations-hmrc-guide",
-    title: "Gift Aid via e-signature: the HMRC-friendly playbook for UK charities",
-    excerpt: "How small charities can capture HMRC-compliant Gift Aid declarations at the door, online or via email — and what fields your audit trail needs to keep your annual return clean.",
-    category: "Charities",
-    date: "Jan 28, 2026",
-    readTime: "5 min read",
-    image: "https://images.unsplash.com/photo-1593113598332-cd288d649433",
-  },
-  {
-    slug: "right-to-work-digital-checks-uk-hr",
-    title: "Digital Right to Work checks: the UK HR playbook",
-    excerpt: "Since 2022 UK employers can use certified Identity Service Providers for Right to Work checks. Pair that with an electronically signed declaration and your statutory excuse holds up under inspection.",
-    category: "HR & People",
-    date: "Jan 21, 2026",
-    readTime: "7 min read",
-    image: "https://images.unsplash.com/photo-1521737711867-e3b97375f902",
-  },
-  {
-    slug: "uk-gdpr-vs-eu-gdpr-saas-platforms",
-    title: "UK GDPR vs. EU GDPR: what it actually means for your SaaS suppliers",
-    excerpt: "Brexit changed less than most vendors will admit. We unpack the practical differences for British businesses choosing a UK-hosted SaaS — and why hosting really does matter for ICO enquiries.",
-    category: "Compliance",
-    date: "Jan 14, 2026",
-    readTime: "9 min read",
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475",
-  },
-  {
-    slug: "civicsign-launch-15-field-types",
-    title: "Product update: 15 field types now live in the Prepare Studio",
-    excerpt: "Stamp, image, dropdown, radio, attachment and auto-filled identity fields are all live. Here's what each one does and which industries asked us for them.",
-    category: "Product Updates",
-    date: "Feb 13, 2026",
-    readTime: "3 min read",
-    image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97",
-  },
-];
-
-const CATEGORIES = ["All", "UK Law", "Real Estate", "Charities", "HR & People", "Compliance", "Product Updates"];
+import { POSTS, CATEGORIES } from "@/lib/blogPosts";
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = React.useState("All");
