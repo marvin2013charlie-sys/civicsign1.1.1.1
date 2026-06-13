@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 
-BASE_URL = "https://code-sync-84.preview.emergentagent.com/api"
+BASE_URL = "https://github-sync-deploy-1.preview.emergentagent.com/api"
 
 class Colors:
     GREEN = '\033[92m'
