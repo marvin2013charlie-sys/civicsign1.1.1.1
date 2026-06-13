@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 
-from auth import require_admin, require_admin_or_staff
+from auth import require_admin, require_admin_or_staff, require_permission
 from db import db
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -159,13 +159,13 @@ admin_router = APIRouter(prefix="/api/admin", tags=["admin-blog"])
 
 
 @admin_router.get("/blog/posts")
-async def admin_list_posts(actor: dict = Depends(require_admin_or_staff)):
+async def admin_list_posts(actor: dict = Depends(require_permission("blog"))):
     cursor = db.blog_posts.find({}, {"_id": 0}).sort("created_at", -1)
     return [_serialize_post(d) async for d in cursor]
 
 
 @admin_router.get("/blog/posts/{slug}")
-async def admin_get_post(slug: str, actor: dict = Depends(require_admin_or_staff)):
+async def admin_get_post(slug: str, actor: dict = Depends(require_permission("blog"))):
     doc = await db.blog_posts.find_one({"slug": slug}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -173,7 +173,7 @@ async def admin_get_post(slug: str, actor: dict = Depends(require_admin_or_staff
 
 
 @admin_router.post("/blog/posts")
-async def admin_create_post(body: BlogPostIn, actor: dict = Depends(require_admin_or_staff)):
+async def admin_create_post(body: BlogPostIn, actor: dict = Depends(require_permission("blog"))):
     slug = (body.slug or slugify(body.title)).strip()
     if not slug:
         raise HTTPException(status_code=400, detail="Could not generate slug from title")
@@ -201,7 +201,7 @@ async def admin_create_post(body: BlogPostIn, actor: dict = Depends(require_admi
 
 
 @admin_router.put("/blog/posts/{slug}")
-async def admin_update_post(slug: str, body: BlogPostUpdate, actor: dict = Depends(require_admin_or_staff)):
+async def admin_update_post(slug: str, body: BlogPostUpdate, actor: dict = Depends(require_permission("blog"))):
     existing = await db.blog_posts.find_one({"slug": slug}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -217,7 +217,7 @@ async def admin_update_post(slug: str, body: BlogPostUpdate, actor: dict = Depen
 
 
 @admin_router.delete("/blog/posts/{slug}")
-async def admin_delete_post(slug: str, actor: dict = Depends(require_admin_or_staff)):
+async def admin_delete_post(slug: str, actor: dict = Depends(require_permission("blog"))):
     res = await db.blog_posts.delete_one({"slug": slug})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Post not found")

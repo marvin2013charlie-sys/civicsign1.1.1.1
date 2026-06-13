@@ -82,6 +82,7 @@ def _public_user(doc: dict) -> dict:
         "mobile": doc.get("mobile"),
         "auth_provider": doc.get("auth_provider", "password"),
         "role": doc.get("role", "user"),
+        "permissions": doc.get("permissions", []),
         "plan": doc.get("plan", "free"),
         "active": doc.get("active", True),
         "email_verified": doc.get("email_verified", True),
@@ -170,6 +171,23 @@ async def require_admin_or_staff(user: dict = Depends(get_current_user)) -> dict
     if user.get("role") not in ("admin", "staff"):
         raise HTTPException(status_code=403, detail="Internal team access required")
     return user
+
+
+def require_permission(perm: str):
+    """Dependency factory: allow admins unconditionally; allow staff if the
+    given permission is in their grant list. Used for permission-scoped admin
+    endpoints (e.g. blog, contacts, users-read)."""
+    async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        role = user.get("role")
+        if role == "admin":
+            return user
+        if role == "staff" and perm in (user.get("permissions") or []):
+            return user
+        raise HTTPException(
+            status_code=403,
+            detail=f"This action requires the '{perm}' permission.",
+        )
+    return _dep
 
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])

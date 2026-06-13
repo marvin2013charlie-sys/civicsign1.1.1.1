@@ -33,6 +33,8 @@ import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 import AdminBlog from "@/pages/admin/AdminBlog";
 import AdminTeam from "@/pages/admin/AdminTeam";
+import StaffLanding from "@/pages/admin/StaffLanding";
+import RequirePerm from "@/components/RequirePerm";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import RealEstate from "@/pages/solutions/RealEstate";
@@ -78,6 +80,13 @@ function AdminProtected({ children }) {
   return children;
 }
 
+function AdminIndex() {
+  // /admin -> Overview for super-admin, StaffLanding for staff.
+  const { user } = useAuth();
+  if (user?.role === "staff") return <StaffLanding />;
+  return <AdminOverview />;
+}
+
 function AppRoutes() {
   // Handle Emergent Google OAuth callback BEFORE any route/auth logic (race-safe).
   if (typeof window !== "undefined" && window.location.hash && window.location.hash.includes("session_id=")) {
@@ -116,15 +125,15 @@ function AppRoutes() {
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
-        <Route index element={<AdminOverview />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="users/:userId" element={<AdminUserDetail />} />
-        <Route path="envelopes" element={<AdminEnvelopes />} />
-        <Route path="billing" element={<AdminBilling />} />
-        <Route path="audit" element={<AdminAuditLog />} />
-        <Route path="contacts" element={<AdminContacts />} />
-        <Route path="blog" element={<AdminBlog />} />
-        <Route path="team" element={<AdminTeam />} />
+        <Route index element={<AdminIndex />} />
+        <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
+        <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
+        <Route path="envelopes" element={<RequirePerm perm="admin"><AdminEnvelopes /></RequirePerm>} />
+        <Route path="billing" element={<RequirePerm perm="admin"><AdminBilling /></RequirePerm>} />
+        <Route path="audit" element={<RequirePerm perm="admin"><AdminAuditLog /></RequirePerm>} />
+        <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
+        <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
+        <Route path="team" element={<RequirePerm perm="admin"><AdminTeam /></RequirePerm>} />
       </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
       <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />

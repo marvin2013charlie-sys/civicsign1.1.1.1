@@ -145,6 +145,8 @@ function ImpersonateDialog({ open, onOpenChange, userId, targetName }) {
 export default function AdminUserDetail() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const { user: actor } = useAuth();
+  const isSuperAdmin = actor?.role === "admin";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -258,7 +260,8 @@ export default function AdminUserDetail() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Account management */}
+        {/* Account management — super-admin only */}
+        {isSuperAdmin && (
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Account management</h2>
           <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Adjust plan and access. Roles can't be changed here.</p>
@@ -304,6 +307,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Diagnostics */}
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-detail-diagnostics">
@@ -360,7 +364,8 @@ export default function AdminUserDetail() {
           </div>
         </div>
 
-        {/* Support actions */}
+        {/* Support actions — super-admin only */}
+        {isSuperAdmin && (
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-detail-support">
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Support actions</h2>
           <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Help this user recover access or troubleshoot their account.</p>
@@ -433,6 +438,7 @@ export default function AdminUserDetail() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       <ImpersonateDialog open={impOpen} onOpenChange={setImpOpen} userId={userId} targetName={user.name || user.email} />

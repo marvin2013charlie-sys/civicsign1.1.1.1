@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 
 import email_service
 from db import db
-from auth import require_admin, _public_user, create_access_token, create_password_reset
+from auth import require_admin, require_permission, _public_user, create_access_token, create_password_reset
 from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
 
 try:
@@ -162,7 +162,7 @@ def _csv_response(headers, rows, filename):
 
 
 @admin_router.get("/export/users.csv")
-async def export_users(admin: dict = Depends(require_admin)):
+async def export_users(admin: dict = Depends(require_permission("users-read"))):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(20000)
     rows = [[u.get("name", ""), u.get("email", ""), u.get("role", "user"),
              u.get("plan", "free"), "yes" if u.get("active", True) else "no",
@@ -186,7 +186,7 @@ async def export_envelopes(admin: dict = Depends(require_admin)):
 
 
 @admin_router.get("/export/contacts.csv")
-async def export_contacts(admin: dict = Depends(require_admin)):
+async def export_contacts(admin: dict = Depends(require_permission("contacts"))):
     items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(20000)
     rows = [[c.get("name", ""), c.get("email", ""), c.get("subject", ""),
              (c.get("message", "") or "").replace("\n", " "),
@@ -199,12 +199,18 @@ async def export_contacts(admin: dict = Depends(require_admin)):
 @admin_router.get("/users")
 async def list_users(
     q: str = Query("", description="Search by name or email"),
-    admin: dict = Depends(require_admin),
+    role: str = Query("user", description="Filter by role: user | staff | admin | all"),
+    admin: dict = Depends(require_permission("users-read")),
 ):
     query = {}
+    role = (role or "").strip().lower()
+    if role and role != "all":
+        if role not in ("user", "staff", "admin"):
+            raise HTTPException(status_code=400, detail="Invalid role filter")
+        query["role"] = role
     if q.strip():
         rgx = {"$regex": q.strip(), "$options": "i"}
-        query = {"$or": [{"email": rgx}, {"name": rgx}]}
+        query = {"$and": [query, {"$or": [{"email": rgx}, {"name": rgx}]}]} if query else {"$or": [{"email": rgx}, {"name": rgx}]}
     users = await db.users.find(query, {"password_hash": 0, "_id": 0}).sort("created_at", -1).to_list(2000)
 
     # Envelope counts per owner via a single aggregation
@@ -250,7 +256,7 @@ async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends
 
 
 @admin_router.get("/users/{user_id}")
-async def user_detail(user_id: str, admin: dict = Depends(require_admin)):
+async def user_detail(user_id: str, admin: dict = Depends(require_permission("users-read"))):
     """Full account detail + help/diagnostics for one user."""
     target = await db.users.find_one({"user_id": user_id})
     if not target:
@@ -403,12 +409,12 @@ async def list_all_envelopes(
 
 
 @admin_router.get("/contact-messages")
-async def list_contacts(admin: dict = Depends(require_admin)):
+async def list_contacts(admin: dict = Depends(require_permission("contacts"))):
     return await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
 
 
 @admin_router.patch("/contact-messages/{contact_id}")
-async def handle_contact(contact_id: str, body: ContactHandle, admin: dict = Depends(require_admin)):
+async def handle_contact(contact_id: str, body: ContactHandle, admin: dict = Depends(require_permission("contacts"))):
     res = await db.contact_messages.update_one(
         {"contact_id": contact_id}, {"$set": {"handled": body.handled}})
     if res.matched_count == 0:
