@@ -163,7 +163,7 @@ export default function Login() {
           </form>
 
           <div className="mt-4 rounded-lg border border-[var(--c-border)] bg-[var(--card)] p-3 text-xs text-[var(--muted-foreground)]">
-            <span className="font-semibold text-[var(--c-ink)]">Demo account:</span> tester@civicsign.app · TestUser@2026
+            <span className="font-semibold text-[var(--c-ink)]">Demo account:</span> user@civicsign.app · Welcome@2026!
           </div>
 
           <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
