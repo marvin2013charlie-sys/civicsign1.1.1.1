@@ -35,6 +35,11 @@ Replicate the user's private GitHub repo `civicsign` as a UK GDPR-compliant e-si
   - Mobile login/register: switched to `min-h-dvh` + `items-start lg:items-center` so the Sign in button is no longer clipped when the iOS/Android keyboard opens. Tightened spacing around "Forgot password?".
   - Fixed transparent Solutions dropdown (`bg-[var(--card)]` → `bg-[var(--c-paper)]`).
   - **New nav items + pages:** Documents, Reports, Usage added to the user sidebar without redesigning the existing shell. Pages reuse existing `/envelopes`, `/stats`, `/usage` APIs.
+  - **Avatar upload** (POST/GET/DELETE `/api/auth/avatar`) — stored in GridFS, served via public endpoint; UI in `/settings` Profile tab; shown in AppShell sidebar.
+  - **10-minute idle auto-logout** with 60-second warning toast and cross-tab sync; sign-in toast on `/login?reason=idle`. Implemented via `IdleLogoutGuard` + `useIdleLogout` hook.
+  - **Blog search bar** with real-time filter + clear button; empty state quotes the query.
+  - **Careers search bar** with real-time filter + clear button.
+  - **Dark mode toggle** — CSS variable swap on `html[data-theme="dark"]`, persisted in `localStorage('cs_theme')`, respects `prefers-color-scheme` on first visit. Toggle rendered in SiteHeader, AppShell, and the lightweight Careers header.
 
 ## Roadmap (P0/P1/P2)
 - **P0**: Cinematic Security & Trust page at `/security` with OpenAI TTS ("fable") via Emergent LLM key.

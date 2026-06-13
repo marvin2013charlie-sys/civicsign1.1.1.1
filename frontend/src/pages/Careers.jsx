@@ -51,11 +51,12 @@ export default function Careers() {
       {/* Lightweight nav (matches About / Contact pages) */}
       <header className="sticky top-0 z-30 border-b border-[var(--c-border)] bg-[var(--c-paper)]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link to="/"><Logo /></Link>
+          <Logo />
           <nav className="flex items-center gap-4 text-sm">
             <Link to="/about"  className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">About</Link>
             <Link to="/blog"   className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">Blog</Link>
             <Link to="/contact" className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">Contact</Link>
+            <ThemeToggle />
           </nav>
         </div>
       </header>
