@@ -67,6 +67,14 @@ class StaffCreate(BaseModel):
     # Future-proof: a staff member could be granted ["blog", "contacts", "users-read"] etc.
 
 
+class StaffPasswordReset(BaseModel):
+    password: str = Field(min_length=8)
+
+
+class StaffStatusUpdate(BaseModel):
+    active: bool
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -273,3 +281,56 @@ async def delete_staff(user_id: str, admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
     await db.users.delete_one({"user_id": user_id})
     return {"ok": True}
+
+
+@admin_router.post("/staff/{user_id}/reset-password")
+async def reset_staff_password(
+    user_id: str,
+    body: StaffPasswordReset,
+    admin: dict = Depends(require_admin),
+):
+    """Super-admin sets a new password for a staff member.
+
+    The new password takes effect immediately. The staff member uses the new
+    password the next time they sign in at /admin/login. No email is sent — the
+    admin shares the credentials out-of-band, just like at account creation."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    if target.get("role") != "staff":
+        raise HTTPException(status_code=400, detail="This endpoint only resets staff passwords")
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "password_hash": pwd_ctx.hash(body.password),
+            "password_reset_at": datetime.now(timezone.utc).isoformat(),
+            "password_reset_by": admin["user_id"],
+        }},
+    )
+    return {"ok": True, "email": target["email"]}
+
+
+@admin_router.patch("/staff/{user_id}/status")
+async def update_staff_status(
+    user_id: str,
+    body: StaffStatusUpdate,
+    admin: dict = Depends(require_admin),
+):
+    """Hold or resume a staff member's access. When active=false they cannot
+    sign in but the account, permissions and audit history are preserved."""
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    if target.get("role") != "staff":
+        raise HTTPException(status_code=400, detail="This endpoint only manages staff accounts")
+    if target["user_id"] == admin["user_id"]:
+        raise HTTPException(status_code=400, detail="You cannot change your own status")
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "active": bool(body.active),
+            "status_changed_at": datetime.now(timezone.utc).isoformat(),
+            "status_changed_by": admin["user_id"],
+        }},
+    )
+    return {"ok": True, "active": bool(body.active)}

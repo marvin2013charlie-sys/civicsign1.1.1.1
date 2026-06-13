@@ -12,6 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   UserPlus, Trash2, ShieldCheck, Users as UsersIcon, Eye, EyeOff, Crown,
+  KeyRound, PauseCircle, PlayCircle, Copy, Check,
 } from "lucide-react";
 
 const PERMS = [
@@ -25,6 +26,14 @@ export default function AdminTeam() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPw, setResetPw] = useState("");
+  const [resetShowPw, setResetShowPw] = useState(false);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(null); // { email, password }
+  const [resetCopied, setResetCopied] = useState(false);
+  const [holdTarget, setHoldTarget] = useState(null);
+  const [holdSaving, setHoldSaving] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", permissions: ["blog"] });
@@ -81,6 +90,70 @@ export default function AdminTeam() {
       await load();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const generatePw = () => {
+    // 12 chars, mix of letters, digits and symbols (no ambiguous chars).
+    const A = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const a = "abcdefghijkmnpqrstuvwxyz";
+    const n = "23456789";
+    const s = "!@#$%^&*";
+    const pick = (set) => set[Math.floor(Math.random() * set.length)];
+    let out = pick(A) + pick(a) + pick(n) + pick(s);
+    const all = A + a + n + s;
+    for (let i = 0; i < 8; i++) out += pick(all);
+    return out.split("").sort(() => Math.random() - 0.5).join("");
+  };
+
+  const submitReset = async () => {
+    if (resetPw.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setResetSaving(true);
+    try {
+      await api.post(`/admin/staff/${resetTarget.user_id}/reset-password`, { password: resetPw });
+      setResetSuccess({ email: resetTarget.email, password: resetPw });
+      toast.success(`Password updated for ${resetTarget.email}`);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
+  const closeReset = () => {
+    setResetTarget(null);
+    setResetPw("");
+    setResetShowPw(false);
+    setResetSuccess(null);
+    setResetCopied(false);
+  };
+
+  const copyResetPw = async () => {
+    try {
+      await navigator.clipboard.writeText(resetSuccess.password);
+      setResetCopied(true);
+      setTimeout(() => setResetCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  const toggleHold = async () => {
+    if (!holdTarget) return;
+    setHoldSaving(true);
+    const nextActive = holdTarget.active === false; // currently held -> resume
+    try {
+      await api.patch(`/admin/staff/${holdTarget.user_id}/status`, { active: nextActive });
+      toast.success(nextActive ? `Access resumed for ${holdTarget.email}` : `Access held for ${holdTarget.email}`);
+      setHoldTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setHoldSaving(false);
     }
   };
 
@@ -155,6 +228,10 @@ export default function AdminTeam() {
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                       <Crown className="h-3 w-3" /> Super admin
                     </span>
+                  ) : m.active === false ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200">
+                      <PauseCircle className="h-3 w-3" /> On hold
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                       <ShieldCheck className="h-3 w-3" /> Staff
@@ -162,11 +239,44 @@ export default function AdminTeam() {
                   )}
                 </div>
                 <div className="col-span-2 text-sm text-[var(--muted-foreground)]">{fmtDate(m.created_at)}</div>
-                <div className="col-span-1 flex justify-end">
+                <div className="col-span-1 flex items-center justify-end gap-0.5">
                   {m.role !== "admin" && (
-                    <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(m)} title="Remove" data-testid="admin-team-remove">
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setResetTarget(m); setResetPw(generatePw()); }}
+                        title="Reset password"
+                        data-testid="admin-team-reset"
+                        className="h-8 w-8"
+                      >
+                        <KeyRound className="h-4 w-4 text-[var(--c-ink)]" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setHoldTarget(m)}
+                        title={m.active === false ? "Resume access" : "Hold access"}
+                        data-testid={m.active === false ? "admin-team-resume" : "admin-team-hold"}
+                        className="h-8 w-8"
+                      >
+                        {m.active === false ? (
+                          <PlayCircle className="h-4 w-4 text-emerald-600" />
+                        ) : (
+                          <PauseCircle className="h-4 w-4 text-amber-600" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setConfirmDelete(m)}
+                        title="Revoke access (delete)"
+                        data-testid="admin-team-remove"
+                        className="h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -233,20 +343,121 @@ export default function AdminTeam() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
+      {/* Revoke (delete) confirmation */}
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove this staff member?</DialogTitle>
+            <DialogTitle>Revoke access for this staff member?</DialogTitle>
             <DialogDescription>
-              {confirmDelete?.name || confirmDelete?.email} will lose all access to /admin immediately.
+              {confirmDelete?.name || confirmDelete?.email} will be permanently deleted and lose all access to /admin immediately.
+              This cannot be undone — if you only need a temporary pause, use <span className="font-semibold">Hold access</span> instead.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
             <Button onClick={() => remove(confirmDelete.user_id)} data-testid="admin-team-confirm-remove" style={{ background: "#DC2626", color: "#fff" }}>
-              <Trash2 className="mr-1.5 h-4 w-4" /> Remove
+              <Trash2 className="mr-1.5 h-4 w-4" /> Revoke access
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hold / Resume confirmation */}
+      <Dialog open={!!holdTarget} onOpenChange={(o) => !o && setHoldTarget(null)}>
+        <DialogContent data-testid="admin-team-hold-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {holdTarget?.active === false ? "Resume access for this staff member?" : "Hold access for this staff member?"}
+            </DialogTitle>
+            <DialogDescription>
+              {holdTarget?.active === false
+                ? `${holdTarget?.name || holdTarget?.email} will be able to sign in to /admin again immediately. Their existing permissions are still in place.`
+                : `${holdTarget?.name || holdTarget?.email} will be unable to sign in to /admin until you resume access. Their permissions and account history are preserved.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHoldTarget(null)} disabled={holdSaving}>Cancel</Button>
+            <Button
+              onClick={toggleHold}
+              disabled={holdSaving}
+              data-testid="admin-team-confirm-hold"
+              style={{ background: holdTarget?.active === false ? "var(--c-primary)" : "#D97706", color: "#fff" }}
+            >
+              {holdTarget?.active === false ? (
+                <><PlayCircle className="mr-1.5 h-4 w-4" /> {holdSaving ? "Resuming…" : "Resume access"}</>
+              ) : (
+                <><PauseCircle className="mr-1.5 h-4 w-4" /> {holdSaving ? "Holding…" : "Hold access"}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset password dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(o) => !o && closeReset()}>
+        <DialogContent data-testid="admin-team-reset-dialog">
+          <DialogHeader>
+            <DialogTitle>Reset password for {resetTarget?.name || resetTarget?.email}</DialogTitle>
+            <DialogDescription>
+              {resetSuccess
+                ? "Password updated. Share these credentials with the staff member through a secure channel — this is the only time it will be shown."
+                : "Set a new password. The staff member will use it the next time they sign in. Share it through a secure channel."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {resetSuccess ? (
+            <div className="space-y-3" data-testid="admin-team-reset-success">
+              <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-3 py-2 text-sm">
+                <span className="text-[var(--muted-foreground)]">Email:</span> <span className="font-mono">{resetSuccess.email}</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-3 py-2">
+                <span className="text-sm text-[var(--muted-foreground)]">Password:</span>
+                <code className="flex-1 truncate font-mono text-sm">{resetSuccess.password}</code>
+                <Button size="sm" variant="outline" onClick={copyResetPw} data-testid="admin-team-reset-copy">
+                  {resetCopied ? <><Check className="mr-1 h-3.5 w-3.5" /> Copied</> : <><Copy className="mr-1 h-3.5 w-3.5" /> Copy</>}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="reset-pw">New password</Label>
+                <div className="relative mt-1">
+                  <Input
+                    id="reset-pw"
+                    type={resetShowPw ? "text" : "password"}
+                    value={resetPw}
+                    onChange={(e) => setResetPw(e.target.value)}
+                    placeholder="At least 8 characters"
+                    data-testid="admin-team-reset-pw-input"
+                  />
+                  <button type="button" onClick={() => setResetShowPw((s) => !s)} className="absolute right-2 top-2 text-[var(--muted-foreground)]" aria-label="Toggle visibility">
+                    {resetShowPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetPw(generatePw())}
+                  className="mt-1.5 text-xs font-medium text-[var(--c-primary)] hover:underline"
+                  data-testid="admin-team-reset-regen"
+                >
+                  Generate a strong password
+                </button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {resetSuccess ? (
+              <Button onClick={closeReset} data-testid="admin-team-reset-done" style={{ background: "var(--c-primary)", color: "#fff" }}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={closeReset} disabled={resetSaving}>Cancel</Button>
+                <Button onClick={submitReset} disabled={resetSaving} data-testid="admin-team-reset-submit" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                  <KeyRound className="mr-1.5 h-4 w-4" /> {resetSaving ? "Updating…" : "Set new password"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
