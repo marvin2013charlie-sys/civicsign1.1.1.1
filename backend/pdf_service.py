@@ -97,12 +97,12 @@ def _stamp_fields(doc: "fitz.Document", fields):
             rect = fitz.Rect(x0, y0, x1, y1)
             ftype = f.get("type")
             val = f.get("value")
-            if ftype in ("signature", "initials", "image"):
+            if ftype in ("signature", "initials", "image", "stamp", "attachment"):
                 img = _decode_image_value(val)
                 if img:
                     page.insert_image(rect, stream=img, keep_proportion=True, overlay=True)
                     placed += 1
-            elif ftype in ("text", "date", "name", "email"):
+            elif ftype in ("text", "date", "name", "email", "fullname", "company", "jobtitle", "signdate", "dropdown", "radio"):
                 if val not in (None, ""):
                     fs = max(8.0, min(13.0, rect.height * 0.62))
                     page.insert_textbox(

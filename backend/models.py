@@ -46,7 +46,7 @@ class FieldIn(BaseModel):
     field_id: Optional[str] = None
     recipient_id: str
     page: int = 0
-    type: str  # signature | initials | date | text | checkbox
+    type: str  # signature | initials | date | text | checkbox | fullname | email | company | jobtitle | signdate | stamp | image | attachment | dropdown | radio
     # percentage coordinates (0..1) relative to page width/height, top-left origin
     x: float
     y: float

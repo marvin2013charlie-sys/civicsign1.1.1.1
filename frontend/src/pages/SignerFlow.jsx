@@ -78,6 +78,16 @@ export default function SignerFlow() {
   const completedCount = requiredEditable.filter(isFilled).length;
   const allFilled = requiredEditable.every(isFilled);
 
+  // Convert a picked file to a base64 data URL for image-style fields.
+  const handleFilePick = (fieldId, file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5 MB"); return; }
+    const reader = new FileReader();
+    reader.onload = () => setValues((p) => ({ ...p, [fieldId]: reader.result }));
+    reader.onerror = () => toast.error("Couldn't read that file");
+    reader.readAsDataURL(file);
+  };
+
   const goNext = () => {
     const next = editableFields.find((f) => !isFilled(f));
     if (next && fieldRefs.current[next.field_id]) {
@@ -240,9 +250,10 @@ export default function SignerFlow() {
                         const filled = f.type === "checkbox" ? v === true : v != null && v !== "";
 
                         if (!f.editable) {
+                          const isImg = typeof v === "string" && v.startsWith("data:image");
                           return (
                             <div key={f.field_id} className="cs-field" style={{ ...px, borderColor: color, background: hexToRgba(color, 0.08), color, borderStyle: "solid", opacity: 0.85 }}>
-                              {filled && (f.type === "signature" || f.type === "initials") ? <img src={v} alt="sig" className="max-h-full max-w-full object-contain" />
+                              {filled && isImg ? <img src={v} alt="field" className="max-h-full max-w-full object-contain" />
                                 : filled && f.type === "checkbox" ? <CheckCircle2 className="h-3 w-3" />
                                 : filled ? <span className="truncate px-1" style={{ fontSize }}>{v}</span>
                                 : <span className="truncate px-1 text-[10px] opacity-70">{FIELD_TYPES[f.type]?.label}</span>}
@@ -252,12 +263,14 @@ export default function SignerFlow() {
 
                         // editable
                         const ref = (el) => { fieldRefs.current[f.field_id] = el; };
-                        if (f.type === "signature" || f.type === "initials") {
+                        const meta = FIELD_TYPES[f.type] || FIELD_TYPES.text;
+
+                        if (meta.input === "signature") {
                           return (
                             <div key={f.field_id} ref={ref} data-testid="signer-field" onClick={() => setSigModal({ open: true, fieldId: f.field_id })}
                               className="cs-field animate-pulse-none" style={{ ...px, borderColor: color, background: hexToRgba(color, filled ? 0.04 : 0.16), color, cursor: "pointer", boxShadow: `0 0 0 1.5px ${color}` }}>
                               {filled ? <img src={v} alt="signature" className="max-h-full max-w-full object-contain" />
-                                : <span className="flex items-center gap-1" style={{ fontSize: Math.max(9, Math.min(13, fontSize)) }}><PenLine className="h-3 w-3" /> {FIELD_TYPES[f.type].label}</span>}
+                                : <span className="flex items-center gap-1" style={{ fontSize: Math.max(9, Math.min(13, fontSize)) }}><PenLine className="h-3 w-3" /> {meta.label}</span>}
                             </div>
                           );
                         }
@@ -269,11 +282,39 @@ export default function SignerFlow() {
                             </div>
                           );
                         }
-                        // text / date
+                        if (meta.input === "image") {
+                          // Stamp / Image / Attachment — open a file picker
+                          const Icon = meta.icon || PenLine;
+                          return (
+                            <label key={f.field_id} ref={ref} data-testid="signer-field"
+                              className="cs-field cursor-pointer overflow-hidden"
+                              style={{ ...px, borderColor: color, background: hexToRgba(color, filled ? 0.04 : 0.14), color, boxShadow: `0 0 0 1.5px ${color}` }}>
+                              <input type="file" accept={f.type === "attachment" ? "image/*,application/pdf" : "image/*"} className="hidden"
+                                onChange={(e) => handleFilePick(f.field_id, e.target.files?.[0])} />
+                              {filled && typeof v === "string" && v.startsWith("data:image")
+                                ? <img src={v} alt={meta.label} className="max-h-full max-w-full object-contain" />
+                                : <span className="flex items-center gap-1 truncate px-1" style={{ fontSize: Math.max(9, Math.min(13, fontSize)) }}>
+                                    <Icon className="h-3 w-3" /> {filled ? "Replace" : meta.label}
+                                  </span>}
+                            </label>
+                          );
+                        }
+                        if (meta.input === "select") {
+                          // Dropdown / Radio — the sender hasn't configured options yet,
+                          // so fall back to a free-text input with a hinting placeholder.
+                          return (
+                            <input key={f.field_id} ref={ref} data-testid="signer-field"
+                              value={v || ""} onChange={(e) => setValues((p) => ({ ...p, [f.field_id]: e.target.value }))}
+                              placeholder={f.type === "dropdown" ? "Select / type" : "Choose / type"}
+                              className="cs-field bg-white px-1 outline-none"
+                              style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#0F1720", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
+                          );
+                        }
+                        // text / date / fullname / email / company / jobtitle / signdate
                         return (
                           <input key={f.field_id} ref={ref} data-testid="signer-field"
                             value={v || ""} onChange={(e) => setValues((p) => ({ ...p, [f.field_id]: e.target.value }))}
-                            placeholder={FIELD_TYPES[f.type]?.label}
+                            placeholder={meta.label}
                             className="cs-field bg-white px-1 outline-none"
                             style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#0F1720", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
                         );

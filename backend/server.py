@@ -707,13 +707,29 @@ async def signer_view(token: str, request: Request):
                       "audit_events": env["audit_events"], "updated_at": now_iso()}})
         recipient["status"] = "viewed"
 
+    # Field-level auto-fill: pre-populate identity / date fields from the recipient
+    # profile so the signer sees them filled in (still editable). Already-signed
+    # fields retain their persisted value.
+    today_iso = datetime.now(timezone.utc).strftime("%b %d, %Y")
+    autofill_map = {
+        "fullname": recipient.get("name"),
+        "email":    recipient.get("email"),
+        "company":  recipient.get("company") or "",
+        "jobtitle": recipient.get("job_title") or recipient.get("title") or "",
+        "signdate": today_iso,
+    }
     fields = []
     for f in env["fields"]:
         editable = (f["recipient_id"] == recipient["recipient_id"] and signable
                     and recipient["status"] not in ("signed", "declined"))
         rcolor = next((r["color"] for r in env["recipients"]
                        if r["recipient_id"] == f["recipient_id"]), "#1FB8A6")
-        fields.append({**f, "editable": editable, "recipient_color": rcolor})
+        merged = {**f, "editable": editable, "recipient_color": rcolor}
+        if (merged.get("value") in (None, "")
+                and editable
+                and f.get("type") in autofill_map):
+            merged["value"] = autofill_map.get(f["type"]) or ""
+        fields.append(merged)
 
     return {
         "envelope_id": env["envelope_id"], "title": env["title"],
