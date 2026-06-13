@@ -56,7 +56,7 @@ export default function Register() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="grid min-h-dvh lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between bg-[var(--c-ink)] p-10 text-white lg:flex">
         <Logo dark />
         <div>
@@ -70,9 +70,9 @@ export default function Register() {
         <p className="text-xs text-white/50">© {new Date().getFullYear()} CIVICSIGN</p>
       </div>
 
-      <div className="flex items-center justify-center bg-[var(--c-paper)] p-6">
+      <div className="flex items-start justify-center bg-[var(--c-paper)] px-5 py-8 sm:p-6 lg:items-center">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden"><Logo /></div>
+          <div className="mb-6 lg:hidden"><Logo /></div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Create your account</h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">Free to start. No credit card required.</p>
 

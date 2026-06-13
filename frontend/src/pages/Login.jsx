@@ -106,7 +106,7 @@ export default function Login() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="grid min-h-dvh lg:grid-cols-2">
       {/* Brand panel */}
       <div className="relative hidden flex-col justify-between bg-[var(--c-ink)] p-10 text-white lg:flex">
         <Logo dark />
@@ -122,9 +122,9 @@ export default function Login() {
       </div>
 
       {/* Form */}
-      <div className="flex items-center justify-center bg-[var(--c-paper)] p-6">
+      <div className="flex items-start justify-center bg-[var(--c-paper)] px-5 py-8 sm:p-6 lg:items-center">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden"><Logo /></div>
+          <div className="mb-6 lg:hidden"><Logo /></div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Sign in to CIVICSIGN</h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">Welcome back. Enter your details below.</p>
 
@@ -145,7 +145,7 @@ export default function Login() {
                 placeholder="you@company.com" className="mt-1" data-testid="login-email-input" />
             </div>
             <div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="password">Password</Label>
                 <button type="button" onClick={openForgot}
                   className="text-xs font-medium text-[var(--c-primary)] transition-colors hover:opacity-80"
@@ -154,7 +154,7 @@ export default function Login() {
                 </button>
               </div>
               <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" className="mt-1" data-testid="login-password-input" />
+                placeholder="••••••••" className="mt-1.5" data-testid="login-password-input" />
             </div>
             <Button type="submit" disabled={loading} className="w-full" data-testid="login-submit-button"
               style={{ background: "var(--c-primary)", color: "#fff" }}>
