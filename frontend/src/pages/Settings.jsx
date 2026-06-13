@@ -229,9 +229,15 @@ function ProfileTab() {
             </div>
             <div>
               <Label htmlFor="industry">Industry</Label>
-              <Input id="industry" className="mt-1" data-testid="settings-industry-input"
-                value={form.industry} placeholder="Legal, Property, Recruitment…"
-                onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))} />
+              <select id="industry" data-testid="settings-industry-input"
+                value={form.industry}
+                onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+                className="mt-1 h-10 w-full rounded-md border border-[var(--c-border)] bg-[var(--card)] px-3 text-sm text-[var(--c-ink)]">
+                <option value="">Select industry…</option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Staffing Agency">Staffing Agency</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
               <Label htmlFor="company_size">Company size</Label>

@@ -30,6 +30,8 @@ import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
+import RealEstate from "@/pages/solutions/RealEstate";
+import StaffingAgency from "@/pages/solutions/StaffingAgency";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
 import CookiePolicy from "@/pages/CookiePolicy";
@@ -72,6 +74,8 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
+      <Route path="/solutions/real-estate" element={<RealEstate />} />
+      <Route path="/solutions/staffing-agency" element={<StaffingAgency />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/cookies" element={<CookiePolicy />} />
