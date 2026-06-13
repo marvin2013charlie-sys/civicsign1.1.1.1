@@ -42,6 +42,7 @@ import Healthcare from "@/pages/solutions/Healthcare";
 import Charities from "@/pages/solutions/Charities";
 import Construction from "@/pages/solutions/Construction";
 import Education from "@/pages/solutions/Education";
+import Blog from "@/pages/Blog";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
 import CookiePolicy from "@/pages/CookiePolicy";
@@ -93,6 +94,7 @@ function AppRoutes() {
       <Route path="/solutions/charities" element={<Charities />} />
       <Route path="/solutions/construction" element={<Construction />} />
       <Route path="/solutions/education" element={<Education />} />
+      <Route path="/blog" element={<Blog />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/cookies" element={<CookiePolicy />} />
