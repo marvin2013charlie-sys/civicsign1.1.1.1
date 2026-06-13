@@ -26,6 +26,8 @@ import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
 import AdminContacts from "@/pages/admin/AdminContacts";
+import AdminBilling from "@/pages/admin/AdminBilling";
+import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -88,6 +90,8 @@ function AppRoutes() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="users/:userId" element={<AdminUserDetail />} />
         <Route path="envelopes" element={<AdminEnvelopes />} />
+        <Route path="billing" element={<AdminBilling />} />
+        <Route path="audit" element={<AdminAuditLog />} />
         <Route path="contacts" element={<AdminContacts />} />
       </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />

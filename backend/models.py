@@ -187,3 +187,11 @@ class ResetPassword(BaseModel):
     token: str
     new_password: str = Field(min_length=6)
 
+
+
+# ---- Admin: billing/refunds ----
+class RefundRequest(BaseModel):
+    amount: Optional[float] = None  # if None -> full refund
+    reason: Optional[str] = None    # admin-supplied note
+    downgrade_plan: Optional[bool] = True  # also downgrade user to free
+

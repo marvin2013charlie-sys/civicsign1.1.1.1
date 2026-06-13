@@ -17,7 +17,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 import email_service
 from db import db
 from auth import require_admin, _public_user, create_access_token, create_password_reset
-from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset
+from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
+
+try:
+    import stripe as stripe_sdk  # official Stripe SDK for refunds
+except Exception:  # pragma: no cover
+    stripe_sdk = None
 
 logger = logging.getLogger("civicsign.admin")
 
@@ -409,3 +414,254 @@ async def handle_contact(contact_id: str, body: ContactHandle, admin: dict = Dep
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Message not found")
     return {"ok": True, "handled": body.handled}
+
+
+
+# ============================================================================
+# BILLING & REFUNDS (super-admin tooling)
+# ============================================================================
+
+def _enrich_tx(tx: dict, users_map: dict) -> dict:
+    """Attach lightweight user info to a transaction row."""
+    u = users_map.get(tx.get("user_id")) or {}
+    tx["user_name"] = u.get("name") or u.get("email") or "—"
+    tx["user_email"] = u.get("email") or tx.get("email") or "—"
+    tx["user_plan"] = u.get("plan")
+    return tx
+
+
+@admin_router.get("/transactions")
+async def list_transactions(
+    q: str = Query("", description="Search by email or session id"),
+    status: str = Query("all", description="all | paid | pending | refunded | failed"),
+    admin: dict = Depends(require_admin),
+):
+    """All Stripe payment attempts, newest first, with user info."""
+    query: dict = {}
+    if status == "paid":
+        query = {"payment_status": "paid", "refund_status": {"$in": [None, "none"]}}
+    elif status == "pending":
+        query = {"payment_status": "pending"}
+    elif status == "refunded":
+        query = {"refund_status": {"$in": ["refunded", "partial"]}}
+    elif status == "failed":
+        query = {"payment_status": {"$in": ["failed", "canceled", "expired"]}}
+
+    if q.strip():
+        rgx = {"$regex": q.strip(), "$options": "i"}
+        query = {"$and": [query, {"$or": [{"email": rgx}, {"session_id": rgx}, {"tx_id": rgx}]}]} if query else \
+                {"$or": [{"email": rgx}, {"session_id": rgx}, {"tx_id": rgx}]}
+
+    txs = await db.payment_transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    user_ids = list({t.get("user_id") for t in txs if t.get("user_id")})
+    users = await db.users.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "plan": 1},
+    ).to_list(5000) if user_ids else []
+    users_map = {u["user_id"]: u for u in users}
+    return [_enrich_tx(t, users_map) for t in txs]
+
+
+@admin_router.get("/billing/metrics")
+async def billing_metrics(admin: dict = Depends(require_admin)):
+    """Revenue KPIs: gross, refunded, net, by plan, last-30-day daily series."""
+    txs = await db.payment_transactions.find(
+        {}, {"_id": 0, "amount": 1, "currency": 1, "payment_status": 1, "refund_status": 1,
+             "refund_amount": 1, "plan_id": 1, "created_at": 1, "updated_at": 1, "processed": 1},
+    ).to_list(50000)
+
+    currency = "gbp"
+    gross = 0.0
+    refunded = 0.0
+    paid_count = 0
+    refunded_count = 0
+    by_plan = {}  # plan_id -> {count, gross, refunded, net}
+
+    for t in txs:
+        amt = float(t.get("amount") or 0)
+        paid = t.get("payment_status") == "paid"
+        ref_status = t.get("refund_status") or "none"
+        ref_amount = float(t.get("refund_amount") or 0)
+        plan = t.get("plan_id") or "unknown"
+        by_plan.setdefault(plan, {"count": 0, "gross": 0.0, "refunded": 0.0, "net": 0.0})
+
+        if paid:
+            gross += amt
+            paid_count += 1
+            by_plan[plan]["count"] += 1
+            by_plan[plan]["gross"] += amt
+        if ref_status in ("refunded", "partial") and ref_amount > 0:
+            refunded += ref_amount
+            refunded_count += 1
+            by_plan[plan]["refunded"] += ref_amount
+
+    for p in by_plan.values():
+        p["net"] = round(p["gross"] - p["refunded"], 2)
+        p["gross"] = round(p["gross"], 2)
+        p["refunded"] = round(p["refunded"], 2)
+
+    # 30-day revenue series
+    today = datetime.now(timezone.utc).date()
+    series = []
+    for i in range(29, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        label = (today - timedelta(days=i)).strftime("%b %d")
+        day_gross = 0.0
+        day_ref = 0.0
+        for t in txs:
+            ca = (t.get("created_at") or "")[:10]
+            ua = (t.get("updated_at") or "")[:10]
+            if ca == d and t.get("payment_status") == "paid":
+                day_gross += float(t.get("amount") or 0)
+            if ua == d and (t.get("refund_status") in ("refunded", "partial")):
+                day_ref += float(t.get("refund_amount") or 0)
+        series.append({"date": label, "gross": round(day_gross, 2), "refunded": round(day_ref, 2)})
+
+    return {
+        "currency": currency,
+        "totals": {
+            "gross": round(gross, 2),
+            "refunded": round(refunded, 2),
+            "net": round(gross - refunded, 2),
+            "paid_count": paid_count,
+            "refunded_count": refunded_count,
+            "transactions": len(txs),
+        },
+        "by_plan": by_plan,
+        "series": series,
+    }
+
+
+@admin_router.post("/transactions/{tx_id}/refund")
+async def refund_transaction(tx_id: str, body: RefundRequest, admin: dict = Depends(require_admin)):
+    """Issue a Stripe refund for a paid transaction.
+
+    - Full refund when `amount` is omitted; otherwise partial refund.
+    - Optionally downgrades the user's plan back to `free`.
+    - Records a refund event on the transaction and in `admin_audit`.
+    """
+    tx = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if tx.get("payment_status") != "paid":
+        raise HTTPException(status_code=400, detail="Only paid transactions can be refunded")
+    if tx.get("refund_status") == "refunded":
+        raise HTTPException(status_code=400, detail="This payment has already been fully refunded")
+
+    api_key = os.environ.get("STRIPE_API_KEY")
+    if not api_key or stripe_sdk is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Refunds unavailable: Stripe is not configured on the server (STRIPE_API_KEY missing).",
+        )
+
+    paid_amount = float(tx.get("amount") or 0)
+    already_ref = float(tx.get("refund_amount") or 0)
+    refund_amount = float(body.amount) if body.amount is not None else (paid_amount - already_ref)
+    if refund_amount <= 0:
+        raise HTTPException(status_code=400, detail="Refund amount must be greater than zero")
+    if refund_amount + already_ref > paid_amount + 1e-6:
+        raise HTTPException(status_code=400, detail="Refund amount exceeds remaining refundable balance")
+
+    stripe_sdk.api_key = api_key
+    # Stripe needs the cents value
+    amount_cents = int(round(refund_amount * 100))
+    metadata = {
+        "tx_id": tx_id,
+        "user_id": tx.get("user_id") or "",
+        "admin_id": admin["user_id"],
+        "admin_email": admin["email"],
+        "reason_note": (body.reason or "")[:480],
+    }
+
+    try:
+        # Prefer payment_intent if we have it; otherwise refund by Checkout Session.
+        refund_kwargs = {"amount": amount_cents, "metadata": metadata}
+        if tx.get("payment_intent_id"):
+            refund_kwargs["payment_intent"] = tx["payment_intent_id"]
+        else:
+            # Look up the PI from the Checkout session
+            sess = stripe_sdk.checkout.Session.retrieve(tx["session_id"])
+            pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
+            if not pi:
+                raise HTTPException(status_code=400, detail="Could not resolve payment intent for this session")
+            refund_kwargs["payment_intent"] = pi
+            await db.payment_transactions.update_one(
+                {"tx_id": tx_id}, {"$set": {"payment_intent_id": pi}}
+            )
+        refund = stripe_sdk.Refund.create(**refund_kwargs)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] Stripe refund failed for tx={tx_id}: {e}")
+        raise HTTPException(status_code=502, detail=f"Stripe refund failed: {e}")
+
+    new_total_refunded = round(already_ref + refund_amount, 2)
+    new_status = "refunded" if abs(new_total_refunded - paid_amount) < 1e-6 else "partial"
+    now = datetime.now(timezone.utc).isoformat()
+    refund_event = {
+        "refund_id": getattr(refund, "id", None) or (refund.get("id") if isinstance(refund, dict) else None),
+        "amount": refund_amount,
+        "reason": body.reason,
+        "by_admin_id": admin["user_id"],
+        "by_admin_email": admin["email"],
+        "at": now,
+    }
+    await db.payment_transactions.update_one(
+        {"tx_id": tx_id},
+        {
+            "$set": {
+                "refund_status": new_status,
+                "refund_amount": new_total_refunded,
+                "last_refund_at": now,
+                "updated_at": now,
+            },
+            "$push": {"refunds": refund_event},
+        },
+    )
+
+    # Optionally downgrade the user's plan back to free
+    plan_changed = False
+    if body.downgrade_plan and new_status == "refunded" and tx.get("user_id"):
+        await db.users.update_one(
+            {"user_id": tx["user_id"]},
+            {"$set": {"plan": "free", "plan_updated_at": now}},
+        )
+        plan_changed = True
+
+    await db.admin_audit.insert_one({
+        "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+        "action": "refund_transaction",
+        "admin_id": admin["user_id"],
+        "admin_email": admin["email"],
+        "target_user_id": tx.get("user_id"),
+        "target_email": tx.get("email"),
+        "tx_id": tx_id,
+        "amount": refund_amount,
+        "reason": body.reason,
+        "refund_id": refund_event["refund_id"],
+        "at": now,
+    })
+
+    fresh = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
+    return {
+        "ok": True,
+        "refund_status": new_status,
+        "refund_amount": new_total_refunded,
+        "plan_downgraded": plan_changed,
+        "transaction": fresh,
+    }
+
+
+@admin_router.get("/audit-log")
+async def admin_audit_log(
+    limit: int = Query(200, ge=1, le=2000),
+    action: str = Query("all"),
+    admin: dict = Depends(require_admin),
+):
+    """Recent admin actions (impersonate, password resets, refunds)."""
+    query: dict = {}
+    if action != "all":
+        query["action"] = action
+    items = await db.admin_audit.find(query, {"_id": 0}).sort("at", -1).to_list(limit)
+    return items

@@ -151,6 +151,24 @@ async def checkout_status(session_id: str, request: Request,
 
     await _apply_plan_upgrade(session_id, status.payment_status, status.status)
 
+    # Best-effort: capture payment_intent on the tx so refunds can target it.
+    try:
+        if status.payment_status == "paid" and not tx.get("payment_intent_id"):
+            # The Emergent wrapper exposes a Stripe Checkout SDK underneath; pull
+            # the underlying session to read the payment_intent. If unavailable,
+            # the admin refund endpoint will fetch it on demand.
+            import stripe as _stripe
+            _stripe.api_key = os.environ.get("STRIPE_API_KEY")
+            if _stripe.api_key:
+                sess = _stripe.checkout.Session.retrieve(session_id)
+                pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
+                if pi:
+                    await db.payment_transactions.update_one(
+                        {"session_id": session_id}, {"$set": {"payment_intent_id": pi, "updated_at": _now()}}
+                    )
+    except Exception as _e:
+        logger.warning(f"[billing] could not capture payment_intent for {session_id}: {_e}")
+
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return {
         "status": status.status,

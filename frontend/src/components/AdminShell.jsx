@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Users, FileText, Inbox, LogOut, ArrowLeft, ShieldCheck, Menu, X,
+  LayoutDashboard, Users, FileText, Inbox, LogOut, ArrowLeft, ShieldCheck, Menu, X, CreditCard, History,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ const NAV = [
   { to: "/admin", end: true, label: "Overview", icon: LayoutDashboard, testid: "admin-nav-overview" },
   { to: "/admin/users", label: "Users", icon: Users, testid: "admin-nav-users" },
   { to: "/admin/envelopes", label: "Envelopes", icon: FileText, testid: "admin-nav-envelopes" },
+  { to: "/admin/billing", label: "Billing & Refunds", icon: CreditCard, testid: "admin-nav-billing" },
+  { to: "/admin/audit", label: "Audit Log", icon: History, testid: "admin-nav-audit" },
   { to: "/admin/contacts", label: "Contact Inbox", icon: Inbox, testid: "admin-nav-contacts" },
 ];
 
