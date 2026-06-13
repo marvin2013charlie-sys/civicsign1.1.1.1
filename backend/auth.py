@@ -166,6 +166,12 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
+async def require_admin_or_staff(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in ("admin", "staff"):
+        raise HTTPException(status_code=403, detail="Internal team access required")
+    return user
+
+
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 

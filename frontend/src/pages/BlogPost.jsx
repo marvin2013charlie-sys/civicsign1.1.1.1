@@ -10,7 +10,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
-import { getPost, getRelatedPosts } from "@/lib/blogPosts";
+import { getPost, getRelatedPosts, fetchPost } from "@/lib/blogPosts";
 
 const Block = ({ block }) => {
   if (block.type === "h2") {
@@ -56,13 +56,24 @@ const Block = ({ block }) => {
 
 export default function BlogPost() {
   const { slug } = useParams();
-  const post = getPost(slug);
+  const [post, setPost] = React.useState(getPost(slug));
+  const [loaded, setLoaded] = React.useState(!!post);
 
   useEffect(() => {
-    if (post) window.scrollTo({ top: 0, behavior: "instant" });
-  }, [slug, post]);
+    let cancelled = false;
+    setPost(getPost(slug));
+    setLoaded(false);
+    fetchPost(slug).then((p) => {
+      if (cancelled) return;
+      if (p) setPost(p);
+      setLoaded(true);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    });
+    return () => { cancelled = true; };
+  }, [slug]);
 
-  if (!post) return <Navigate to="/blog" replace />;
+  if (loaded && !post) return <Navigate to="/blog" replace />;
+  if (!post) return null;
 
   const related = getRelatedPosts(slug, 2);
 

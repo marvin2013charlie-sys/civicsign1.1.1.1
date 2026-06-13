@@ -7,11 +7,19 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
-import { POSTS, CATEGORIES } from "@/lib/blogPosts";
+import { POSTS as STATIC_POSTS, CATEGORIES, fetchAllPosts } from "@/lib/blogPosts";
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = React.useState("All");
-  const visible = activeCategory === "All" ? POSTS : POSTS.filter((p) => p.category === activeCategory);
+  const [posts, setPosts] = React.useState(STATIC_POSTS);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchAllPosts().then((data) => { if (!cancelled) setPosts(data); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const visible = activeCategory === "All" ? posts : posts.filter((p) => p.category === activeCategory);
   const [featured, ...rest] = visible;
 
   return (

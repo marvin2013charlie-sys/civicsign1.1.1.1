@@ -31,6 +31,8 @@ import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
 import AdminContacts from "@/pages/admin/AdminContacts";
 import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
+import AdminBlog from "@/pages/admin/AdminBlog";
+import AdminTeam from "@/pages/admin/AdminTeam";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import RealEstate from "@/pages/solutions/RealEstate";
@@ -72,7 +74,7 @@ function AdminProtected({ children }) {
   const { user } = useAuth();
   if (user === null) return <FullLoader />;
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (user.role !== "admin") return <Navigate to="/admin/login" replace />;
+  if (user.role !== "admin" && user.role !== "staff") return <Navigate to="/admin/login" replace />;
   return children;
 }
 
@@ -121,6 +123,8 @@ function AppRoutes() {
         <Route path="billing" element={<AdminBilling />} />
         <Route path="audit" element={<AdminAuditLog />} />
         <Route path="contacts" element={<AdminContacts />} />
+        <Route path="blog" element={<AdminBlog />} />
+        <Route path="team" element={<AdminTeam />} />
       </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
       <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />

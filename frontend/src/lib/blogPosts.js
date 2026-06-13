@@ -1,6 +1,8 @@
-// Centralised blog post data. Each post has metadata + a `body` array of
-// section blocks rendered by BlogPost.jsx. Block types: "p" | "h2" | "h3"
-// | "ul" | "callout" | "quote".
+// Centralised blog post data + helpers. Used as a "static fallback" when the
+// /api/blog endpoint hasn't been seeded yet; admin-created posts via the
+// internal team panel are merged in on top (API wins on slug conflicts).
+
+import api from "@/lib/api";
 
 export const POSTS = [
   {
@@ -273,3 +275,28 @@ export const getRelatedPosts = (slug, limit = 2) => {
     .sort((a, b) => (a.category === current.category ? -1 : 1) - (b.category === current.category ? -1 : 1))
     .slice(0, limit);
 };
+
+// API-merged list: returns static posts with admin-created posts overlaid.
+// Used by the public /blog and /blog/:slug pages.
+export async function fetchAllPosts() {
+  try {
+    const { data } = await api.get("/blog/posts");
+    const apiBySlug = new Map(data.map((p) => [p.slug, p]));
+    const merged = [...POSTS.map((p) => apiBySlug.get(p.slug) || p)];
+    for (const p of data) {
+      if (!merged.find((x) => x.slug === p.slug)) merged.unshift(p);
+    }
+    return merged;
+  } catch {
+    return POSTS;
+  }
+}
+
+export async function fetchPost(slug) {
+  try {
+    const { data } = await api.get(`/blog/posts/${slug}`);
+    return data;
+  } catch {
+    return getPost(slug);
+  }
+}

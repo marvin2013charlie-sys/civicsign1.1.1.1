@@ -27,6 +27,7 @@ from models import (
 )
 from auth import auth_router, get_current_user, seed_admin
 from admin import admin_router
+from blog_admin import public_router as blog_public_router, admin_router as blog_admin_router
 from assistant import assistant_router
 from billing import billing_router
 from sample_templates import seed_sample_templates
@@ -856,6 +857,8 @@ async def signer_decline(token: str, body: DeclineRequest, request: Request):
 app.include_router(auth_router)
 app.include_router(api_router)
 app.include_router(admin_router)
+app.include_router(blog_admin_router)
+app.include_router(blog_public_router)
 app.include_router(assistant_router)
 app.include_router(billing_router)
 

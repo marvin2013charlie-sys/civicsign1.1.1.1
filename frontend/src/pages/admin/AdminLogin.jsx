@@ -15,9 +15,9 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // If an admin is already signed in, jump straight to the console.
+  // If an admin or staff member is already signed in, jump to the console.
   useEffect(() => {
-    if (user && user.role === "admin") navigate("/admin", { replace: true });
+    if (user && (user.role === "admin" || user.role === "staff")) navigate("/admin", { replace: true });
   }, [user, navigate]);
 
   const submit = async (e) => {
@@ -25,11 +25,11 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const data = await login(email, password);
-      if (data?.user?.role === "admin") {
-        toast.success("Welcome to the admin console");
+      if (data?.user?.role === "admin" || data?.user?.role === "staff") {
+        toast.success(data.user.role === "admin" ? "Welcome to the admin console" : "Welcome to the internal portal");
         navigate("/admin", { replace: true });
       } else {
-        // A valid but non-admin account tried to use the internal portal.
+        // A valid but non-admin/staff account tried to use the internal portal.
         await logout();
         toast.error("This portal is for internal team members only.");
       }
