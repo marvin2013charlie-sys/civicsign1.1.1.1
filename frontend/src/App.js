@@ -33,8 +33,11 @@ import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 import AdminBlog from "@/pages/admin/AdminBlog";
 import AdminTeam from "@/pages/admin/AdminTeam";
+import AdminCareers from "@/pages/admin/AdminCareers";
 import StaffLanding from "@/pages/admin/StaffLanding";
 import RequirePerm from "@/components/RequirePerm";
+import Careers from "@/pages/Careers";
+import JobDetail from "@/pages/JobDetail";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import RealEstate from "@/pages/solutions/RealEstate";
@@ -108,6 +111,8 @@ function AppRoutes() {
       <Route path="/solutions/education" element={<Education />} />
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
+      <Route path="/careers" element={<Careers />} />
+      <Route path="/careers/:slug" element={<JobDetail />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/cookies" element={<CookiePolicy />} />
@@ -133,6 +138,7 @@ function AppRoutes() {
         <Route path="audit" element={<RequirePerm perm="admin"><AdminAuditLog /></RequirePerm>} />
         <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
         <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
+        <Route path="careers" element={<RequirePerm perm="careers"><AdminCareers /></RequirePerm>} />
         <Route path="team" element={<RequirePerm perm="admin"><AdminTeam /></RequirePerm>} />
       </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />

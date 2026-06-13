@@ -14,6 +14,7 @@ export const ADMIN_ROUTE_PERMS = {
   "users": "users-read",
   "envelopes": "admin",
   "blog": "blog",
+  "careers": "careers",
   "team": "admin",
   "billing": "admin",
   "audit": "admin",
@@ -50,6 +51,8 @@ function AccessDenied({ perm }) {
       ? "Read user list"
       : perm === "blog"
       ? "Manage blog posts"
+      : perm === "careers"
+      ? "Manage careers & applications"
       : perm === "contacts"
       ? "Contact inbox"
       : perm;

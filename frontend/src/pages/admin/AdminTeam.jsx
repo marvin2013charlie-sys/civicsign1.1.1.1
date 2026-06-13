@@ -17,6 +17,7 @@ import {
 
 const PERMS = [
   { value: "blog",        label: "Manage blog posts",     desc: "Create, edit, publish and delete posts on /blog." },
+  { value: "careers",     label: "Manage careers",        desc: "Publish job openings on /careers and review applications." },
   { value: "contacts",    label: "Read contact inbox",    desc: "View customer enquiries from /contact." },
   { value: "users-read",  label: "Read user list",        desc: "Browse user accounts (read-only — no edits, no impersonation)." },
 ];

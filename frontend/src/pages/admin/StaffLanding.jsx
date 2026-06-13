@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { BookOpen, Users, Inbox, ShieldCheck, ArrowRight } from "lucide-react";
+import { BookOpen, Users, Inbox, ShieldCheck, ArrowRight, Briefcase } from "lucide-react";
 
 const PERM_CARDS = {
   blog: {
@@ -9,6 +9,12 @@ const PERM_CARDS = {
     desc: "Create, edit, publish and delete posts.",
     icon: BookOpen,
     href: "/admin/blog",
+  },
+  careers: {
+    label: "Careers & applications",
+    desc: "Publish job openings and review candidate applications.",
+    icon: Briefcase,
+    href: "/admin/careers",
   },
   "users-read": {
     label: "Browse users",

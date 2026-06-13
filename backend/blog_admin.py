@@ -247,7 +247,7 @@ async def create_staff(body: StaffCreate, admin: dict = Depends(require_admin)):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="A user with that email already exists")
-    allowed = {"blog", "contacts", "users-read"}
+    allowed = {"blog", "contacts", "users-read", "careers"}
     perms = sorted(set(body.permissions) & allowed) or ["blog"]
     user = {
         "user_id": "user_" + secrets.token_hex(8),
