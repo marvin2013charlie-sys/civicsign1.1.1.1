@@ -1,0 +1,12 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- CIVICSIGN favicon: teal "sign wave" on dark navy rounded square -->
+  <rect width="64" height="64" rx="14" fill="#0F1720"/>
+  <path
+    d="M12 40c7-3 10-16 18-16s8 11 16 8 10-13 12-13"
+    fill="none"
+    stroke="#1FB8A6"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

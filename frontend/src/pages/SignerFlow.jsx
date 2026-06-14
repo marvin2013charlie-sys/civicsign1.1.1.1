@@ -187,18 +187,20 @@ export default function SignerFlow() {
   return (
     <div className="min-h-screen bg-[var(--c-paper)]">
       {/* Header */}
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--c-border)] bg-[var(--card)] px-4 sm:px-6">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[var(--c-border)] bg-[var(--card)] px-3 sm:h-16 sm:gap-3 sm:px-6">
         <Logo />
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {started && (
             <div className="hidden items-center gap-2 sm:flex">
               <span className="text-xs text-[var(--muted-foreground)]">{completedCount} of {requiredEditable.length} complete</span>
               <Button variant="outline" size="sm" onClick={goNext} data-testid="signer-next-button">Next field <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
             </div>
           )}
-          <Button variant="ghost" size="sm" className="text-red-600" onClick={() => setDeclineOpen(true)} data-testid="signer-decline-button">Decline</Button>
-          <Button onClick={submit} disabled={submitting || !started} data-testid="signer-finish-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
-            {submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <PenLine className="mr-1.5 h-4 w-4" />} Finish & Sign
+          <Button variant="ghost" size="sm" className="px-2 text-red-600 sm:px-3" onClick={() => setDeclineOpen(true)} data-testid="signer-decline-button">Decline</Button>
+          <Button onClick={submit} disabled={submitting || !started} data-testid="signer-finish-button" style={{ background: "var(--c-primary)", color: "#fff" }} className="px-3 sm:px-4">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <PenLine className="h-4 w-4 sm:mr-1.5" />}
+            <span className="ml-1 hidden sm:inline">Finish & Sign</span>
+            <span className="ml-1 sm:hidden">Sign</span>
           </Button>
         </div>
       </header>

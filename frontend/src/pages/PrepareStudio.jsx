@@ -13,10 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft, Plus, Trash2, ZoomIn, ZoomOut, Send, UserPlus, Loader2,
-  GripVertical, X, Users, ListOrdered, LayoutTemplate,
+  GripVertical, X, Users, ListOrdered, LayoutTemplate, LayoutGrid,
 } from "lucide-react";
 
 const COLORS = ["#1FB8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"];
@@ -120,6 +123,8 @@ export default function PrepareStudio() {
   const [tplName, setTplName] = useState("");
   const [tplDesc, setTplDesc] = useState("");
   const [savingTpl, setSavingTpl] = useState(false);
+  // Mobile bottom-sheet: which panel is open ("recipients" | "fields" | null).
+  const [mobileSheet, setMobileSheet] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -248,13 +253,77 @@ export default function PrepareStudio() {
     return <div className="flex min-h-screen items-center justify-center bg-[var(--c-paper)]"><Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" /></div>;
   }
 
+  // Shared panel content — rendered both in the desktop sidebar and inside the
+  // mobile bottom sheet so the prepare flow has full parity on phones.
+  const renderPanels = ({ onPick } = {}) => (
+    <div className="space-y-6 p-4">
+      {/* Recipients */}
+      <section>
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"><Users className="h-3.5 w-3.5" /> Recipients</div>
+        <div className="mt-3 space-y-2">
+          {recipients.map((r) => (
+            <div key={r.recipient_id}
+              onClick={() => setActiveRecipient(r.recipient_id)}
+              data-testid="recipient-row"
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 transition-colors ${activeRecipient === r.recipient_id ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)]" : "border-[var(--c-border)] bg-white"}`}>
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p>
+                <p className="truncate text-xs text-[var(--muted-foreground)]">{r.email}</p>
+              </div>
+              <span className="text-xs text-[var(--muted-foreground)]">#{r.order}</span>
+              <button onClick={(e) => { e.stopPropagation(); removeRecipient(r.recipient_id); }} className="text-[var(--muted-foreground)] hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 space-y-2 rounded-lg border border-dashed border-[var(--c-border)] p-3">
+          <Input value={newRec.name} onChange={(e) => setNewRec({ ...newRec, name: e.target.value })} placeholder="Recipient name" className="h-9" data-testid="recipient-name-input" />
+          <Input value={newRec.email} onChange={(e) => setNewRec({ ...newRec, email: e.target.value })} placeholder="email@company.com" className="h-9" data-testid="recipient-email-input" />
+          <Button variant="outline" className="w-full" onClick={addRecipient} data-testid="recipient-add-button"><UserPlus className="mr-1.5 h-4 w-4" /> Add recipient</Button>
+        </div>
+      </section>
+
+      {/* Signing order */}
+      <section>
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"><ListOrdered className="h-3.5 w-3.5" /> Signing order</div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {[["sequential", "Sequential"], ["parallel", "Parallel"]].map(([v, l]) => (
+            <button key={v} onClick={() => setSigningOrder(v)} data-testid={`order-${v}`}
+              className={`rounded-lg border px-2 py-2 text-sm font-medium ${signingOrder === v ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--muted-foreground)]"}`}>{l}</button>
+          ))}
+        </div>
+      </section>
+
+      {/* Fields palette */}
+      <section>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Fields</div>
+        <p className="mt-1 text-xs text-[var(--muted-foreground)]">Pick a field, then tap the document to place it for <b style={{ color: colorFor(activeRecipient) }}>{recipients.find((r) => r.recipient_id === activeRecipient)?.name || "— select recipient"}</b>.</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {FIELD_ORDER.map((t) => {
+            const m = FIELD_TYPES[t]; const Icon = m.icon; const active = tool === t;
+            return (
+              <button key={t}
+                onClick={() => { setTool(active ? null : t); onPick && onPick(); }}
+                data-testid={`field-chip-${t}`}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${active ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"}`}>
+                <Icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+
+  const activeRec = recipients.find((r) => r.recipient_id === activeRecipient);
+
   return (
     <div className="flex h-screen flex-col bg-[var(--c-paper)]">
       {/* Top toolbar */}
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--c-border)] bg-[var(--card)] px-4">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--c-border)] bg-[var(--card)] px-3 sm:gap-3 sm:px-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} data-testid="prepare-back-button"><ArrowLeft className="h-4 w-4" /></Button>
         <div className="hidden sm:block"><Logo to="/dashboard" /></div>
-        <span className="truncate font-heading font-semibold text-[var(--c-ink)]">{env?.title}</span>
+        <span className="min-w-0 flex-1 truncate font-heading text-sm font-semibold text-[var(--c-ink)] sm:flex-none sm:text-base">{env?.title}</span>
         <div className="ml-auto flex items-center gap-2">
           <div className="hidden items-center gap-1 rounded-lg border border-[var(--c-border)] p-0.5 sm:flex">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))} data-testid="prepare-zoom-out-button"><ZoomOut className="h-4 w-4" /></Button>
@@ -264,72 +333,20 @@ export default function PrepareStudio() {
           <Button variant="ghost" className="hidden sm:inline-flex" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-save-template-button">
             <LayoutTemplate className="mr-1.5 h-4 w-4" /> Save as template
           </Button>
-          <Button variant="outline" onClick={saveAndExit} disabled={saving} data-testid="prepare-save-button">Save & exit</Button>
-          <Button onClick={continueToSend} disabled={saving} data-testid="prepare-send-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
-            {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />} Continue to send
+          <Button variant="outline" onClick={saveAndExit} disabled={saving} data-testid="prepare-save-button" className="hidden sm:inline-flex">Save & exit</Button>
+          <Button onClick={continueToSend} disabled={saving} data-testid="prepare-send-button" style={{ background: "var(--c-primary)", color: "#fff" }} className="px-3 sm:px-4">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <Send className="h-4 w-4 sm:mr-1.5" />}
+            <span className="hidden sm:inline">Continue to send</span>
+            <span className="ml-1 sm:hidden">Send</span>
           </Button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Left control panel */}
+        {/* Left control panel — desktop only. Mobile uses a bottom sheet. */}
         <aside className="hidden w-80 shrink-0 flex-col border-r border-[var(--c-border)] bg-[var(--card)] lg:flex">
           <ScrollArea className="flex-1 cs-scroll">
-            <div className="space-y-6 p-4">
-              {/* Recipients */}
-              <section>
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"><Users className="h-3.5 w-3.5" /> Recipients</div>
-                <div className="mt-3 space-y-2">
-                  {recipients.map((r) => (
-                    <div key={r.recipient_id}
-                      onClick={() => setActiveRecipient(r.recipient_id)}
-                      data-testid="recipient-row"
-                      className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 transition-colors ${activeRecipient === r.recipient_id ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)]" : "border-[var(--c-border)] bg-white"}`}>
-                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p>
-                        <p className="truncate text-xs text-[var(--muted-foreground)]">{r.email}</p>
-                      </div>
-                      <span className="text-xs text-[var(--muted-foreground)]">#{r.order}</span>
-                      <button onClick={(e) => { e.stopPropagation(); removeRecipient(r.recipient_id); }} className="text-[var(--muted-foreground)] hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 space-y-2 rounded-lg border border-dashed border-[var(--c-border)] p-3">
-                  <Input value={newRec.name} onChange={(e) => setNewRec({ ...newRec, name: e.target.value })} placeholder="Recipient name" className="h-9" data-testid="recipient-name-input" />
-                  <Input value={newRec.email} onChange={(e) => setNewRec({ ...newRec, email: e.target.value })} placeholder="email@company.com" className="h-9" data-testid="recipient-email-input" />
-                  <Button variant="outline" className="w-full" onClick={addRecipient} data-testid="recipient-add-button"><UserPlus className="mr-1.5 h-4 w-4" /> Add recipient</Button>
-                </div>
-              </section>
-
-              {/* Signing order */}
-              <section>
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]"><ListOrdered className="h-3.5 w-3.5" /> Signing order</div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {[["sequential", "Sequential"], ["parallel", "Parallel"]].map(([v, l]) => (
-                    <button key={v} onClick={() => setSigningOrder(v)} data-testid={`order-${v}`}
-                      className={`rounded-lg border px-2 py-2 text-sm font-medium ${signingOrder === v ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--muted-foreground)]"}`}>{l}</button>
-                  ))}
-                </div>
-              </section>
-
-              {/* Fields palette */}
-              <section>
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Fields</div>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">Pick a field, then click on the document to place it for <b style={{ color: colorFor(activeRecipient) }}>{recipients.find((r) => r.recipient_id === activeRecipient)?.name || "— select recipient"}</b>.</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {FIELD_ORDER.map((t) => {
-                    const m = FIELD_TYPES[t]; const Icon = m.icon; const active = tool === t;
-                    return (
-                      <button key={t} onClick={() => setTool(active ? null : t)} data-testid={`field-chip-${t}`}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${active ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"}`}>
-                        <Icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> {m.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
+            {renderPanels()}
           </ScrollArea>
         </aside>
 
@@ -366,10 +383,53 @@ export default function PrepareStudio() {
         </div>
       </div>
 
-      {/* Mobile note */}
-      <div className="border-t border-[var(--c-border)] bg-[var(--card)] p-2 text-center text-xs text-[var(--muted-foreground)] lg:hidden">
-        For full field placement, use a larger screen. Recipients & fields panel is optimized for desktop.
-      </div>
+      {/* Mobile bottom toolbar — Zoho-style: open Recipients / Fields panels in a bottom sheet. */}
+      <Sheet open={!!mobileSheet} onOpenChange={(o) => { if (!o) setMobileSheet(null); }}>
+        <div className="flex shrink-0 items-center gap-2 border-t border-[var(--c-border)] bg-[var(--card)] px-3 py-2 lg:hidden">
+          <button
+            onClick={() => setMobileSheet("recipients")}
+            data-testid="mobile-open-recipients"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--c-ink)]"
+          >
+            <Users className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+            {activeRec ? (
+              <>
+                <span className="h-2 w-2 rounded-full" style={{ background: activeRec.color }} />
+                <span className="max-w-[120px] truncate">{activeRec.name}</span>
+              </>
+            ) : (
+              <span>{recipients.length === 0 ? "Add recipient" : `${recipients.length} recipient${recipients.length === 1 ? "" : "s"}`}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setMobileSheet("fields")}
+            data-testid="mobile-open-fields"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white"
+            style={{ background: "var(--c-primary)" }}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            {tool ? <>Placing <b className="font-bold">{FIELD_TYPES[tool].label}</b></> : <>Fields ({fields.length})</>}
+          </button>
+        </div>
+
+        <SheetContent
+          side="bottom"
+          className="max-h-[82vh] overflow-y-auto rounded-t-2xl border-t border-[var(--c-border)] bg-[var(--card)] p-0 cs-scroll lg:hidden"
+          data-testid="mobile-prepare-sheet"
+        >
+          <SheetHeader className="sticky top-0 z-10 border-b border-[var(--c-border)] bg-[var(--card)] px-4 pt-4 text-left">
+            <SheetTitle className="font-heading text-base">
+              {mobileSheet === "recipients" ? "Recipients & order" : "Place fields"}
+            </SheetTitle>
+            <p className="pb-2 text-xs text-[var(--muted-foreground)]">
+              {mobileSheet === "recipients"
+                ? "Add who needs to sign, set the signing order, then pick fields."
+                : "Tap a field then tap anywhere on the document to drop it."}
+            </p>
+          </SheetHeader>
+          {renderPanels({ onPick: () => setMobileSheet(null) })}
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={tplOpen} onOpenChange={setTplOpen}>
         <DialogContent data-testid="save-template-dialog">
