@@ -7,7 +7,7 @@ import fitz
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://git-deploy-preview-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://git-workspace-3.preview.emergentagent.com").rstrip("/")
 USER_EMAIL = "user@civicsign.app"
 USER_PASSWORD = "Welcome@2026!"
 
