@@ -106,7 +106,10 @@ export const AppShell = ({ children, title, actions }) => {
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    // Hard reload so the auth-cookie clear hits the browser before any route
+    // guard re-evaluates. Avoids the “refresh after sign out bounces me back
+    // to the dashboard / stale page” bug caused by lingering session state.
+    window.location.replace("/login");
   };
 
   const handleExitImpersonation = () => {

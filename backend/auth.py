@@ -70,8 +70,11 @@ def set_auth_cookies(response: Response, access: str, refresh: str):
 
 
 def clear_auth_cookies(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    # Cookie deletion must match the attributes used when setting the cookie
+    # (samesite/secure/path) — otherwise modern browsers ignore the Set-Cookie
+    # and the session survives logout, bouncing the user straight back in.
+    response.delete_cookie("access_token", path="/", samesite="none", secure=True)
+    response.delete_cookie("refresh_token", path="/", samesite="none", secure=True)
 
 
 def _public_user(doc: dict) -> dict:

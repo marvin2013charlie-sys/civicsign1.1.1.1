@@ -40,6 +40,9 @@ Replicate the user's private GitHub repo `civicsign` as a UK GDPR-compliant e-si
   - **Blog search bar** with real-time filter + clear button; empty state quotes the query.
   - **Careers search bar** with real-time filter + clear button.
   - **Dark mode toggle** — CSS variable swap on `html[data-theme="dark"]`, persisted in `localStorage('cs_theme')`, respects `prefers-color-scheme` on first visit. Toggle rendered in SiteHeader, AppShell, and the lightweight Careers header.
+- 2026-02-14
+  - **PDF viewer fix (P0)**: Added `Promise.withResolvers` polyfill in `/app/frontend/src/lib/polyfills.js`, imported at the top of `index.js` *before* any pdfjs/react-pdf module loads. Resolves `TypeError: Promise.withResolvers is not a function` on browsers < Chrome 119 / Safari 17.4, restoring document rendering in `PrepareStudio` and the signer flow.
+  - **Sign-out routing fix (P1)**: `clear_auth_cookies` in `backend/auth.py` now passes `samesite="none", secure=True, path="/"` to `response.delete_cookie` (matching the set-cookie attributes) so the browser actually removes the session cookie. AppShell + AdminShell logout handlers now hard-redirect via `window.location.replace` so route guards re-evaluate against a clean state — refresh-after-signout stays on `/login` (or `/admin/login`) instead of bouncing back into the app.
 
 ## Roadmap (P0/P1/P2)
 - **P0**: Cinematic Security & Trust page at `/security` with OpenAI TTS ("fable") via Emergent LLM key.

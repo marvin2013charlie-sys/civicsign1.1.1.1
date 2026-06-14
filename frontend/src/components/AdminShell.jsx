@@ -79,7 +79,10 @@ export const AdminShell = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const handleLogout = async () => { await logout(); navigate("/admin/login"); };
+  const handleLogout = async () => {
+    await logout();
+    window.location.replace("/admin/login");
+  };
   const goApp = () => navigate("/dashboard");
   const isStaff = user?.role === "staff";
 
