@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteFooter } from "@/components/SiteFooter";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Briefcase, MapPin, Globe2, ArrowRight, Heart, Users, Sparkles, Search, X as XIcon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
@@ -56,7 +55,6 @@ export default function Careers() {
             <Link to="/about"  className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">About</Link>
             <Link to="/blog"   className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">Blog</Link>
             <Link to="/contact" className="text-[var(--c-ink)] hover:text-[var(--c-primary)]">Contact</Link>
-            <ThemeToggle />
           </nav>
         </div>
       </header>
