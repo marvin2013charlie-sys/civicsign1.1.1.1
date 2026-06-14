@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, FilePlus2, FileText, LogOut, Menu, X, LayoutTemplate, Settings, ShieldCheck, Eye, Loader2, BarChart3, Gauge, PenTool } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -111,6 +111,20 @@ export const AppShell = ({ children, title, actions }) => {
     window.location.replace("/login");
   };
 
+  // Body-scroll lock while the mobile drawer is open so the background page
+  // doesn't scroll under the menu (and the sticky header stays anchored).
+  useEffect(() => {
+    if (!open) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+    };
+  }, [open]);
+
   const handleExitImpersonation = () => {
     setExiting(true);
     // Restore the admin session, then hard-reload into the admin console so the
@@ -130,8 +144,8 @@ export const AppShell = ({ children, title, actions }) => {
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 w-64 bg-[var(--card)] shadow-xl">
-            <button className="absolute right-3 top-3 text-[var(--muted-foreground)]" onClick={() => setOpen(false)}>
+          <div className="absolute inset-y-0 left-0 flex w-64 flex-col overflow-y-auto bg-[var(--card)] shadow-xl cs-scroll">
+            <button className="absolute right-3 top-3 z-10 text-[var(--muted-foreground)]" onClick={() => setOpen(false)} data-testid="mobile-menu-close">
               <X className="h-5 w-5" />
             </button>
             <SidebarContent user={user} onLogout={handleLogout} onNavigate={() => setOpen(false)} />
