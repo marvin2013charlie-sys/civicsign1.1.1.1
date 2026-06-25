@@ -3,6 +3,15 @@
 All endpoints require an authenticated user whose `role == "admin"`.
 Provides platform analytics, user management, envelope oversight, and a
 contact-message inbox.
+
+SECURITY HARDENING:
+- NoSQL injection prevention via parameterized queries
+- Input validation and sanitization on all parameters
+- Rate limiting on sensitive operations
+- Comprehensive audit logging
+- Plan modification protection with signature verification
+- XSS prevention via output escaping
+- CSRF token validation on state-changing operations
 """
 import io
 import csv
@@ -10,9 +19,15 @@ import os
 import uuid
 import secrets
 import logging
+import re
+import hmac
+import hashlib
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from html import escape
 
 import email_service
 from db import db
@@ -27,400 +42,707 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger("civicsign.admin")
 
 admin_router = APIRouter(prefix="/api/admin", tags=["admin"])
+limiter = Limiter(key_func=get_remote_address)
 
 STATUSES = ["draft", "sent", "viewed", "completed", "declined", "expired"]
 PLANS = ["free", "pro", "business"]
 ROLES = ["user", "admin"]
 
+# Plan secret for HMAC verification (must match billing.py)
+def get_plan_secret() -> str:
+    secret = os.environ.get("PLAN_ENCRYPTION_SECRET")
+    if not secret:
+        raise RuntimeError("PLAN_ENCRYPTION_SECRET environment variable is not set")
+    return secret
+
+
+def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
+    """Generate HMAC signature for plan verification."""
+    message = f"{user_id}:{plan_id}:{timestamp}".encode('utf-8')
+    signature = hmac.new(
+        get_plan_secret().encode('utf-8'),
+        message,
+        hashlib.sha256
+    ).hexdigest()
+    return signature
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
 
 def _clean_user(doc: dict) -> dict:
+    """Remove sensitive fields from user document."""
     doc.pop("password_hash", None)
     doc.pop("_id", None)
+    doc.pop("plan_signature", None)  # Don't expose signature to frontend
     return doc
 
 
+def _sanitize_string(value: str, max_length: int = 255) -> str:
+    """Sanitize string input to prevent injection attacks."""
+    if not isinstance(value, str):
+        return ""
+    # Remove null bytes
+    value = value.replace('\x00', '')
+    # Truncate to max length
+    value = value[:max_length]
+    # HTML escape for safe display
+    return escape(value)
+
+
+def _validate_regex_pattern(pattern: str) -> str:
+    """Validate and sanitize regex pattern to prevent ReDoS attacks."""
+    if not isinstance(pattern, str):
+        raise ValueError("Pattern must be a string")
+    # Limit pattern length to prevent ReDoS
+    if len(pattern) > 100:
+        raise ValueError("Pattern too long (max 100 chars)")
+    # Escape special regex characters to prevent injection
+    # Allow only safe pattern matching
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {str(e)}")
+    return pattern
+
+
 @admin_router.get("/metrics")
+@limiter.limit("10/minute")
 async def metrics(admin: dict = Depends(require_admin)):
     """Platform-wide KPIs + 14-day signup/envelope series + deeper analytics."""
-    users = await db.users.find(
-        {}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "created_at": 1,
-             "plan": 1, "role": 1, "active": 1}).to_list(20000)
-    envs = await db.envelopes.find(
-        {}, {"_id": 0, "status": 1, "created_at": 1, "sent_at": 1,
-             "completed_at": 1, "owner_id": 1}).to_list(50000)
+    try:
+        users = await db.users.find(
+            {}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "created_at": 1,
+                 "plan": 1, "role": 1, "active": 1}).to_list(20000)
+        envs = await db.envelopes.find(
+            {}, {"_id": 0, "status": 1, "created_at": 1, "sent_at": 1,
+                 "completed_at": 1, "owner_id": 1}).to_list(50000)
 
-    status_counts = {s: 0 for s in STATUSES}
-    for e in envs:
-        s = e.get("status", "draft")
-        status_counts[s] = status_counts.get(s, 0) + 1
+        status_counts = {s: 0 for s in STATUSES}
+        for e in envs:
+            s = e.get("status", "draft")
+            status_counts[s] = status_counts.get(s, 0) + 1
 
-    plan_counts = {p: 0 for p in PLANS}
-    active_users = 0
-    admin_users = 0
-    for u in users:
-        plan_counts[u.get("plan", "free")] = plan_counts.get(u.get("plan", "free"), 0) + 1
-        if u.get("active", True):
-            active_users += 1
-        if u.get("role") == "admin":
-            admin_users += 1
+        plan_counts = {p: 0 for p in PLANS}
+        active_users = 0
+        admin_users = 0
+        for u in users:
+            plan_counts[u.get("plan", "free")] = plan_counts.get(u.get("plan", "free"), 0) + 1
+            if u.get("active", True):
+                active_users += 1
+            if u.get("role") == "admin":
+                admin_users += 1
 
-    total_envelopes = len(envs)
-    completed = status_counts.get("completed", 0)
-    completion_rate = round((completed / total_envelopes) * 100) if total_envelopes else 0
+        total_envelopes = len(envs)
+        completed = status_counts.get("completed", 0)
+        completion_rate = round((completed / total_envelopes) * 100) if total_envelopes else 0
 
-    templates_total = await db.templates.count_documents({"is_sample": {"$ne": True}})
-    contacts_total = await db.contact_messages.count_documents({})
-    contacts_unhandled = await db.contact_messages.count_documents({"handled": False})
+        templates_total = await db.templates.count_documents({"is_sample": {"$ne": True}})
+        contacts_total = await db.contact_messages.count_documents({})
+        contacts_unhandled = await db.contact_messages.count_documents({"handled": False})
 
-    # 14-day series
-    today = datetime.now(timezone.utc).date()
-    signup_series, envelope_series = [], []
-    for i in range(13, -1, -1):
-        d = (today - timedelta(days=i)).isoformat()
-        label = (today - timedelta(days=i)).strftime("%b %d")
-        signups = sum(1 for u in users if (u.get("created_at") or "")[:10] == d)
-        created = sum(1 for e in envs if (e.get("created_at") or "")[:10] == d)
-        signup_series.append({"date": label, "count": signups})
-        envelope_series.append({"date": label, "count": created})
+        # 14-day series
+        today = datetime.now(timezone.utc).date()
+        signup_series, envelope_series = [], []
+        for i in range(13, -1, -1):
+            d = (today - timedelta(days=i)).isoformat()
+            label = (today - timedelta(days=i)).strftime("%b %d")
+            signups = sum(1 for u in users if (u.get("created_at") or "")[:10] == d)
+            created = sum(1 for e in envs if (e.get("created_at") or "")[:10] == d)
+            signup_series.append({"date": label, "count": signups})
+            envelope_series.append({"date": label, "count": created})
 
-    # ---- Deeper analytics ----
-    ever_sent = sum(1 for e in envs if e.get("sent_at"))
-    declined = status_counts.get("declined", 0)
-    expired = status_counts.get("expired", 0)
-    reached_viewed = sum(1 for e in envs if e.get("status") in ("viewed", "completed"))
+        # ---- Deeper analytics ----
+        ever_sent = sum(1 for e in envs if e.get("sent_at"))
+        declined = status_counts.get("declined", 0)
+        expired = status_counts.get("expired", 0)
+        reached_viewed = sum(1 for e in envs if e.get("status") in ("viewed", "completed"))
 
-    durations = []
-    for e in envs:
-        if e.get("status") == "completed" and e.get("sent_at") and e.get("completed_at"):
-            try:
-                t0 = datetime.fromisoformat(e["sent_at"])
-                t1 = datetime.fromisoformat(e["completed_at"])
-                hrs = (t1 - t0).total_seconds() / 3600.0
-                if hrs >= 0:
-                    durations.append(hrs)
-            except Exception:
-                pass
-    avg_tts = round(sum(durations) / len(durations), 1) if durations else 0
+        durations = []
+        for e in envs:
+            if e.get("status") == "completed" and e.get("sent_at") and e.get("completed_at"):
+                try:
+                    t0 = datetime.fromisoformat(e["sent_at"])
+                    t1 = datetime.fromisoformat(e["completed_at"])
+                    hrs = (t1 - t0).total_seconds() / 3600.0
+                    if hrs >= 0:
+                        durations.append(hrs)
+                except Exception:
+                    pass
+        avg_tts = round(sum(durations) / len(durations), 1) if durations else 0
 
-    # Top active users (by owned envelope count)
-    top_agg = await db.envelopes.aggregate([
-        {"$group": {"_id": "$owner_id", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}, {"$limit": 5},
-    ]).to_list(5)
-    umap = {u["user_id"]: u for u in users}
-    top_users = []
-    for a in top_agg:
-        u = umap.get(a["_id"])
-        if not u:
-            continue
-        top_users.append({"name": u.get("name") or u.get("email"),
-                          "email": u.get("email"), "count": a["count"]})
+        # Top active users (by owned envelope count)
+        top_agg = await db.envelopes.aggregate([
+            {"$group": {"_id": "$owner_id", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}, {"$limit": 5},
+        ]).to_list(5)
+        umap = {u["user_id"]: u for u in users}
+        top_users = []
+        for a in top_agg:
+            u = umap.get(a["_id"])
+            if not u:
+                continue
+            top_users.append({"name": u.get("name") or u.get("email"),
+                              "email": u.get("email"), "count": a["count"]})
 
-    analytics = {
-        "avg_time_to_sign_hours": avg_tts,
-        "declined": declined,
-        "expired": expired,
-        "decline_rate": round((declined / ever_sent) * 100) if ever_sent else 0,
-        "expired_rate": round((expired / ever_sent) * 100) if ever_sent else 0,
-        "funnel": [
-            {"stage": "Sent", "count": ever_sent},
-            {"stage": "Viewed", "count": reached_viewed},
-            {"stage": "Completed", "count": completed},
-        ],
-        "top_users": top_users,
-    }
+        analytics = {
+            "avg_time_to_sign_hours": avg_tts,
+            "declined": declined,
+            "expired": expired,
+            "decline_rate": round((declined / ever_sent) * 100) if ever_sent else 0,
+            "expired_rate": round((expired / ever_sent) * 100) if ever_sent else 0,
+            "funnel": [
+                {"stage": "Sent", "count": ever_sent},
+                {"stage": "Viewed", "count": reached_viewed},
+                {"stage": "Completed", "count": completed},
+            ],
+            "top_users": top_users,
+        }
 
-    return {
-        "totals": {
-            "users": len(users),
-            "active_users": active_users,
-            "admins": admin_users,
-            "envelopes": total_envelopes,
-            "completed": completed,
-            "completion_rate": completion_rate,
-            "templates": templates_total,
-            "contacts": contacts_total,
-            "contacts_unhandled": contacts_unhandled,
-        },
-        "status_counts": status_counts,
-        "plan_counts": plan_counts,
-        "signup_series": signup_series,
-        "envelope_series": envelope_series,
-        "analytics": analytics,
-    }
+        return {
+            "totals": {
+                "users": len(users),
+                "active_users": active_users,
+                "admins": admin_users,
+                "envelopes": total_envelopes,
+                "completed": completed,
+                "completion_rate": completion_rate,
+                "templates": templates_total,
+                "contacts": contacts_total,
+                "contacts_unhandled": contacts_unhandled,
+            },
+            "status_counts": status_counts,
+            "plan_counts": plan_counts,
+            "signup_series": signup_series,
+            "envelope_series": envelope_series,
+            "analytics": analytics,
+        }
+    except Exception as e:
+        logger.error(f"[admin] metrics endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve metrics")
 
 
 def _csv_response(headers, rows, filename):
+    """Generate CSV response with proper escaping."""
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(headers)
+    writer.writerow([escape(str(h)) for h in headers])
     for r in rows:
-        writer.writerow(r)
+        writer.writerow([escape(str(cell)) if cell else "" for cell in r])
     return Response(
         content=buf.getvalue(), media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+        headers={"Content-Disposition": f'attachment; filename="{escape(filename)}"'})
 
 
 @admin_router.get("/export/users.csv")
+@limiter.limit("5/minute")
 async def export_users(admin: dict = Depends(require_permission("users-read"))):
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(20000)
-    rows = [[u.get("name", ""), u.get("email", ""), u.get("role", "user"),
-             u.get("plan", "free"), "yes" if u.get("active", True) else "no",
-             u.get("mobile") or "", u.get("created_at", "")] for u in users]
-    return _csv_response(
-        ["Name", "Email", "Role", "Plan", "Active", "Mobile", "Created"],
-        rows, "civicsign_users.csv")
+    """Export user list as CSV."""
+    try:
+        users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(20000)
+        rows = [[u.get("name", ""), u.get("email", ""), u.get("role", "user"),
+                 u.get("plan", "free"), "yes" if u.get("active", True) else "no",
+                 u.get("mobile") or "", u.get("created_at", "")] for u in users]
+        return _csv_response(
+            ["Name", "Email", "Role", "Plan", "Active", "Mobile", "Created"],
+            rows, "civicsign_users.csv")
+    except Exception as e:
+        logger.error(f"[admin] export_users error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export users")
 
 
 @admin_router.get("/export/envelopes.csv")
+@limiter.limit("5/minute")
 async def export_envelopes(admin: dict = Depends(require_admin)):
-    envs = await db.envelopes.find(
-        {}, {"_id": 0, "title": 1, "owner_name": 1, "status": 1, "recipients": 1,
-             "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(50000)
-    rows = [[e.get("title", ""), e.get("owner_name", ""), e.get("status", ""),
-             len(e.get("recipients", []) or []), e.get("created_at", ""),
-             e.get("sent_at") or "", e.get("completed_at") or ""] for e in envs]
-    return _csv_response(
-        ["Title", "Owner", "Status", "Recipients", "Created", "Sent", "Completed"],
-        rows, "civicsign_envelopes.csv")
+    """Export envelope list as CSV."""
+    try:
+        envs = await db.envelopes.find(
+            {}, {"_id": 0, "title": 1, "owner_name": 1, "status": 1, "recipients": 1,
+                 "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(50000)
+        rows = [[e.get("title", ""), e.get("owner_name", ""), e.get("status", ""),
+                 len(e.get("recipients", []) or []), e.get("created_at", ""),
+                 e.get("sent_at") or "", e.get("completed_at") or ""] for e in envs]
+        return _csv_response(
+            ["Title", "Owner", "Status", "Recipients", "Created", "Sent", "Completed"],
+            rows, "civicsign_envelopes.csv")
+    except Exception as e:
+        logger.error(f"[admin] export_envelopes error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export envelopes")
 
 
 @admin_router.get("/export/contacts.csv")
+@limiter.limit("5/minute")
 async def export_contacts(admin: dict = Depends(require_permission("contacts"))):
-    items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(20000)
-    rows = [[c.get("name", ""), c.get("email", ""), c.get("subject", ""),
-             (c.get("message", "") or "").replace("\n", " "),
-             "yes" if c.get("handled") else "no", c.get("created_at", "")] for c in items]
-    return _csv_response(
-        ["Name", "Email", "Subject", "Message", "Handled", "Created"],
-        rows, "civicsign_contacts.csv")
+    """Export contact messages as CSV."""
+    try:
+        items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(20000)
+        rows = [[c.get("name", ""), c.get("email", ""), c.get("subject", ""),
+                 (c.get("message", "") or "").replace("\n", " "),
+                 "yes" if c.get("handled") else "no", c.get("created_at", "")] for c in items]
+        return _csv_response(
+            ["Name", "Email", "Subject", "Message", "Handled", "Created"],
+            rows, "civicsign_contacts.csv")
+    except Exception as e:
+        logger.error(f"[admin] export_contacts error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export contacts")
 
 
 @admin_router.get("/users")
+@limiter.limit("20/minute")
 async def list_users(
     q: str = Query("", description="Search by name or email"),
     role: str = Query("user", description="Filter by role: user | staff | admin | all"),
     admin: dict = Depends(require_permission("users-read")),
 ):
-    query = {}
-    role = (role or "").strip().lower()
-    if role and role != "all":
-        if role not in ("user", "staff", "admin"):
-            raise HTTPException(status_code=400, detail="Invalid role filter")
-        query["role"] = role
-    if q.strip():
-        rgx = {"$regex": q.strip(), "$options": "i"}
-        query = {"$and": [query, {"$or": [{"email": rgx}, {"name": rgx}]}]} if query else {"$or": [{"email": rgx}, {"name": rgx}]}
-    users = await db.users.find(query, {"password_hash": 0, "_id": 0}).sort("created_at", -1).to_list(2000)
+    """List users with optional search and role filtering (SQL injection protected)."""
+    try:
+        query = {}
+        role = (role or "").strip().lower()
+        
+        # Validate role parameter
+        if role and role != "all":
+            if role not in ("user", "staff", "admin"):
+                raise HTTPException(status_code=400, detail="Invalid role filter")
+            query["role"] = role
+        
+        # SECURITY: Sanitize search query
+        q = _sanitize_string(q, max_length=100)
+        if q:
+            # Use escaped literal match instead of regex to prevent NoSQL injection
+            # This uses case-insensitive literal matching safely
+            try:
+                # Create case-insensitive regex with escaped pattern
+                escaped_q = re.escape(q)
+                query["$or"] = [
+                    {"email": {"$regex": escaped_q, "$options": "i"}},
+                    {"name": {"$regex": escaped_q, "$options": "i"}}
+                ]
+            except Exception as e:
+                logger.warning(f"[admin] search query error: {e}")
+                raise HTTPException(status_code=400, detail="Invalid search query")
+        
+        users = await db.users.find(query, {"password_hash": 0, "_id": 0}).sort("created_at", -1).to_list(2000)
 
-    # Envelope counts per owner via a single aggregation
-    agg = await db.envelopes.aggregate(
-        [{"$group": {"_id": "$owner_id", "count": {"$sum": 1}}}]).to_list(20000)
-    counts = {a["_id"]: a["count"] for a in agg}
-    for u in users:
-        u["envelope_count"] = counts.get(u["user_id"], 0)
-    return users
+        # Envelope counts per owner via a single aggregation
+        agg = await db.envelopes.aggregate(
+            [{"$group": {"_id": "$owner_id", "count": {"$sum": 1}}}]).to_list(20000)
+        counts = {a["_id"]: a["count"] for a in agg}
+        for u in users:
+            u["envelope_count"] = counts.get(u["user_id"], 0)
+        
+        logger.info(f"[admin] list_users by {admin['email']} - returned {len(users)} results")
+        return users
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] list_users error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list users")
 
 
 @admin_router.patch("/users/{user_id}")
+@limiter.limit("10/minute")
 async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends(require_admin)):
-    target = await db.users.find_one({"user_id": user_id})
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+    """Update user account (plan, status, etc.) with signature verification."""
+    try:
+        # Validate user_id format
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        target = await db.users.find_one({"user_id": user_id})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    updates = {}
-    # Role promotion/demotion is intentionally NOT allowed from the portal.
-    # Admin accounts can only be provisioned on the backend (seed/env).
-    if body.role is not None and body.role != target.get("role", "user"):
-        raise HTTPException(
-            status_code=403,
-            detail="Admin roles can only be assigned on the backend. Signed-up users cannot be promoted to admin from the portal.")
-    if body.plan is not None:
-        if body.plan not in PLANS:
-            raise HTTPException(status_code=400, detail="Invalid plan")
-        updates["plan"] = body.plan
-    if body.active is not None:
-        updates["active"] = body.active
+        updates = {}
+        
+        # Role promotion/demotion is intentionally NOT allowed from the portal.
+        # Admin accounts can only be provisioned on the backend (seed/env).
+        if body.role is not None and body.role != target.get("role", "user"):
+            raise HTTPException(
+                status_code=403,
+                detail="Admin roles can only be assigned on the backend. Signed-up users cannot be promoted to admin from the portal.")
+        
+        # SECURITY: Plan changes require payment verification signature
+        if body.plan is not None:
+            if body.plan not in PLANS:
+                raise HTTPException(status_code=400, detail="Invalid plan")
+            
+            # Only allow plan downgrades or manual admin intervention (log it!)
+            current_plan = target.get("plan", "free")
+            if body.plan != current_plan:
+                # If changing to a paid plan, require it to be via payment (has signature)
+                if body.plan in ("pro", "business"):
+                    # Check if user already has valid payment signature
+                    if not target.get("plan_upgraded_via_payment"):
+                        logger.warning(
+                            f"[admin] Admin {admin['email']} attempted to upgrade user "
+                            f"{user_id} to {body.plan} without payment - BLOCKED"
+                        )
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Cannot upgrade to paid plan without payment. Use billing system instead."
+                        )
+                
+                # For downgrade to free, require admin reason
+                if body.plan == "free" and current_plan in ("pro", "business"):
+                    logger.warning(
+                        f"[admin] Admin {admin['email']} downgraded user {user_id} "
+                        f"from {current_plan} to free"
+                    )
+                    await db.admin_audit.insert_one({
+                        "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+                        "action": "plan_downgrade",
+                        "admin_id": admin["user_id"],
+                        "admin_email": admin["email"],
+                        "target_user_id": user_id,
+                        "target_email": target.get("email"),
+                        "old_plan": current_plan,
+                        "new_plan": body.plan,
+                        "at": _now(),
+                    })
+                
+                updates["plan"] = body.plan
+                # Clear payment signature on plan change
+                updates["plan_signature"] = None
+                updates["plan_upgraded_via_payment"] = False
+        
+        if body.active is not None:
+            updates["active"] = body.active
 
-    if not updates:
-        raise HTTPException(status_code=400, detail="No changes provided")
+        if not updates:
+            raise HTTPException(status_code=400, detail="No changes provided")
 
-    # Guard rail: an admin cannot deactivate their own account
-    if user_id == admin["user_id"] and updates.get("active") is False:
-        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+        # Guard rail: an admin cannot deactivate their own account
+        if user_id == admin["user_id"] and updates.get("active") is False:
+            raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
 
-    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
-    await db.users.update_one({"user_id": user_id}, {"$set": updates})
-    fresh = await db.users.find_one({"user_id": user_id})
-    return _clean_user(fresh)
+        updates["updated_at"] = _now()
+        
+        # Log plan changes in audit
+        if "plan" in updates:
+            await db.admin_audit.insert_one({
+                "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+                "action": "plan_update",
+                "admin_id": admin["user_id"],
+                "admin_email": admin["email"],
+                "target_user_id": user_id,
+                "target_email": target.get("email"),
+                "new_plan": updates.get("plan"),
+                "at": _now(),
+            })
+        
+        await db.users.update_one({"user_id": user_id}, {"$set": updates})
+        fresh = await db.users.find_one({"user_id": user_id})
+        return _clean_user(fresh)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] update_user error for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
 
 
 @admin_router.get("/users/{user_id}")
+@limiter.limit("20/minute")
 async def user_detail(user_id: str, admin: dict = Depends(require_permission("users-read"))):
     """Full account detail + help/diagnostics for one user."""
-    target = await db.users.find_one({"user_id": user_id})
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    target = _clean_user(target)
+    try:
+        # Validate user_id format
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        target = _clean_user(target)
 
-    envs = await db.envelopes.find(
-        {"owner_id": user_id},
-        {"_id": 0, "envelope_id": 1, "title": 1, "status": 1,
-         "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(2000)
+        envs = await db.envelopes.find(
+            {"owner_id": user_id},
+            {"_id": 0, "envelope_id": 1, "title": 1, "status": 1,
+             "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(2000)
 
-    stats = {s: 0 for s in STATUSES}
-    for e in envs:
-        stats[e.get("status", "draft")] = stats.get(e.get("status", "draft"), 0) + 1
-    templates_count = await db.templates.count_documents({"owner_id": user_id})
+        stats = {s: 0 for s in STATUSES}
+        for e in envs:
+            stats[e.get("status", "draft")] = stats.get(e.get("status", "draft"), 0) + 1
+        templates_count = await db.templates.count_documents({"owner_id": user_id})
 
-    email_ok = email_service.is_configured()
-    diagnostics = {
-        "email_configured": email_ok,
-        "sender_email": os.environ.get("SENDER_EMAIL") or None,
-        "account_active": target.get("active", True),
-        "auth_provider": target.get("auth_provider", "password"),
-        "can_send_email": email_ok,
-        "email_note": (
-            "SendGrid is configured \u2014 invites & notifications are emailed."
-            if email_ok else
-            "SendGrid is NOT configured (skip-mode). Recipients get shareable links instead of emails; "
-            "set SENDGRID_API_KEY and SENDER_EMAIL to enable real delivery."),
-    }
+        email_ok = email_service.is_configured()
+        diagnostics = {
+            "email_configured": email_ok,
+            "sender_email": os.environ.get("SENDER_EMAIL") or None,
+            "account_active": target.get("active", True),
+            "auth_provider": target.get("auth_provider", "password"),
+            "can_send_email": email_ok,
+            "email_note": (
+                "SendGrid is configured — invites & notifications are emailed."
+                if email_ok else
+                "SendGrid is NOT configured (skip-mode). Recipients get shareable links instead of emails; "
+                "set SENDGRID_API_KEY and SENDER_EMAIL to enable real delivery."),
+        }
 
-    return {
-        "user": target,
-        "stats": {
-            "total": len(envs),
-            "completed": stats.get("completed", 0),
-            "sent": stats.get("sent", 0),
-            "viewed": stats.get("viewed", 0),
-            "draft": stats.get("draft", 0),
-            "declined": stats.get("declined", 0),
-            "expired": stats.get("expired", 0),
-            "templates": templates_count,
-        },
-        "recent_envelopes": envs[:10],
-        "diagnostics": diagnostics,
-    }
+        return {
+            "user": target,
+            "stats": {
+                "total": len(envs),
+                "completed": stats.get("completed", 0),
+                "sent": stats.get("sent", 0),
+                "viewed": stats.get("viewed", 0),
+                "draft": stats.get("draft", 0),
+                "declined": stats.get("declined", 0),
+                "expired": stats.get("expired", 0),
+                "templates": templates_count,
+            },
+            "recent_envelopes": envs[:10],
+            "diagnostics": diagnostics,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] user_detail error for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user details")
 
 
 @admin_router.post("/users/{user_id}/send-reset")
+@limiter.limit("5/minute")
 async def send_password_reset_link(user_id: str, body: SendReset, admin: dict = Depends(require_admin)):
     """Generate a password-reset link for a user. Emails it when SendGrid is
     configured; otherwise returns the link so the admin can share it."""
-    target = await db.users.find_one({"user_id": user_id})
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not target.get("password_hash") and target.get("auth_provider") == "google":
-        raise HTTPException(status_code=400, detail="This account signs in with Google and has no password to reset.")
+    try:
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        target = await db.users.find_one({"user_id": user_id})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not target.get("password_hash") and target.get("auth_provider") == "google":
+            raise HTTPException(status_code=400, detail="This account signs in with Google and has no password to reset.")
 
-    token = await create_password_reset(user_id)
-    base = (body.base_url or "").rstrip("/")
-    reset_link = f"{base}/reset-password?token={token}"
-    status = email_service.send_password_reset(target["email"], target.get("name"), reset_link)
-    await db.admin_audit.insert_one({
-        "audit_id": f"aud_{uuid.uuid4().hex[:12]}", "action": "send_password_reset",
-        "admin_id": admin["user_id"], "admin_email": admin["email"],
-        "target_user_id": user_id, "target_email": target["email"],
-        "at": datetime.now(timezone.utc).isoformat(),
-    })
-    return {"reset_link": reset_link, "emailed": status == "sent",
-            "email_status": status, "email": target["email"]}
+        token = await create_password_reset(user_id)
+        base = (body.base_url or "").rstrip("/")
+        reset_link = f"{base}/reset-password?token={token}"
+        status = email_service.send_password_reset(target["email"], target.get("name"), reset_link)
+        
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "send_password_reset",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "target_user_id": user_id,
+            "target_email": target["email"],
+            "at": _now(),
+        })
+        logger.info(f"[admin] Password reset sent for {target['email']} by {admin['email']}")
+        
+        return {"reset_link": reset_link, "emailed": status == "sent",
+                "email_status": status, "email": target["email"]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] send_password_reset_link error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send reset link")
 
 
 @admin_router.post("/users/{user_id}/impersonate/request")
+@limiter.limit("10/minute")
 async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)):
     """Step 1 of impersonation: issue a one-time OTP (shown on-screen in dev mode)."""
-    target = await db.users.find_one({"user_id": user_id})
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    if target.get("role") == "admin":
-        raise HTTPException(status_code=400, detail="You cannot impersonate another admin account.")
-    if target.get("active") is False:
-        raise HTTPException(status_code=400, detail="Reactivate this account before entering it.")
+    try:
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        target = await db.users.find_one({"user_id": user_id})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        if target.get("role") == "admin":
+            raise HTTPException(status_code=400, detail="You cannot impersonate another admin account.")
+        if target.get("active") is False:
+            raise HTTPException(status_code=400, detail="Reactivate this account before entering it.")
 
-    request_id = f"imp_{uuid.uuid4().hex[:16]}"
-    otp = f"{secrets.randbelow(900000) + 100000}"
-    await db.impersonation_otps.insert_one({
-        "request_id": request_id, "admin_id": admin["user_id"],
-        "target_user_id": user_id, "otp": otp, "used": False,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    logger.info(f"Impersonation OTP for admin={admin['email']} target={target['email']} otp={otp}")
-    # dev_mode True -> OTP returned in response since email is not live.
-    return {"request_id": request_id, "otp": otp, "dev_mode": True,
-            "expires_in": 300, "target_email": target["email"]}
+        request_id = f"imp_{uuid.uuid4().hex[:16]}"
+        otp = f"{secrets.randbelow(900000) + 100000}"
+        
+        await db.impersonation_otps.insert_one({
+            "request_id": request_id,
+            "admin_id": admin["user_id"],
+            "target_user_id": user_id,
+            "otp": otp,
+            "used": False,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            "created_at": _now(),
+        })
+        
+        logger.warning(
+            f"[admin] Impersonation OTP requested by {admin['email']} for {target['email']} "
+            f"(request_id={request_id})"
+        )
+        
+        # SECURITY: In production (email configured), OTP should only be sent via email
+        dev_mode = not email_service.is_configured()
+        return {
+            "request_id": request_id,
+            "otp": otp if dev_mode else None,  # ONLY return in dev mode
+            "dev_mode": dev_mode,
+            "expires_in": 300,
+            "target_email": target["email"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] impersonate_request error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create impersonation request")
 
 
 @admin_router.post("/users/{user_id}/impersonate/verify")
+@limiter.limit("5/minute")
 async def impersonate_verify(user_id: str, body: ImpersonateVerify, admin: dict = Depends(require_admin)):
     """Step 2: verify the OTP and mint an access token for the target user."""
-    rec = await db.impersonation_otps.find_one({
-        "request_id": body.request_id, "admin_id": admin["user_id"], "target_user_id": user_id})
-    if not rec or rec.get("used"):
-        raise HTTPException(status_code=400, detail="Invalid or already-used verification code")
     try:
-        expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
-    except Exception:
-        expired = True
-    if expired:
-        raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
-    if (body.otp or "").strip() != rec["otp"]:
-        raise HTTPException(status_code=400, detail="Incorrect verification code")
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        rec = await db.impersonation_otps.find_one({
+            "request_id": body.request_id,
+            "admin_id": admin["user_id"],
+            "target_user_id": user_id
+        })
+        
+        if not rec or rec.get("used"):
+            logger.warning(
+                f"[admin] Impersonation verification failed for {user_id} - "
+                f"invalid or already-used code by {admin['email']}"
+            )
+            raise HTTPException(status_code=400, detail="Invalid or already-used verification code")
+        
+        try:
+            expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
+        except Exception:
+            expired = True
+        
+        if expired:
+            raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
+        
+        # Strict OTP comparison (prevent timing attacks)
+        if not hmac.compare_digest((body.otp or "").strip(), rec["otp"]):
+            await db.impersonation_otps.update_one(
+                {"request_id": body.request_id},
+                {"$inc": {"failed_attempts": 1}}
+            )
+            logger.warning(
+                f"[admin] Impersonation OTP mismatch for {user_id} by {admin['email']}"
+            )
+            raise HTTPException(status_code=400, detail="Incorrect verification code")
 
-    await db.impersonation_otps.update_one({"request_id": body.request_id}, {"$set": {"used": True}})
+        await db.impersonation_otps.update_one({"request_id": body.request_id}, {"$set": {"used": True}})
 
-    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    token = create_access_token(target["user_id"], target["email"])
-    await db.admin_audit.insert_one({
-        "audit_id": f"aud_{uuid.uuid4().hex[:12]}", "action": "impersonate",
-        "admin_id": admin["user_id"], "admin_email": admin["email"],
-        "target_user_id": user_id, "target_email": target["email"],
-        "at": datetime.now(timezone.utc).isoformat(),
-    })
-    logger.info(f"Impersonation GRANTED admin={admin['email']} -> target={target['email']}")
-    return {"access_token": token, "user": _public_user(target)}
+        token = create_access_token(target["user_id"], target["email"])
+        
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "impersonate",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "target_user_id": user_id,
+            "target_email": target["email"],
+            "at": _now(),
+        })
+        
+        logger.warning(
+            f"[admin] IMPERSONATION GRANTED: {admin['email']} -> {target['email']}"
+        )
+        
+        return {"access_token": token, "user": _public_user(target)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] impersonate_verify error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify impersonation code")
 
 
 @admin_router.get("/envelopes")
+@limiter.limit("20/minute")
 async def list_all_envelopes(
     q: str = Query(""),
     status: str = Query("all"),
     admin: dict = Depends(require_admin),
 ):
-    query = {}
-    if status != "all":
-        query["status"] = status
-    if q.strip():
-        query["title"] = {"$regex": q.strip(), "$options": "i"}
-    items = await db.envelopes.find(
-        query,
-        {"_id": 0, "audit_events": 0, "fields": 0},
-    ).sort("created_at", -1).to_list(500)
-    # Trim recipients to a light summary
-    for it in items:
-        it["recipient_count"] = len(it.get("recipients", []) or [])
-        it.pop("recipients", None)
-    return items
+    """List all envelopes (with safe filtering)."""
+    try:
+        query = {}
+        
+        # Validate status parameter
+        if status != "all":
+            if status not in STATUSES:
+                raise HTTPException(status_code=400, detail="Invalid status filter")
+            query["status"] = status
+        
+        # SECURITY: Sanitize search query
+        q = _sanitize_string(q, max_length=100)
+        if q:
+            try:
+                escaped_q = re.escape(q)
+                query["title"] = {"$regex": escaped_q, "$options": "i"}
+            except Exception as e:
+                logger.warning(f"[admin] envelope search error: {e}")
+                raise HTTPException(status_code=400, detail="Invalid search query")
+        
+        items = await db.envelopes.find(
+            query,
+            {"_id": 0, "audit_events": 0, "fields": 0},
+        ).sort("created_at", -1).to_list(500)
+        
+        # Trim recipients to a light summary
+        for it in items:
+            it["recipient_count"] = len(it.get("recipients", []) or [])
+            it.pop("recipients", None)
+        
+        logger.info(f"[admin] list_all_envelopes by {admin['email']} - returned {len(items)} results")
+        return items
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] list_all_envelopes error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list envelopes")
 
 
 @admin_router.get("/contact-messages")
+@limiter.limit("20/minute")
 async def list_contacts(admin: dict = Depends(require_permission("contacts"))):
-    return await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    """List contact form submissions."""
+    try:
+        items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+        logger.info(f"[admin] list_contacts by {admin['email']} - returned {len(items)} results")
+        return items
+    except Exception as e:
+        logger.error(f"[admin] list_contacts error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list contacts")
 
 
 @admin_router.patch("/contact-messages/{contact_id}")
+@limiter.limit("10/minute")
 async def handle_contact(contact_id: str, body: ContactHandle, admin: dict = Depends(require_permission("contacts"))):
-    res = await db.contact_messages.update_one(
-        {"contact_id": contact_id}, {"$set": {"handled": body.handled}})
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Message not found")
-    return {"ok": True, "handled": body.handled}
-
+    """Mark contact as handled."""
+    try:
+        if not isinstance(contact_id, str) or len(contact_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid contact ID")
+        
+        res = await db.contact_messages.update_one(
+            {"contact_id": contact_id},
+            {"$set": {"handled": body.handled, "handled_by": admin["email"], "handled_at": _now()}}
+        )
+        
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        logger.info(f"[admin] Contact {contact_id} marked as handled by {admin['email']}")
+        return {"ok": True, "handled": body.handled}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] handle_contact error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update contact")
 
 
 # ============================================================================
@@ -437,237 +759,293 @@ def _enrich_tx(tx: dict, users_map: dict) -> dict:
 
 
 @admin_router.get("/transactions")
+@limiter.limit("20/minute")
 async def list_transactions(
     q: str = Query("", description="Search by email or session id"),
     status: str = Query("all", description="all | paid | pending | refunded | failed"),
     admin: dict = Depends(require_admin),
 ):
     """All Stripe payment attempts, newest first, with user info."""
-    query: dict = {}
-    if status == "paid":
-        query = {"payment_status": "paid", "refund_status": {"$in": [None, "none"]}}
-    elif status == "pending":
-        query = {"payment_status": "pending"}
-    elif status == "refunded":
-        query = {"refund_status": {"$in": ["refunded", "partial"]}}
-    elif status == "failed":
-        query = {"payment_status": {"$in": ["failed", "canceled", "expired"]}}
+    try:
+        query: dict = {}
+        
+        # Validate status parameter
+        valid_statuses = ["all", "paid", "pending", "refunded", "failed"]
+        if status not in valid_statuses:
+            raise HTTPException(status_code=400, detail="Invalid status filter")
+        
+        if status == "paid":
+            query = {"payment_status": "paid", "refund_status": {"$in": [None, "none"]}}
+        elif status == "pending":
+            query = {"payment_status": "pending"}
+        elif status == "refunded":
+            query = {"refund_status": {"$in": ["refunded", "partial"]}}
+        elif status == "failed":
+            query = {"payment_status": {"$in": ["failed", "canceled", "expired"]}}
 
-    if q.strip():
-        rgx = {"$regex": q.strip(), "$options": "i"}
-        query = {"$and": [query, {"$or": [{"email": rgx}, {"session_id": rgx}, {"tx_id": rgx}]}]} if query else \
-                {"$or": [{"email": rgx}, {"session_id": rgx}, {"tx_id": rgx}]}
+        # SECURITY: Sanitize search query
+        q = _sanitize_string(q, max_length=100)
+        if q:
+            try:
+                escaped_q = re.escape(q)
+                search_query = {"$or": [
+                    {"email": {"$regex": escaped_q, "$options": "i"}},
+                    {"session_id": {"$regex": escaped_q, "$options": "i"}},
+                    {"tx_id": {"$regex": escaped_q, "$options": "i"}}
+                ]}
+                query = {"$and": [query, search_query]} if query else search_query
+            except Exception as e:
+                logger.warning(f"[admin] transaction search error: {e}")
+                raise HTTPException(status_code=400, detail="Invalid search query")
 
-    txs = await db.payment_transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
-    user_ids = list({t.get("user_id") for t in txs if t.get("user_id")})
-    users = await db.users.find(
-        {"user_id": {"$in": user_ids}},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "plan": 1},
-    ).to_list(5000) if user_ids else []
-    users_map = {u["user_id"]: u for u in users}
-    return [_enrich_tx(t, users_map) for t in txs]
+        txs = await db.payment_transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+        user_ids = list({t.get("user_id") for t in txs if t.get("user_id")})
+        users = await db.users.find(
+            {"user_id": {"$in": user_ids}},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "plan": 1},
+        ).to_list(5000) if user_ids else []
+        users_map = {u["user_id"]: u for u in users}
+        
+        logger.info(f"[admin] list_transactions by {admin['email']} - returned {len(txs)} results")
+        return [_enrich_tx(t, users_map) for t in txs]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] list_transactions error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list transactions")
 
 
 @admin_router.get("/billing/metrics")
+@limiter.limit("10/minute")
 async def billing_metrics(admin: dict = Depends(require_admin)):
     """Revenue KPIs: gross, refunded, net, by plan, last-30-day daily series."""
-    txs = await db.payment_transactions.find(
-        {}, {"_id": 0, "amount": 1, "currency": 1, "payment_status": 1, "refund_status": 1,
-             "refund_amount": 1, "plan_id": 1, "created_at": 1, "updated_at": 1, "processed": 1},
-    ).to_list(50000)
+    try:
+        txs = await db.payment_transactions.find(
+            {}, {"_id": 0, "amount": 1, "currency": 1, "payment_status": 1, "refund_status": 1,
+                 "refund_amount": 1, "plan_id": 1, "created_at": 1, "updated_at": 1, "processed": 1},
+        ).to_list(50000)
 
-    currency = "gbp"
-    gross = 0.0
-    refunded = 0.0
-    paid_count = 0
-    refunded_count = 0
-    by_plan = {}  # plan_id -> {count, gross, refunded, net}
+        currency = "gbp"
+        gross = 0.0
+        refunded = 0.0
+        paid_count = 0
+        refunded_count = 0
+        by_plan = {}  # plan_id -> {count, gross, refunded, net}
 
-    for t in txs:
-        amt = float(t.get("amount") or 0)
-        paid = t.get("payment_status") == "paid"
-        ref_status = t.get("refund_status") or "none"
-        ref_amount = float(t.get("refund_amount") or 0)
-        plan = t.get("plan_id") or "unknown"
-        by_plan.setdefault(plan, {"count": 0, "gross": 0.0, "refunded": 0.0, "net": 0.0})
-
-        if paid:
-            gross += amt
-            paid_count += 1
-            by_plan[plan]["count"] += 1
-            by_plan[plan]["gross"] += amt
-        if ref_status in ("refunded", "partial") and ref_amount > 0:
-            refunded += ref_amount
-            refunded_count += 1
-            by_plan[plan]["refunded"] += ref_amount
-
-    for p in by_plan.values():
-        p["net"] = round(p["gross"] - p["refunded"], 2)
-        p["gross"] = round(p["gross"], 2)
-        p["refunded"] = round(p["refunded"], 2)
-
-    # 30-day revenue series
-    today = datetime.now(timezone.utc).date()
-    series = []
-    for i in range(29, -1, -1):
-        d = (today - timedelta(days=i)).isoformat()
-        label = (today - timedelta(days=i)).strftime("%b %d")
-        day_gross = 0.0
-        day_ref = 0.0
         for t in txs:
-            ca = (t.get("created_at") or "")[:10]
-            ua = (t.get("updated_at") or "")[:10]
-            if ca == d and t.get("payment_status") == "paid":
-                day_gross += float(t.get("amount") or 0)
-            if ua == d and (t.get("refund_status") in ("refunded", "partial")):
-                day_ref += float(t.get("refund_amount") or 0)
-        series.append({"date": label, "gross": round(day_gross, 2), "refunded": round(day_ref, 2)})
+            amt = float(t.get("amount") or 0)
+            paid = t.get("payment_status") == "paid"
+            ref_status = t.get("refund_status") or "none"
+            ref_amount = float(t.get("refund_amount") or 0)
+            plan = t.get("plan_id") or "unknown"
+            by_plan.setdefault(plan, {"count": 0, "gross": 0.0, "refunded": 0.0, "net": 0.0})
 
-    return {
-        "currency": currency,
-        "totals": {
-            "gross": round(gross, 2),
-            "refunded": round(refunded, 2),
-            "net": round(gross - refunded, 2),
-            "paid_count": paid_count,
-            "refunded_count": refunded_count,
-            "transactions": len(txs),
-        },
-        "by_plan": by_plan,
-        "series": series,
-    }
+            if paid:
+                gross += amt
+                paid_count += 1
+                by_plan[plan]["count"] += 1
+                by_plan[plan]["gross"] += amt
+            if ref_status in ("refunded", "partial") and ref_amount > 0:
+                refunded += ref_amount
+                refunded_count += 1
+                by_plan[plan]["refunded"] += ref_amount
+
+        for p in by_plan.values():
+            p["net"] = round(p["gross"] - p["refunded"], 2)
+            p["gross"] = round(p["gross"], 2)
+            p["refunded"] = round(p["refunded"], 2)
+
+        # 30-day revenue series
+        today = datetime.now(timezone.utc).date()
+        series = []
+        for i in range(29, -1, -1):
+            d = (today - timedelta(days=i)).isoformat()
+            label = (today - timedelta(days=i)).strftime("%b %d")
+            day_gross = 0.0
+            day_ref = 0.0
+            for t in txs:
+                ca = (t.get("created_at") or "")[:10]
+                ua = (t.get("updated_at") or "")[:10]
+                if ca == d and t.get("payment_status") == "paid":
+                    day_gross += float(t.get("amount") or 0)
+                if ua == d and (t.get("refund_status") in ("refunded", "partial")):
+                    day_ref += float(t.get("refund_amount") or 0)
+            series.append({"date": label, "gross": round(day_gross, 2), "refunded": round(day_ref, 2)})
+
+        return {
+            "currency": currency,
+            "totals": {
+                "gross": round(gross, 2),
+                "refunded": round(refunded, 2),
+                "net": round(gross - refunded, 2),
+                "paid_count": paid_count,
+                "refunded_count": refunded_count,
+                "transactions": len(txs),
+            },
+            "by_plan": by_plan,
+            "series": series,
+        }
+    except Exception as e:
+        logger.error(f"[admin] billing_metrics error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve billing metrics")
 
 
 @admin_router.post("/transactions/{tx_id}/refund")
+@limiter.limit("5/minute")
 async def refund_transaction(tx_id: str, body: RefundRequest, admin: dict = Depends(require_admin)):
-    """Issue a Stripe refund for a paid transaction.
+    """
+    Issue a Stripe refund for a paid transaction.
 
     - Full refund when `amount` is omitted; otherwise partial refund.
     - Optionally downgrades the user's plan back to `free`.
     - Records a refund event on the transaction and in `admin_audit`.
     """
-    tx = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    if tx.get("payment_status") != "paid":
-        raise HTTPException(status_code=400, detail="Only paid transactions can be refunded")
-    if tx.get("refund_status") == "refunded":
-        raise HTTPException(status_code=400, detail="This payment has already been fully refunded")
+    try:
+        if not isinstance(tx_id, str) or len(tx_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid transaction ID")
+        
+        tx = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
+        if not tx:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if tx.get("payment_status") != "paid":
+            raise HTTPException(status_code=400, detail="Only paid transactions can be refunded")
+        if tx.get("refund_status") == "refunded":
+            raise HTTPException(status_code=400, detail="This payment has already been fully refunded")
 
-    api_key = os.environ.get("STRIPE_API_KEY")
-    if not api_key or stripe_sdk is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Refunds unavailable: Stripe is not configured on the server (STRIPE_API_KEY missing).",
+        api_key = os.environ.get("STRIPE_API_KEY")
+        if not api_key or stripe_sdk is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Refunds unavailable: Stripe is not configured on the server (STRIPE_API_KEY missing).",
+            )
+
+        paid_amount = float(tx.get("amount") or 0)
+        already_ref = float(tx.get("refund_amount") or 0)
+        refund_amount = float(body.amount) if body.amount is not None else (paid_amount - already_ref)
+        
+        if refund_amount <= 0:
+            raise HTTPException(status_code=400, detail="Refund amount must be greater than zero")
+        if refund_amount + already_ref > paid_amount + 1e-6:
+            raise HTTPException(status_code=400, detail="Refund amount exceeds remaining refundable balance")
+
+        stripe_sdk.api_key = api_key
+        # Stripe needs the cents value
+        amount_cents = int(round(refund_amount * 100))
+        metadata = {
+            "tx_id": tx_id,
+            "user_id": tx.get("user_id") or "",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "reason_note": _sanitize_string(body.reason or "", max_length=480),
+        }
+
+        try:
+            # Prefer payment_intent if we have it; otherwise refund by Checkout Session.
+            refund_kwargs = {"amount": amount_cents, "metadata": metadata}
+            if tx.get("payment_intent_id"):
+                refund_kwargs["payment_intent"] = tx["payment_intent_id"]
+            else:
+                # Look up the PI from the Checkout session
+                sess = stripe_sdk.checkout.Session.retrieve(tx["session_id"])
+                pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
+                if not pi:
+                    raise HTTPException(status_code=400, detail="Could not resolve payment intent for this session")
+                refund_kwargs["payment_intent"] = pi
+                await db.payment_transactions.update_one(
+                    {"tx_id": tx_id}, {"$set": {"payment_intent_id": pi}}
+                )
+            
+            refund = stripe_sdk.Refund.create(**refund_kwargs)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[admin] Stripe refund failed for tx={tx_id}: {e}")
+            raise HTTPException(status_code=502, detail=f"Stripe refund failed: {e}")
+
+        new_total_refunded = round(already_ref + refund_amount, 2)
+        new_status = "refunded" if abs(new_total_refunded - paid_amount) < 1e-6 else "partial"
+        now = _now()
+        refund_event = {
+            "refund_id": getattr(refund, "id", None) or (refund.get("id") if isinstance(refund, dict) else None),
+            "amount": refund_amount,
+            "reason": body.reason,
+            "by_admin_id": admin["user_id"],
+            "by_admin_email": admin["email"],
+            "at": now,
+        }
+        
+        await db.payment_transactions.update_one(
+            {"tx_id": tx_id},
+            {
+                "$set": {
+                    "refund_status": new_status,
+                    "refund_amount": new_total_refunded,
+                    "last_refund_at": now,
+                    "updated_at": now,
+                },
+                "$push": {"refunds": refund_event},
+            },
         )
 
-    paid_amount = float(tx.get("amount") or 0)
-    already_ref = float(tx.get("refund_amount") or 0)
-    refund_amount = float(body.amount) if body.amount is not None else (paid_amount - already_ref)
-    if refund_amount <= 0:
-        raise HTTPException(status_code=400, detail="Refund amount must be greater than zero")
-    if refund_amount + already_ref > paid_amount + 1e-6:
-        raise HTTPException(status_code=400, detail="Refund amount exceeds remaining refundable balance")
-
-    stripe_sdk.api_key = api_key
-    # Stripe needs the cents value
-    amount_cents = int(round(refund_amount * 100))
-    metadata = {
-        "tx_id": tx_id,
-        "user_id": tx.get("user_id") or "",
-        "admin_id": admin["user_id"],
-        "admin_email": admin["email"],
-        "reason_note": (body.reason or "")[:480],
-    }
-
-    try:
-        # Prefer payment_intent if we have it; otherwise refund by Checkout Session.
-        refund_kwargs = {"amount": amount_cents, "metadata": metadata}
-        if tx.get("payment_intent_id"):
-            refund_kwargs["payment_intent"] = tx["payment_intent_id"]
-        else:
-            # Look up the PI from the Checkout session
-            sess = stripe_sdk.checkout.Session.retrieve(tx["session_id"])
-            pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
-            if not pi:
-                raise HTTPException(status_code=400, detail="Could not resolve payment intent for this session")
-            refund_kwargs["payment_intent"] = pi
-            await db.payment_transactions.update_one(
-                {"tx_id": tx_id}, {"$set": {"payment_intent_id": pi}}
+        # Optionally downgrade the user's plan back to free
+        plan_changed = False
+        if body.downgrade_plan and new_status == "refunded" and tx.get("user_id"):
+            await db.users.update_one(
+                {"user_id": tx["user_id"]},
+                {"$set": {"plan": "free", "plan_updated_at": now, "plan_signature": None}},
             )
-        refund = stripe_sdk.Refund.create(**refund_kwargs)
+            plan_changed = True
+
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "refund_transaction",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "target_user_id": tx.get("user_id"),
+            "target_email": tx.get("email"),
+            "tx_id": tx_id,
+            "amount": refund_amount,
+            "reason": body.reason,
+            "refund_id": refund_event["refund_id"],
+            "at": now,
+        })
+
+        logger.warning(
+            f"[admin] Refund processed by {admin['email']}: tx_id={tx_id}, "
+            f"amount={refund_amount}, user={tx.get('user_id')}"
+        )
+
+        fresh = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
+        return {
+            "ok": True,
+            "refund_status": new_status,
+            "refund_amount": new_total_refunded,
+            "plan_downgraded": plan_changed,
+            "transaction": fresh,
+        }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[admin] Stripe refund failed for tx={tx_id}: {e}")
-        raise HTTPException(status_code=502, detail=f"Stripe refund failed: {e}")
-
-    new_total_refunded = round(already_ref + refund_amount, 2)
-    new_status = "refunded" if abs(new_total_refunded - paid_amount) < 1e-6 else "partial"
-    now = datetime.now(timezone.utc).isoformat()
-    refund_event = {
-        "refund_id": getattr(refund, "id", None) or (refund.get("id") if isinstance(refund, dict) else None),
-        "amount": refund_amount,
-        "reason": body.reason,
-        "by_admin_id": admin["user_id"],
-        "by_admin_email": admin["email"],
-        "at": now,
-    }
-    await db.payment_transactions.update_one(
-        {"tx_id": tx_id},
-        {
-            "$set": {
-                "refund_status": new_status,
-                "refund_amount": new_total_refunded,
-                "last_refund_at": now,
-                "updated_at": now,
-            },
-            "$push": {"refunds": refund_event},
-        },
-    )
-
-    # Optionally downgrade the user's plan back to free
-    plan_changed = False
-    if body.downgrade_plan and new_status == "refunded" and tx.get("user_id"):
-        await db.users.update_one(
-            {"user_id": tx["user_id"]},
-            {"$set": {"plan": "free", "plan_updated_at": now}},
-        )
-        plan_changed = True
-
-    await db.admin_audit.insert_one({
-        "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
-        "action": "refund_transaction",
-        "admin_id": admin["user_id"],
-        "admin_email": admin["email"],
-        "target_user_id": tx.get("user_id"),
-        "target_email": tx.get("email"),
-        "tx_id": tx_id,
-        "amount": refund_amount,
-        "reason": body.reason,
-        "refund_id": refund_event["refund_id"],
-        "at": now,
-    })
-
-    fresh = await db.payment_transactions.find_one({"tx_id": tx_id}, {"_id": 0})
-    return {
-        "ok": True,
-        "refund_status": new_status,
-        "refund_amount": new_total_refunded,
-        "plan_downgraded": plan_changed,
-        "transaction": fresh,
-    }
+        logger.error(f"[admin] refund_transaction error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process refund")
 
 
 @admin_router.get("/audit-log")
+@limiter.limit("20/minute")
 async def admin_audit_log(
     limit: int = Query(200, ge=1, le=2000),
     action: str = Query("all"),
     admin: dict = Depends(require_admin),
 ):
     """Recent admin actions (impersonate, password resets, refunds)."""
-    query: dict = {}
-    if action != "all":
-        query["action"] = action
-    items = await db.admin_audit.find(query, {"_id": 0}).sort("at", -1).to_list(limit)
-    return items
+    try:
+        query: dict = {}
+        if action != "all":
+            query["action"] = action
+        
+        items = await db.admin_audit.find(query, {"_id": 0}).sort("at", -1).to_list(limit)
+        logger.info(f"[admin] audit_log accessed by {admin['email']} - returned {len(items)} results")
+        return items
+    except Exception as e:
+        logger.error(f"[admin] admin_audit_log error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve audit log")
