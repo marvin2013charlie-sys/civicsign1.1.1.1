@@ -33,7 +33,7 @@ export default function VerifyEmail() {
     setVerifying(true);
     try {
       await verifyEmail(email, code.trim());
-      toast.success("Email verified — welcome to CIVICSIGN!");
+      toast.success("Email verified — welcome to CivicSign!");
       navigate("/dashboard");
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail) || "Verification failed");
@@ -59,17 +59,17 @@ export default function VerifyEmail() {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between bg-[var(--c-ink)] p-10 text-white lg:flex">
+      <div className="relative hidden flex-col justify-between bg-[var(--c-ink-solid)] p-10 text-white lg:flex">
         <Logo dark />
         <div>
           <h2 className="font-heading text-4xl font-bold leading-tight">One quick step to secure your account.</h2>
-          <p className="mt-4 max-w-sm text-white/70">We sent a 6-digit verification code to your email. Enter it to activate your CIVICSIGN account — this is a one-time step.</p>
+          <p className="mt-4 max-w-sm text-white/70">We sent a 6-digit verification code to your email. Enter it to activate your CivicSign account — this is a one-time step.</p>
           <div className="mt-8 space-y-4 text-white/80">
             <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Verified accounts keep your documents secure</p>
             <p className="flex items-center gap-3"><Fingerprint className="h-5 w-5" style={{ color: "#7fe9dd" }} /> After this, just sign in with email & password</p>
           </div>
         </div>
-        <p className="text-xs text-white/50">© {new Date().getFullYear()} CIVICSIGN</p>
+        <p className="text-xs text-white/50">© {new Date().getFullYear()} CivicSign</p>
       </div>
 
       {/* Form */}

@@ -1,4 +1,4 @@
-"""Pydantic request/response models for CIVICSIGN."""
+"""Pydantic request/response models for CivicSign."""
 from typing import List, Optional, Any
 from pydantic import BaseModel, EmailStr, Field
 
@@ -7,16 +7,12 @@ from pydantic import BaseModel, EmailStr, Field
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-
-
-class GoogleSessionRequest(BaseModel):
-    session_id: str
 
 
 class VerifyEmail(BaseModel):
@@ -145,7 +141,7 @@ class ProfileUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=6)
+    new_password: str = Field(min_length=8)
 
 
 class SubscriptionUpdate(BaseModel):
@@ -197,7 +193,7 @@ class SendReset(BaseModel):
 
 class ResetPassword(BaseModel):
     token: str
-    new_password: str = Field(min_length=6)
+    new_password: str = Field(min_length=8)
 
 
 

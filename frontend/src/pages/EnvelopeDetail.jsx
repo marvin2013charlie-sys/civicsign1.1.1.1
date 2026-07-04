@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Document, Page } from "react-pdf";
 import { toast } from "sonner";
 import { pdfjs, PDF_OPTIONS } from "@/lib/pdf"; // eslint-disable-line no-unused-vars
-import api, { formatApiError, fetchPdfBlobUrl } from "@/lib/api";
+import api, { formatApiError, fetchPdfBlobUrl, downloadFile } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -54,10 +54,12 @@ export default function EnvelopeDetail() {
   }, []);
 
   const download = async () => {
+    const completed = env.status === "completed" && env.completed_file_id;
+    const path = completed ? `/envelopes/${id}/completed` : `/envelopes/${id}/file`;
+    const filename = `${env.title || "document"}${completed ? "-completed" : ""}.pdf`;
     try {
-      const url = await fetchPdfBlobUrl(`/envelopes/${id}/completed`);
-      const a = document.createElement("a"); a.href = url; a.download = `${env.title}-completed.pdf`; a.click();
-    } catch { toast.error("Completed document not available"); }
+      await downloadFile(path, filename);
+    } catch { toast.error("Could not download this document"); }
   };
 
   const voidEnvelope = async () => {
@@ -91,8 +93,12 @@ export default function EnvelopeDetail() {
           {["sent", "viewed"].includes(env.status) && (
             <Button variant="outline" onClick={sendReminder} data-testid="send-reminder-button"><Bell className="mr-1.5 h-4 w-4" /> Remind</Button>
           )}
-          {env.status === "completed" && (
+          {env.status === "completed" ? (
             <Button onClick={download} data-testid="download-completed-pdf-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
+              <Download className="mr-1.5 h-4 w-4" /> Download signed
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={download} data-testid="download-pdf-button">
               <Download className="mr-1.5 h-4 w-4" /> Download
             </Button>
           )}
@@ -120,7 +126,7 @@ export default function EnvelopeDetail() {
           <StatusBadge status={env.status} />
         </div>
         {env.doc_hash && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--c-ink)] px-3 py-2 font-mono text-xs text-white/80">
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--c-ink-solid)] px-3 py-2 font-mono text-xs text-white/80">
             <Fingerprint className="h-3.5 w-3.5 shrink-0" style={{ color: "#7fe9dd" }} />
             <span className="truncate">SHA-256 · {env.doc_hash}</span>
           </div>

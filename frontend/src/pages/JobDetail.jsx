@@ -145,7 +145,7 @@ export default function JobDetail() {
                       <Input id="apply-portfolio" value={form.portfolio} onChange={(e) => setForm({ ...form, portfolio: e.target.value })} placeholder="https://…" data-testid="apply-portfolio" />
                     </Field>
                   </div>
-                  <Field label="Why do you want to join CIVICSIGN? *" id="apply-cover">
+                  <Field label="Why do you want to join CivicSign? *" id="apply-cover">
                     <Textarea
                       id="apply-cover"
                       value={form.cover_message}

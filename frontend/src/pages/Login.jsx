@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { Loader2, ShieldCheck, PenLine, Fingerprint, KeyRound, Copy, Check } from "lucide-react";
+import { Loader2, ShieldCheck, PenLine, Fingerprint, KeyRound, Copy, Check, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { login, resendVerification, forgotPassword } = useAuth();
@@ -18,6 +18,7 @@ export default function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Tell the user *why* they landed back on login if it was an auto sign-out.
@@ -97,9 +98,10 @@ export default function Login() {
   };
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-2">
+    <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-2 lg:overflow-hidden">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between bg-[var(--c-ink)] p-10 text-white lg:flex">
+      <div className="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex"
+        style={{ background: "linear-gradient(160deg, var(--c-ink-solid) 0%, #0E2B27 55%, #10695F 130%)" }}>
         <Logo dark />
         <div>
           <h2 className="font-heading text-4xl font-bold leading-tight">Get legally binding signatures, fast.</h2>
@@ -108,55 +110,66 @@ export default function Login() {
             <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> UK eIDAS & Electronic Communications Act 2000 aligned</p>
             <p className="flex items-center gap-3"><Fingerprint className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Tamper-evident audit trail on every doc</p>
           </div>
+          <figure className="mt-10 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+            <blockquote className="text-sm leading-relaxed text-white/85">
+              “We replaced our clunky old tool in a day. CivicSign is faster and our clients love how clean the signing page is.”
+            </blockquote>
+            <figcaption className="mt-3 text-xs font-semibold text-white/60">Maya Chen · COO, Northwind Studio</figcaption>
+          </figure>
         </div>
-        <p className="text-xs text-white/50">© {new Date().getFullYear()} CIVICSIGN</p>
+        <p className="text-xs text-white/50">© {new Date().getFullYear()} CivicSign</p>
       </div>
 
       {/* Form */}
-      <div className="flex items-start justify-center bg-[var(--c-paper)] px-5 py-8 sm:p-6 lg:items-center">
-        <div className="w-full max-w-sm">
-          <div className="mb-6 lg:hidden"><Logo /></div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Sign in to CIVICSIGN</h1>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Welcome back. Enter your details below.</p>
+      <div className="flex justify-center bg-[var(--c-paper)] px-5 py-10 sm:p-8 lg:h-dvh lg:overflow-y-auto">
+        <div className="w-full max-w-md lg:my-auto">
+          <div className="mb-8 flex justify-center lg:hidden"><Logo /></div>
+          <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8 shadow-xl shadow-black/[0.04]">
+            <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Welcome back</h1>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Sign in to your CivicSign account.</p>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com" className="mt-1" data-testid="login-email-input" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="password">Password</Label>
-                <button type="button" onClick={openForgot}
-                  className="text-xs font-medium text-[var(--c-primary)] transition-colors hover:opacity-80"
-                  data-testid="login-forgot-password">
-                  Forgot password?
-                </button>
+            <form onSubmit={submit} className="mt-6 space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com" className="mt-1 h-11" data-testid="login-email-input" />
               </div>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" className="mt-1.5" data-testid="login-password-input" />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full" data-testid="login-submit-button"
-              style={{ background: "var(--c-primary)", color: "#fff" }}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
-            </Button>
-          </form>
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  <button type="button" onClick={openForgot}
+                    className="text-xs font-medium text-[var(--c-primary)] transition-colors hover:opacity-80"
+                    data-testid="login-forgot-password">
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative mt-1.5">
+                  <Input id="password" type={showPwd ? "text" : "password"} required value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••" className="h-11 pr-10" data-testid="login-password-input" />
+                  <button type="button" onClick={() => setShowPwd((s) => !s)} tabIndex={-1}
+                    aria-label={showPwd ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] transition-colors hover:text-[var(--c-ink)]"
+                    data-testid="login-toggle-password">
+                    {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <Button type="submit" disabled={loading} className="h-11 w-full text-[15px] font-semibold" data-testid="login-submit-button"
+                style={{ background: "var(--c-primary)", color: "#fff" }}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
+              </Button>
+            </form>
 
-          <div className="mt-4 rounded-lg border border-[var(--c-border)] bg-[var(--card)] p-3 text-xs text-[var(--muted-foreground)]">
-            <span className="font-semibold text-[var(--c-ink)]">Demo account:</span> user@civicsign.app · Welcome@2026!
           </div>
 
           <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
-            New to CIVICSIGN? <Link to="/register" className="font-semibold text-[var(--c-primary)]">Create an account</Link>
+            New to CivicSign? <Link to="/register" className="font-semibold text-[var(--c-primary)]">Create an account</Link>
           </p>
 
-          <div className="mt-4 flex items-center justify-center gap-1.5 border-t border-[var(--c-border)] pt-4 text-xs text-[var(--muted-foreground)]">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <Link to="/admin/login" className="font-medium transition-colors hover:text-[var(--c-ink)]" data-testid="login-admin-portal-link">
-              Internal team? Admin sign in
-            </Link>
-          </div>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+            <ShieldCheck className="h-3.5 w-3.5" /> Protected by encryption &amp; rate limiting
+          </p>
         </div>
       </div>
 

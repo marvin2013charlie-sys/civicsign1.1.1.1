@@ -145,7 +145,7 @@ export function SolutionPageLayout({
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-10 text-center text-white sm:p-14">
+        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">{ctaHeadline}</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">{ctaSubhead}</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">

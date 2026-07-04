@@ -20,6 +20,10 @@ const PERMS = [
   { value: "careers",     label: "Manage careers",        desc: "Publish job openings on /careers and review applications." },
   { value: "contacts",    label: "Read contact inbox",    desc: "View customer enquiries from /contact." },
   { value: "users-read",  label: "Read user list",        desc: "Browse user accounts (read-only — no edits, no impersonation)." },
+  { value: "envelopes",   label: "View envelopes",        desc: "Browse and export all envelopes across the platform (read-only)." },
+  { value: "billing",     label: "View billing",          desc: "See transactions and billing metrics. Refunds stay super-admin only." },
+  { value: "audit",       label: "View audit log",        desc: "Read the admin action history (impersonations, resets, refunds)." },
+  { value: "impersonate", label: "Enter user accounts",   desc: "Support workflow gated by user consent: a one-time code is emailed to the user, who must share it before access is granted." },
 ];
 
 export default function AdminTeam() {

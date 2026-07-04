@@ -9,7 +9,7 @@ export const LegalLayout = ({ title, updated, intro, sections = [] }) => {
     <div className="min-h-screen bg-[var(--c-paper)]">
       <SiteHeader />
       {/* Hero band */}
-      <div className="border-b border-[var(--c-border)] bg-[var(--c-ink)]">
+      <div className="border-b border-[var(--c-border)] bg-[var(--c-ink-solid)]">
         <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
           <h1 className="font-heading text-3xl font-bold text-white sm:text-4xl">{title}</h1>
           {updated && <p className="mt-2 text-sm text-white/60">Last updated: {updated}</p>}
@@ -51,7 +51,7 @@ export const LegalLayout = ({ title, updated, intro, sections = [] }) => {
             </section>
           ))}
           <div className="mt-10 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4 text-xs text-[var(--muted-foreground)]">
-            This document is provided for general informational purposes and does not constitute legal advice. CIVICSIGN recommends consulting qualified counsel for your specific circumstances.
+            This document is provided for general informational purposes and does not constitute legal advice. CivicSign recommends consulting qualified counsel for your specific circumstances.
           </div>
         </article>
       </div>

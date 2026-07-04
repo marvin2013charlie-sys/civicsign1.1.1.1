@@ -121,7 +121,7 @@ export default function BlogPost() {
 
       {/* CTA banner */}
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-10 text-center text-white sm:p-12">
+        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-12">
           <h2 className="font-heading text-2xl font-bold sm:text-3xl">Ready to put this into practice?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">
             Send your first document in minutes. Free for 5 documents a month — no card required, UK GDPR by default.

@@ -22,7 +22,7 @@ export default function HR() {
         { value: "0 paper", label: "RTW packs lost in the post" },
         { value: "100%", label: "UK GDPR by default" },
       ]}
-      whyHeadline="Why UK HR teams pick CIVICSIGN"
+      whyHeadline="Why UK HR teams pick CivicSign"
       whySubhead="Built for the way British HR actually works — UK GDPR, ACAS guidance, and the unique pain of chasing wet signatures across hybrid offices."
       why={[
         { icon: Clock, title: "Cut offer-to-start time in half", body: "Send the offer letter from the interview room. Counter-signed contract back in hours — start dates land earlier, attrition drops." },
@@ -33,7 +33,7 @@ export default function HR() {
       compliance={{
         eyebrow: { icon: Landmark, label: "Home Office · digital Right to Work checks" },
         headline: "Right to Work declarations, captured at speed — Home Office aligned.",
-        body: "Since 2022 the Home Office has accepted digital identity verification for Right to Work checks via certified Identity Service Providers. CIVICSIGN gives you the timestamped declaration, IP and audit trail you need alongside that check — so your statutory excuse stands up under inspection.",
+        body: "Since 2022 the Home Office has accepted digital identity verification for Right to Work checks via certified Identity Service Providers. CivicSign gives you the timestamped declaration, IP and audit trail you need alongside that check — so your statutory excuse stands up under inspection.",
       }}
       docsHeadline="Every HR document, signed in minutes"
       docsSubhead="Save your contract pack as a template — every new starter, in one click."

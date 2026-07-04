@@ -22,7 +22,7 @@ export default function Construction() {
         { value: "0 paper", label: "RAMS lost on a job site" },
         { value: "Mobile", label: "Sign from any phone, any van" },
       ]}
-      whyHeadline="Why UK trades pick CIVICSIGN"
+      whyHeadline="Why UK trades pick CivicSign"
       whySubhead="Designed for the messy reality of UK construction — main-contractor PSLs, CIS deductions, CDM 2015 paperwork and clients who never check their email."
       why={[
         { icon: Clock, title: "Win the job before the next quote arrives", body: "Send the quote from your phone, client signs from their sofa — your van is on-site before the competitor has emailed." },
@@ -33,7 +33,7 @@ export default function Construction() {
       compliance={{
         eyebrow: { icon: Landmark, label: "HSE · CDM 2015 record-keeping" },
         headline: "Your RAMS file, signed and retrievable in minutes.",
-        body: "CDM 2015 expects principal contractors to keep evidence that risk assessments and method statements have been read and acknowledged by every operative. CIVICSIGN captures the signature, IP and timestamp — every RAMS in one searchable place. If the HSE comes knocking, your file is one click away.",
+        body: "CDM 2015 expects principal contractors to keep evidence that risk assessments and method statements have been read and acknowledged by every operative. CivicSign captures the signature, IP and timestamp — every RAMS in one searchable place. If the HSE comes knocking, your file is one click away.",
       }}
       docsHeadline="Every construction document, signed in minutes"
       docsSubhead="From quote to handover — UK trades paperwork, paperless."

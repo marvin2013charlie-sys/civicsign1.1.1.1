@@ -284,7 +284,8 @@ function ApplicationsTab() {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [filter]);
 
   const current = useMemo(() => apps.find((a) => a.application_id === openId) || null, [apps, openId]);
   const statusOpt = (v) => STATUS_OPTIONS.find((s) => s.value === v) || STATUS_OPTIONS[0];

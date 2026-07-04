@@ -97,3 +97,6 @@ credentials.json
 *.key
 .credentials
 frontend/node_modules/.cache/default-development/7.pack
+
+# Local editor/dev tool config
+.claude/

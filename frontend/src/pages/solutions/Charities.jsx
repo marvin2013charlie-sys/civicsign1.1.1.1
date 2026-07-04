@@ -22,7 +22,7 @@ export default function Charities() {
         { value: "0 paper", label: "Lost trustee resolutions" },
         { value: "Free £0", label: "Forever-free tier for small charities" },
       ]}
-      whyHeadline="Why UK charities trust CIVICSIGN"
+      whyHeadline="Why UK charities trust CivicSign"
       whySubhead="Built with the Charity Commission's governance code, HMRC Gift Aid scheme rules and the realities of running on a shoestring."
       why={[
         { icon: Clock, title: "Convert donor enthusiasm before it fades", body: "Tap-to-sign Gift Aid declarations on a steward's phone at the event — confirmation in donor's inbox before they get home." },
@@ -33,7 +33,7 @@ export default function Charities() {
       compliance={{
         eyebrow: { icon: Landmark, label: "HMRC · electronic Gift Aid declarations" },
         headline: "HMRC accepts electronic Gift Aid declarations.",
-        body: "HMRC's detailed guidance on Gift Aid (Chapter 3) confirms declarations can be made electronically — by tick-box, email or signed form — provided you retain the donor's name, address, gift details and the required confirmation. CIVICSIGN captures all of it with a sealed audit trail. Your HMRC compliance review goes from a panic to a printout.",
+        body: "HMRC's detailed guidance on Gift Aid (Chapter 3) confirms declarations can be made electronically — by tick-box, email or signed form — provided you retain the donor's name, address, gift details and the required confirmation. CivicSign captures all of it with a sealed audit trail. Your HMRC compliance review goes from a panic to a printout.",
       }}
       docsHeadline="Every charity document, signed in minutes"
       docsSubhead="From trustee meetings to volunteer onboarding — paperless, audited and free for your first 5 docs / month."

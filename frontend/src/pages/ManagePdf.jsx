@@ -18,10 +18,10 @@ export default function ManagePdf() {
           </span>
 
           <h2 className="mt-4 font-heading text-3xl font-bold text-[var(--c-ink)]">
-            A PDF editor, built into CIVICSIGN.
+            A PDF editor, built into CivicSign.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[var(--muted-foreground)]">
-            We&rsquo;re working on a focused, UK-friendly editor so you can tweak documents before sending them for signing &mdash; without leaving CIVICSIGN.
+            We&rsquo;re working on a focused, UK-friendly editor so you can tweak documents before sending them for signing &mdash; without leaving CivicSign.
           </p>
 
           <div className="mt-6 flex flex-wrap justify-center gap-2">

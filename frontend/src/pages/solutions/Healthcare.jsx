@@ -22,7 +22,7 @@ export default function Healthcare() {
         { value: "0 paper", label: "Consent forms lost in the chart" },
         { value: "100%", label: "UK-hosted patient data" },
       ]}
-      whyHeadline="Why UK healthcare providers pick CIVICSIGN"
+      whyHeadline="Why UK healthcare providers pick CivicSign"
       whySubhead="Designed with CQC fundamentals of care, the NHS Data Security & Protection Toolkit, and General Medical Council consent guidance in mind."
       why={[
         { icon: Clock, title: "Capture consent before the appointment", body: "Send pre-appointment consent forms by email. Patient signs from home — clinician sees confirmation before the room is even prepared." },
@@ -33,7 +33,7 @@ export default function Healthcare() {
       compliance={{
         eyebrow: { icon: Landmark, label: "GMC · digital consent guidance" },
         headline: "GMC: written consent doesn't have to mean paper.",
-        body: "The General Medical Council confirms that written patient consent can be captured electronically, provided the patient has had time to consider the information and the signature is verifiable. CIVICSIGN gives you the timestamp, IP and email verification needed to evidence informed consent — defensible if ever challenged.",
+        body: "The General Medical Council confirms that written patient consent can be captured electronically, provided the patient has had time to consider the information and the signature is verifiable. CivicSign gives you the timestamp, IP and email verification needed to evidence informed consent — defensible if ever challenged.",
       }}
       docsHeadline="Every clinical & care document, signed in minutes"
       docsSubhead="Pre-built workflows for the consent forms and acknowledgements you send most."

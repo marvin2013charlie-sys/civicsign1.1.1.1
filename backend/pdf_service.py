@@ -1,5 +1,5 @@
 """
-CIVICSIGN PDF engine (ported from the proven Phase-1 POC).
+CivicSign PDF engine (ported from the proven Phase-1 POC).
 Handles: DOCX->PDF conversion, PDF page introspection, stamping of
 signature images / text / date / checkbox fields at PERCENTAGE coordinates,
 tamper-evident SHA-256 hashing, and Certificate of Completion generation.
@@ -8,7 +8,6 @@ PyMuPDF uses a TOP-LEFT coordinate origin (same as the browser / pdf.js),
 so percentage->absolute mapping is direct and accurate.
 """
 import os
-import io
 import base64
 import hashlib
 import tempfile
@@ -136,7 +135,7 @@ def _append_certificate(doc: "fitz.Document", envelope_meta, audit_events):
 
     # Header band
     page.draw_rect(fitz.Rect(0, 0, 595, 110), color=None, fill=(0.06, 0.09, 0.13))
-    page.insert_text((margin, 52), "CIVICSIGN", fontsize=26, fontname="hebo", color=(1, 1, 1))
+    page.insert_text((margin, 52), "CivicSign", fontsize=26, fontname="hebo", color=(1, 1, 1))
     page.insert_text((margin, 80), "Certificate of Completion", fontsize=13,
                      fontname="helv", color=(0.49, 0.85, 0.80))
 

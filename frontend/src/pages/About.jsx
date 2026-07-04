@@ -13,7 +13,7 @@ import {
 const VALUES = [
   { icon: ShieldCheck, title: "Trust by default", body: "Every document ships with a tamper-evident audit trail and a sealed Certificate of Completion — not as an add-on, but as the default." },
   { icon: Zap, title: "Ruthless speed", body: "From upload to signed in minutes. We obsess over removing every click between you and a closed agreement." },
-  { icon: Sparkles, title: "Delightful simplicity", body: "Powerful doesn’t have to mean complicated. CIVICSIGN is approachable for everyone, from solo founders to ops teams." },
+  { icon: Sparkles, title: "Delightful simplicity", body: "Powerful doesn’t have to mean complicated. CivicSign is approachable for everyone, from solo founders to ops teams." },
   { icon: Lock, title: "Privacy first", body: "Your documents are yours. We protect them with encryption, hashing, and strict access controls — and we never sell your data." },
 ];
 
@@ -40,7 +40,7 @@ export default function About() {
             Britain&rsquo;s own way to <span style={{ color: "var(--c-primary)" }}>sign</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-[var(--muted-foreground)]">
-            CIVICSIGN started with a simple frustration: getting a signature shouldn&rsquo;t feel like enterprise software from a decade ago. We set out to build a fresh, fast, genuinely trustworthy way to sign &mdash; from the UK, for the UK and beyond. Today CIVICSIGN is the UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform.
+            CivicSign started with a simple frustration: getting a signature shouldn&rsquo;t feel like enterprise software from a decade ago. We set out to build a fresh, fast, genuinely trustworthy way to sign &mdash; from the UK, for the UK and beyond. Today CivicSign is the UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform.
           </p>
         </div>
       </section>
@@ -57,10 +57,10 @@ export default function About() {
               To give every team — from freelancers to fast-growing companies — a signing experience that is quick to use, legally sound, and a pleasure to look at. We believe trust should be built in, audit trails should be standard, and pricing should be honest.
             </p>
             <p className="mt-3 text-[var(--muted-foreground)] leading-relaxed">
-              We&rsquo;re proudly UK-owned and UK-hosted, fully aligned with UK GDPR, the UK eIDAS Regulation and the Electronic Communications Act 2000 &mdash; so the documents you complete on CIVICSIGN are designed to hold up in British courts when it matters.
+              We&rsquo;re proudly UK-owned and UK-hosted, fully aligned with UK GDPR, the UK eIDAS Regulation and the Electronic Communications Act 2000 &mdash; so the documents you complete on CivicSign are designed to hold up in British courts when it matters.
             </p>
           </div>
-          <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-8 text-white">
+          <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-8 text-white">
             <Rocket className="h-8 w-8" style={{ color: "#7fe9dd" }} />
             <h3 className="mt-4 font-heading text-2xl font-bold">Built for the next generation of teams</h3>
             <p className="mt-3 text-white/80">
@@ -105,7 +105,7 @@ export default function About() {
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="rounded-3xl px-8 py-14 text-center" style={{ background: "linear-gradient(135deg, #1FB8A6 0%, #0EA5A4 60%, #0F1720 130%)" }}>
+        <div className="rounded-3xl px-8 py-14 text-center" style={{ background: "linear-gradient(135deg, #14B8A6 0%, #0D9488 60%, #122120 130%)" }}>
           <Users className="mx-auto h-8 w-8 text-white" />
           <h2 className="mt-3 font-heading text-3xl font-bold text-white sm:text-4xl">Join thousands signing smarter</h2>
           <p className="mx-auto mt-3 max-w-md text-white/85">Create a free account and send your first document in minutes.</p>

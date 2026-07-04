@@ -1,4 +1,4 @@
-"""Admin (internal team) APIs for CIVICSIGN.
+"""Admin (internal team) APIs for CivicSign.
 
 All endpoints require an authenticated user whose `role == "admin"`.
 Provides platform analytics, user management, envelope oversight, and a
@@ -109,7 +109,7 @@ def _validate_regex_pattern(pattern: str) -> str:
 
 @admin_router.get("/metrics")
 @limiter.limit("10/minute")
-async def metrics(admin: dict = Depends(require_admin)):
+async def metrics(request: Request, admin: dict = Depends(require_admin)):
     """Platform-wide KPIs + 14-day signup/envelope series + deeper analytics."""
     try:
         users = await db.users.find(
@@ -237,7 +237,7 @@ def _csv_response(headers, rows, filename):
 
 @admin_router.get("/export/users.csv")
 @limiter.limit("5/minute")
-async def export_users(admin: dict = Depends(require_permission("users-read"))):
+async def export_users(request: Request, admin: dict = Depends(require_permission("users-read"))):
     """Export user list as CSV."""
     try:
         users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(20000)
@@ -254,7 +254,7 @@ async def export_users(admin: dict = Depends(require_permission("users-read"))):
 
 @admin_router.get("/export/envelopes.csv")
 @limiter.limit("5/minute")
-async def export_envelopes(admin: dict = Depends(require_admin)):
+async def export_envelopes(request: Request, admin: dict = Depends(require_permission("envelopes"))):
     """Export envelope list as CSV."""
     try:
         envs = await db.envelopes.find(
@@ -273,7 +273,7 @@ async def export_envelopes(admin: dict = Depends(require_admin)):
 
 @admin_router.get("/export/contacts.csv")
 @limiter.limit("5/minute")
-async def export_contacts(admin: dict = Depends(require_permission("contacts"))):
+async def export_contacts(request: Request, admin: dict = Depends(require_permission("contacts"))):
     """Export contact messages as CSV."""
     try:
         items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(20000)
@@ -291,6 +291,7 @@ async def export_contacts(admin: dict = Depends(require_permission("contacts")))
 @admin_router.get("/users")
 @limiter.limit("20/minute")
 async def list_users(
+    request: Request,
     q: str = Query("", description="Search by name or email"),
     role: str = Query("user", description="Filter by role: user | staff | admin | all"),
     admin: dict = Depends(require_permission("users-read")),
@@ -342,7 +343,7 @@ async def list_users(
 
 @admin_router.patch("/users/{user_id}")
 @limiter.limit("10/minute")
-async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends(require_admin)):
+async def update_user(request: Request, user_id: str, body: AdminUserUpdate, admin: dict = Depends(require_admin)):
     """Update user account (plan, status, etc.) with signature verification."""
     try:
         # Validate user_id format
@@ -443,7 +444,7 @@ async def update_user(user_id: str, body: AdminUserUpdate, admin: dict = Depends
 
 @admin_router.get("/users/{user_id}")
 @limiter.limit("20/minute")
-async def user_detail(user_id: str, admin: dict = Depends(require_permission("users-read"))):
+async def user_detail(request: Request, user_id: str, admin: dict = Depends(require_permission("users-read"))):
     """Full account detail + help/diagnostics for one user."""
     try:
         # Validate user_id format
@@ -503,7 +504,7 @@ async def user_detail(user_id: str, admin: dict = Depends(require_permission("us
 
 @admin_router.post("/users/{user_id}/send-reset")
 @limiter.limit("5/minute")
-async def send_password_reset_link(user_id: str, body: SendReset, admin: dict = Depends(require_admin)):
+async def send_password_reset_link(request: Request, user_id: str, body: SendReset, admin: dict = Depends(require_admin)):
     """Generate a password-reset link for a user. Emails it when SendGrid is
     configured; otherwise returns the link so the admin can share it."""
     try:
@@ -543,8 +544,11 @@ async def send_password_reset_link(user_id: str, body: SendReset, admin: dict = 
 
 @admin_router.post("/users/{user_id}/impersonate/request")
 @limiter.limit("10/minute")
-async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)):
-    """Step 1 of impersonation: issue a one-time OTP (shown on-screen in dev mode)."""
+async def impersonate_request(request: Request, user_id: str,
+                              admin: dict = Depends(require_permission("impersonate"))):
+    """Step 1 of impersonation: email a one-time OTP to the USER. The user must
+    read the code back to the support member — account access requires the
+    user's consent. (On-screen fallback only when email delivery is off.)"""
     try:
         if not isinstance(user_id, str) or len(user_id) > 50:
             raise HTTPException(status_code=400, detail="Invalid user ID")
@@ -552,21 +556,24 @@ async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)
         target = await db.users.find_one({"user_id": user_id})
         if not target:
             raise HTTPException(status_code=404, detail="User not found")
-        if target.get("role") == "admin":
-            raise HTTPException(status_code=400, detail="You cannot impersonate another admin account.")
+        if target.get("role") in ("admin", "staff"):
+            raise HTTPException(status_code=400, detail="Internal team accounts cannot be impersonated.")
         if target.get("active") is False:
             raise HTTPException(status_code=400, detail="Reactivate this account before entering it.")
 
         request_id = f"imp_{uuid.uuid4().hex[:16]}"
         otp = f"{secrets.randbelow(900000) + 100000}"
         
+        expire_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
         await db.impersonation_otps.insert_one({
             "request_id": request_id,
             "admin_id": admin["user_id"],
             "target_user_id": user_id,
             "otp": otp,
             "used": False,
-            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            "expires_at": expire_dt.isoformat(),
+            # Real BSON date for the TTL index (auto-purges stale OTPs).
+            "expire_at": expire_dt,
             "created_at": _now(),
         })
         
@@ -575,14 +582,22 @@ async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)
             f"(request_id={request_id})"
         )
         
-        # SECURITY: In production (email configured), OTP should only be sent via email
+        # SECURITY: the OTP is emailed to the USER (consent gate) — staff must
+        # ask the user for the code. It is never emailed or shown to staff
+        # unless email delivery is unconfigured (local dev fallback).
         dev_mode = not email_service.is_configured()
+        if not dev_mode:
+            email_service.send_impersonation_otp(
+                target["email"], target.get("name"), otp, admin["email"])
         return {
             "request_id": request_id,
             "otp": otp if dev_mode else None,  # ONLY return in dev mode
             "dev_mode": dev_mode,
             "expires_in": 300,
-            "target_email": target["email"]
+            "target_email": target["email"],
+            "message": ("Code shown below (email delivery is off in this environment)."
+                        if dev_mode else
+                        f"A 6-digit code was emailed to {target['email']}. Ask the user to read it to you."),
         }
     except HTTPException:
         raise
@@ -593,7 +608,8 @@ async def impersonate_request(user_id: str, admin: dict = Depends(require_admin)
 
 @admin_router.post("/users/{user_id}/impersonate/verify")
 @limiter.limit("5/minute")
-async def impersonate_verify(user_id: str, body: ImpersonateVerify, admin: dict = Depends(require_admin)):
+async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVerify,
+                             admin: dict = Depends(require_permission("impersonate"))):
     """Step 2: verify the OTP and mint an access token for the target user."""
     try:
         if not isinstance(user_id, str) or len(user_id) > 50:
@@ -664,9 +680,10 @@ async def impersonate_verify(user_id: str, body: ImpersonateVerify, admin: dict 
 @admin_router.get("/envelopes")
 @limiter.limit("20/minute")
 async def list_all_envelopes(
+    request: Request,
     q: str = Query(""),
     status: str = Query("all"),
-    admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_permission("envelopes")),
 ):
     """List all envelopes (with safe filtering)."""
     try:
@@ -692,11 +709,20 @@ async def list_all_envelopes(
             query,
             {"_id": 0, "audit_events": 0, "fields": 0},
         ).sort("created_at", -1).to_list(500)
-        
+
         # Trim recipients to a light summary
         for it in items:
             it["recipient_count"] = len(it.get("recipients", []) or [])
             it.pop("recipients", None)
+            # PRIVACY: document contents belong to the user only. Expose bare
+            # metadata (name/pages), never file ids or page renders.
+            doc = it.pop("document", None) or {}
+            it["document"] = {
+                "original_filename": doc.get("original_filename"),
+                "page_count": doc.get("page_count"),
+            }
+            it.pop("completed_file_id", None)
+            it.pop("doc_hash", None)
         
         logger.info(f"[admin] list_all_envelopes by {admin['email']} - returned {len(items)} results")
         return items
@@ -709,7 +735,7 @@ async def list_all_envelopes(
 
 @admin_router.get("/contact-messages")
 @limiter.limit("20/minute")
-async def list_contacts(admin: dict = Depends(require_permission("contacts"))):
+async def list_contacts(request: Request, admin: dict = Depends(require_permission("contacts"))):
     """List contact form submissions."""
     try:
         items = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
@@ -722,7 +748,7 @@ async def list_contacts(admin: dict = Depends(require_permission("contacts"))):
 
 @admin_router.patch("/contact-messages/{contact_id}")
 @limiter.limit("10/minute")
-async def handle_contact(contact_id: str, body: ContactHandle, admin: dict = Depends(require_permission("contacts"))):
+async def handle_contact(request: Request, contact_id: str, body: ContactHandle, admin: dict = Depends(require_permission("contacts"))):
     """Mark contact as handled."""
     try:
         if not isinstance(contact_id, str) or len(contact_id) > 50:
@@ -761,9 +787,10 @@ def _enrich_tx(tx: dict, users_map: dict) -> dict:
 @admin_router.get("/transactions")
 @limiter.limit("20/minute")
 async def list_transactions(
+    request: Request,
     q: str = Query("", description="Search by email or session id"),
     status: str = Query("all", description="all | paid | pending | refunded | failed"),
-    admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_permission("billing")),
 ):
     """All Stripe payment attempts, newest first, with user info."""
     try:
@@ -817,7 +844,7 @@ async def list_transactions(
 
 @admin_router.get("/billing/metrics")
 @limiter.limit("10/minute")
-async def billing_metrics(admin: dict = Depends(require_admin)):
+async def billing_metrics(request: Request, admin: dict = Depends(require_permission("billing"))):
     """Revenue KPIs: gross, refunded, net, by plan, last-30-day daily series."""
     try:
         txs = await db.payment_transactions.find(
@@ -892,7 +919,7 @@ async def billing_metrics(admin: dict = Depends(require_admin)):
 
 @admin_router.post("/transactions/{tx_id}/refund")
 @limiter.limit("5/minute")
-async def refund_transaction(tx_id: str, body: RefundRequest, admin: dict = Depends(require_admin)):
+async def refund_transaction(request: Request, tx_id: str, body: RefundRequest, admin: dict = Depends(require_admin)):
     """
     Issue a Stripe refund for a paid transaction.
 
@@ -1033,9 +1060,10 @@ async def refund_transaction(tx_id: str, body: RefundRequest, admin: dict = Depe
 @admin_router.get("/audit-log")
 @limiter.limit("20/minute")
 async def admin_audit_log(
+    request: Request,
     limit: int = Query(200, ge=1, le=2000),
     action: str = Query("all"),
-    admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_permission("audit")),
 ):
     """Recent admin actions (impersonate, password resets, refunds)."""
     try:

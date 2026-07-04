@@ -116,7 +116,7 @@ export default function Usage() {
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="usage-stat-plan">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Current plan</span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#1FB8A622" }}>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#14B8A622" }}>
               <CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
             </span>
           </div>

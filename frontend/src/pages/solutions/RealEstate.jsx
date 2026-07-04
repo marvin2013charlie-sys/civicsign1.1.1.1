@@ -86,7 +86,7 @@ export default function RealEstate() {
               Sign tenancies & sales <span style={{ color: "var(--c-primary)" }}>without the paperwork.</span>
             </h1>
             <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CIVICSIGN is the UK-built e-signature platform for estate agents, letting agents, landlords and conveyancers. Send ASTs, memorandums of sale and statutory notices &mdash; legally binding, UK GDPR compliant, in minutes.
+              CivicSign is the UK-built e-signature platform for estate agents, letting agents, landlords and conveyancers. Send ASTs, memorandums of sale and statutory notices &mdash; legally binding, UK GDPR compliant, in minutes.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="re-cta-start">
@@ -127,7 +127,7 @@ export default function RealEstate() {
       {/* WHY */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
-          <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK property pros choose CIVICSIGN</h2>
+          <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK property pros choose CivicSign</h2>
           <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">Designed around the way British estate agents, letting agents and landlords actually work &mdash; not adapted from an American product.</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -176,7 +176,7 @@ export default function RealEstate() {
             </h2>
           </div>
           <p className="text-lg leading-relaxed text-[var(--muted-foreground)]">
-            HM Land Registry now accepts electronic signatures and electronic witnessing on dispositionary deeds. CIVICSIGN gives UK estate agents, conveyancers and landlords the flexibility and signing experience their clients expect — without sacrificing the legal weight of a wet signature.
+            HM Land Registry now accepts electronic signatures and electronic witnessing on dispositionary deeds. CivicSign gives UK estate agents, conveyancers and landlords the flexibility and signing experience their clients expect — without sacrificing the legal weight of a wet signature.
           </p>
         </div>
         <div className="mt-12 grid gap-8 sm:grid-cols-3">
@@ -201,7 +201,7 @@ export default function RealEstate() {
             className="relative"
             data-testid="realestate-form-preview"
           >
-            <div className="rounded-3xl p-6 sm:p-8" style={{ background: "var(--c-ink)" }}>
+            <div className="rounded-3xl p-6 sm:p-8" style={{ background: "var(--c-ink-solid)" }}>
               <div className="overflow-hidden rounded-2xl bg-white shadow-2xl">
                 <div className="flex gap-0 text-[var(--c-ink)]">
                   {/* Field palette rail */}
@@ -263,7 +263,7 @@ export default function RealEstate() {
           {/* Copy */}
           <div>
             <h2 className="font-heading text-3xl font-bold leading-tight text-[var(--c-ink)] sm:text-4xl">
-              CIVICSIGN eSignature <br className="hidden sm:block" />for Real Estate
+              CivicSign eSignature <br className="hidden sm:block" />for Real Estate
             </h2>
             <p className="mt-4 text-base leading-relaxed text-[var(--muted-foreground)]">
               Agents can simplify the way they prepare, send and manage agreements with an all-in-one solution.
@@ -282,7 +282,7 @@ export default function RealEstate() {
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-10 text-center text-white sm:p-14">
+        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Ready to ditch the printer?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first tenancy or sale signed today. Free for 5 documents a month &mdash; no card required, UK GDPR compliant from day one.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">

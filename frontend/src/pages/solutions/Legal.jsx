@@ -22,7 +22,7 @@ export default function Legal() {
         { value: "Witness", label: "Sequential witness routing built in" },
         { value: "100%", label: "UK-owned & UK-hosted" },
       ]}
-      whyHeadline="Why UK legal teams trust CIVICSIGN"
+      whyHeadline="Why UK legal teams trust CivicSign"
       whySubhead="Designed around the realities of UK private practice — Law Society guidance, SRA confidentiality, and the LSB's stance on electronic execution."
       why={[
         { icon: Clock, title: "Clients sign before they cool off", body: "Engagement letters sent in the morning are back signed before close of business — bill faster, write off less." },
@@ -33,7 +33,7 @@ export default function Legal() {
       compliance={{
         eyebrow: { icon: Landmark, label: "Law Commission · electronic execution of documents" },
         headline: "Yes, electronic signatures on UK deeds are legal — when the audit trail proves it.",
-        body: "The 2019 Law Commission report and HM Land Registry's 2020 update confirm e-signatures are valid for deeds, provided the signing process is auditable and the signatory's intent is clear. CIVICSIGN's tamper-evident Certificate of Completion is built specifically to evidence that intent.",
+        body: "The 2019 Law Commission report and HM Land Registry's 2020 update confirm e-signatures are valid for deeds, provided the signing process is auditable and the signatory's intent is clear. CivicSign's tamper-evident Certificate of Completion is built specifically to evidence that intent.",
       }}
       docsHeadline="Every legal document, signed in minutes"
       docsSubhead="Save them once as templates — reuse them every matter."

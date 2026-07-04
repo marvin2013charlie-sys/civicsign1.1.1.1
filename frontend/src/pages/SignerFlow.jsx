@@ -245,7 +245,7 @@ export default function SignerFlow() {
                     <div className="absolute inset-0">
                       {pageFields.map((f) => {
                         const px = { left: `${f.x * 100}%`, top: `${f.y * 100}%`, width: `${f.w * 100}%`, height: `${f.h * 100}%` };
-                        const color = f.recipient_color || "#1FB8A6";
+                        const color = f.recipient_color || "#14B8A6";
                         const fh = f.h * h;
                         const fontSize = Math.max(9, Math.min(16, fh * 0.6));
                         const v = values[f.field_id];
@@ -309,7 +309,7 @@ export default function SignerFlow() {
                               value={v || ""} onChange={(e) => setValues((p) => ({ ...p, [f.field_id]: e.target.value }))}
                               placeholder={f.type === "dropdown" ? "Select / type" : "Choose / type"}
                               className="cs-field bg-white px-1 outline-none"
-                              style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#0F1720", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
+                              style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#122120", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
                           );
                         }
                         // text / date / fullname / email / company / jobtitle / signdate
@@ -318,7 +318,7 @@ export default function SignerFlow() {
                             value={v || ""} onChange={(e) => setValues((p) => ({ ...p, [f.field_id]: e.target.value }))}
                             placeholder={meta.label}
                             className="cs-field bg-white px-1 outline-none"
-                            style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#0F1720", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
+                            style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#122120", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
                         );
                       })}
                     </div>
@@ -327,7 +327,7 @@ export default function SignerFlow() {
               })}
             </Document>
           )}
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Fingerprint className="h-3.5 w-3.5" /> Secured & timestamped by CIVICSIGN</div>
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Fingerprint className="h-3.5 w-3.5" /> Secured & timestamped by CivicSign</div>
         </div>
       )}
 

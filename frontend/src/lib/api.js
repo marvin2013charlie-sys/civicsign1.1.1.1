@@ -46,6 +46,24 @@ export async function fetchPdfBlobUrl(path) {
   return URL.createObjectURL(res.data);
 }
 
+// Save a file (returned by an authenticated API path) to the user's computer.
+// Sanitizes the filename and cleans up the object URL afterwards.
+export async function downloadFile(path, filename) {
+  const res = await api.get(path, { responseType: "blob" });
+  const safe = String(filename || "document")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim() || "document";
+  const url = URL.createObjectURL(res.data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = safe;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadCsv(path, filename) {
   const res = await api.get(path, { responseType: "blob" });
   const url = URL.createObjectURL(res.data);

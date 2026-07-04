@@ -3,16 +3,20 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ShieldCheck, Lock, ArrowLeft } from "lucide-react";
+import {
+  Loader2, ShieldCheck, Lock, ArrowLeft, Eye, EyeOff, Users, ScrollText,
+} from "lucide-react";
 
 export default function AdminLogin() {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // If an admin or staff member is already signed in, jump to the console.
@@ -41,51 +45,75 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--c-ink)] px-4 py-10">
-      {/* Decorative glow */}
-      <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
-        style={{ background: "var(--c-primary)" }} aria-hidden="true" />
-
-      <div className="relative w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--c-primary)" }}>
-            <ShieldCheck className="h-7 w-7 text-white" />
+    <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-2 lg:overflow-hidden">
+      {/* Brand panel */}
+      <div className="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex"
+        style={{ background: "linear-gradient(160deg, var(--c-ink-solid) 0%, #0E2B27 55%, #10695F 130%)" }}>
+        <Logo dark />
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+            <ShieldCheck className="h-3.5 w-3.5" style={{ color: "#7fe9dd" }} /> Internal console
           </span>
-          <h1 className="mt-4 font-heading text-2xl font-bold tracking-tight text-white">
-            CIVIC<span style={{ color: "var(--c-primary)" }}>SIGN</span> Admin
-          </h1>
-          <p className="mt-1 text-sm text-white/50">Internal console — authorized team members only</p>
+          <h2 className="mt-4 font-heading text-4xl font-bold leading-tight">Run CivicSign behind the scenes.</h2>
+          <div className="mt-8 space-y-4 text-white/80">
+            <p className="flex items-center gap-3"><Users className="h-5 w-5" style={{ color: "#7fe9dd" }} /> User support, diagnostics &amp; impersonation</p>
+            <p className="flex items-center gap-3"><ScrollText className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Billing, refunds &amp; audit log</p>
+            <p className="flex items-center gap-3"><Lock className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Role-based access for staff accounts</p>
+          </div>
         </div>
+        <p className="text-xs text-white/50">© {new Date().getFullYear()} CivicSign · Access is restricted and monitored</p>
+      </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur" data-testid="admin-login-card">
-          <form onSubmit={submit} className="space-y-4">
-            <div>
-              <Label htmlFor="admin-email" className="text-white/80">Work email</Label>
-              <Input id="admin-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@civicsign.com" autoComplete="username"
-                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-[var(--c-primary)]"
-                data-testid="admin-login-email" />
-            </div>
-            <div>
-              <Label htmlFor="admin-password" className="text-white/80">Password</Label>
-              <Input id="admin-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" autoComplete="current-password"
-                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-[var(--c-primary)]"
-                data-testid="admin-login-password" />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full" data-testid="admin-login-submit"
-              style={{ background: "var(--c-primary)", color: "#fff" }}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<><Lock className="mr-1.5 h-4 w-4" /> Sign in to console</>)}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-xs text-white/30">
-            Access is restricted and monitored. Unauthorized use is prohibited.
+      {/* Form */}
+      <div className="flex justify-center bg-[var(--c-paper)] px-5 py-10 sm:p-8 lg:h-dvh lg:overflow-y-auto">
+        <div className="w-full max-w-md lg:my-auto">
+          <div className="mb-8 flex justify-center lg:hidden"><Logo /></div>
+          <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8 shadow-xl shadow-black/[0.04]" data-testid="admin-login-card">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--c-primary)" }}>
+              <ShieldCheck className="h-6 w-6 text-white" />
+            </span>
+            <h1 className="mt-4 font-heading text-2xl font-bold text-[var(--c-ink)]">
+              CivicSign <span style={{ color: "var(--c-primary)" }}>Admin</span>
+            </h1>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Authorized team members only.</p>
+
+            <form onSubmit={submit} className="mt-6 space-y-4">
+              <div>
+                <Label htmlFor="admin-email">Work email</Label>
+                <Input id="admin-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@civicbot.co.uk" autoComplete="username"
+                  className="mt-1 h-11" data-testid="admin-login-email" />
+              </div>
+              <div>
+                <Label htmlFor="admin-password">Password</Label>
+                <div className="relative mt-1">
+                  <Input id="admin-password" type={showPwd ? "text" : "password"} required value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••" autoComplete="current-password"
+                    className="h-11 pr-10" data-testid="admin-login-password" />
+                  <button type="button" onClick={() => setShowPwd((s) => !s)} tabIndex={-1}
+                    aria-label={showPwd ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] transition-colors hover:text-[var(--c-ink)]"
+                    data-testid="admin-login-toggle-password">
+                    {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <Button type="submit" disabled={loading} className="h-11 w-full text-[15px] font-semibold" data-testid="admin-login-submit"
+                style={{ background: "var(--c-primary)", color: "#fff" }}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<><Lock className="mr-1.5 h-4 w-4" /> Sign in to console</>)}
+              </Button>
+            </form>
+
+            <p className="mt-4 text-center text-xs text-[var(--muted-foreground)]">
+              Access is restricted and monitored. Unauthorized use is prohibited.
+            </p>
+          </div>
+
+          <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-[var(--muted-foreground)]">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <Link to="/" className="transition-colors hover:text-[var(--c-ink)]" data-testid="admin-login-back-home">Back to civicsign.com</Link>
           </p>
-        </div>
-
-        <div className="mt-6 flex items-center justify-center gap-1.5 text-sm text-white/40">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <Link to="/" className="transition-colors hover:text-white/70" data-testid="admin-login-back-home">Back to civicsign.com</Link>
         </div>
       </div>
     </div>

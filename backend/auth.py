@@ -1,5 +1,5 @@
-"""Authentication for CIVICSIGN: email/password (JWT) + Emergent Google OAuth.
-Both flows converge on the same JWT cookie session so the rest of the app uses a
+"""Authentication for CivicSign: email/password (JWT).
+All sessions use the same JWT cookie so the rest of the app relies on a
 single `get_current_user` dependency.
 
 SECURITY HARDENING:
@@ -17,23 +17,20 @@ import uuid
 import secrets
 import logging
 import re
-import hashlib
 import hmac
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
 import jwt
-import httpx
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File
 from fastapi.responses import Response as FastResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from html import escape
 
 import email_service
 from db import db, delete_file, upload_file, download_file
 from models import (
-    RegisterRequest, LoginRequest, GoogleSessionRequest,
+    RegisterRequest, LoginRequest,
     ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
     ResetPassword, VerifyEmail, ResendVerification, ForgotPassword,
 )
@@ -44,19 +41,19 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TTL_MIN = 60 * 24       # 1 day access
 REFRESH_TTL_DAYS = 7
 PLANS = {"free", "pro", "business"}
-EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# Password validation constants
-MIN_PASSWORD_LENGTH = 12
+# Password validation constants: minimum 8 chars with at least one capital
+# letter, one digit and one special character (mandatory).
+MIN_PASSWORD_LENGTH = 8
 PASSWORD_PATTERN = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{" + str(MIN_PASSWORD_LENGTH) + ",}$"
+    r"^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{" + str(MIN_PASSWORD_LENGTH) + ",}$"
 )
 PASSWORD_HELP_TEXT = (
-    "Password must be at least 12 characters and contain: "
-    "uppercase letter, lowercase letter, number, and special character (@$!%*?&)"
+    "Password must be at least 8 characters and contain at least "
+    "1 capital letter, 1 number and 1 special character"
 )
 
 # Brute force protection
@@ -232,6 +229,7 @@ VERIFY_TTL_MIN = 15
 async def _issue_verification_code(user_id: str, email: str, name: str = "") -> str:
     """Create/replace a 6-digit email verification code (valid 15 min) and send it."""
     code = f"{secrets.randbelow(900000) + 100000}"
+    _exp_dt = datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN)
     await db.email_verifications.update_one(
         {"email": email},
         {"$set": {
@@ -239,7 +237,9 @@ async def _issue_verification_code(user_id: str, email: str, name: str = "") -> 
             "email": email,
             "code": code,
             "attempts": 0,
-            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN)).isoformat(),
+            "expires_at": _exp_dt.isoformat(),
+            # Real BSON date for the TTL index (auto-purges stale codes).
+            "expire_at": _exp_dt,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }},
         upsert=True,
@@ -334,7 +334,7 @@ auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @auth_router.post("/register")
 @limiter.limit("5/hour")
-async def register(body: RegisterRequest, response: Response):
+async def register(request: Request, body: RegisterRequest, response: Response):
     """Register new user with email verification."""
     try:
         # Validate email format
@@ -402,7 +402,7 @@ async def register(body: RegisterRequest, response: Response):
 
 @auth_router.post("/verify-email")
 @limiter.limit("10/hour")
-async def verify_email(body: VerifyEmail, response: Response):
+async def verify_email(request: Request, body: VerifyEmail, response: Response):
     """Verify email with one-time code."""
     try:
         email = body.email.lower().strip()
@@ -459,7 +459,7 @@ async def verify_email(body: VerifyEmail, response: Response):
 
 @auth_router.post("/resend-verification")
 @limiter.limit("3/hour")
-async def resend_verification(body: ResendVerification):
+async def resend_verification(request: Request, body: ResendVerification):
     """Resend verification code to email."""
     try:
         email = body.email.lower().strip()
@@ -480,7 +480,7 @@ async def resend_verification(body: ResendVerification):
 
 @auth_router.post("/login")
 @limiter.limit("10/hour")
-async def login(body: LoginRequest, response: Response):
+async def login(request: Request, body: LoginRequest, response: Response):
     """Authenticate user with email and password."""
     try:
         email = body.email.lower().strip()
@@ -515,74 +515,6 @@ async def login(body: LoginRequest, response: Response):
     except Exception as e:
         logger.error(f"[auth] login error: {str(e)[:100]}")
         raise HTTPException(status_code=500, detail="Login failed")
-
-
-@auth_router.post("/session")
-@limiter.limit("10/hour")
-async def google_session(body: GoogleSessionRequest, response: Response):
-    """Exchange an Emergent OAuth session_id for user data, then mint our own JWT."""
-    try:
-        if not body.session_id or len(body.session_id) > 500:
-            raise HTTPException(status_code=400, detail="Invalid session ID")
-        
-        try:
-            async with httpx.AsyncClient(timeout=20) as c:
-                r = await c.get(
-                    EMERGENT_SESSION_URL,
-                    headers={"X-Session-ID": body.session_id}
-                )
-                r.raise_for_status()
-                data = r.json()
-        except Exception as e:
-            logger.error(f"[auth] Google session exchange failed: {str(e)[:100]}")
-            raise HTTPException(status_code=401, detail="Google authentication failed")
-
-        email = (data.get("email") or "").lower().strip()
-        if not email or "@" not in email:
-            raise HTTPException(status_code=401, detail="Google account has no valid email")
-
-        user = await db.users.find_one({"email": email})
-        if not user:
-            user_id = f"user_{uuid.uuid4().hex[:16]}"
-            user = {
-                "user_id": user_id,
-                "email": email,
-                "name": data.get("name", ""),
-                "password_hash": None,
-                "picture": data.get("picture"),
-                "mobile": None,
-                "auth_provider": "google",
-                "role": "user",
-                "plan": "free",
-                "active": True,
-                "email_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            await db.users.insert_one(user)
-            logger.info(f"[auth] New user created via Google: {email}")
-        else:
-            await db.users.update_one(
-                {"user_id": user["user_id"]},
-                {"$set": {
-                    "picture": data.get("picture") or user.get("picture"),
-                    "name": user.get("name") or data.get("name", ""),
-                    "email_verified": True
-                }},
-            )
-        
-        if user.get("active") is False:
-            raise HTTPException(status_code=403, detail="Your account has been deactivated. Contact support.")
-        
-        access = create_access_token(user["user_id"], email)
-        refresh = create_refresh_token(user["user_id"])
-        set_auth_cookies(response, access, refresh)
-        logger.info(f"[auth] Google login successful: {email}")
-        return {"user": _public_user(user), "access_token": access}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[auth] google_session error: {str(e)[:100]}")
-        raise HTTPException(status_code=500, detail="Google authentication failed")
 
 
 @auth_router.post("/refresh")
@@ -643,7 +575,7 @@ async def me(user: dict = Depends(get_current_user)):
 
 @auth_router.put("/profile")
 @limiter.limit("20/hour")
-async def update_profile(body: ProfileUpdate, user: dict = Depends(get_current_user)):
+async def update_profile(request: Request, body: ProfileUpdate, user: dict = Depends(get_current_user)):
     """Update the current user's profile — name, contact, and extended business details."""
     try:
         updates = {}
@@ -705,7 +637,7 @@ async def update_profile(body: ProfileUpdate, user: dict = Depends(get_current_u
 
 @auth_router.post("/change-password")
 @limiter.limit("5/hour")
-async def change_password(body: PasswordChange, user: dict = Depends(get_current_user)):
+async def change_password(request: Request, body: PasswordChange, user: dict = Depends(get_current_user)):
     """Change user password."""
     try:
         if not user.get("password_hash"):
@@ -741,7 +673,7 @@ async def change_password(body: PasswordChange, user: dict = Depends(get_current
 
 @auth_router.post("/subscription")
 @limiter.limit("10/hour")
-async def update_subscription(body: SubscriptionUpdate, user: dict = Depends(get_current_user)):
+async def update_subscription(request: Request, body: SubscriptionUpdate, user: dict = Depends(get_current_user)):
     """Update user subscription plan (only for downgrading)."""
     try:
         plan = (body.plan or "").lower().strip()
@@ -776,7 +708,7 @@ async def update_subscription(body: SubscriptionUpdate, user: dict = Depends(get
 
 @auth_router.delete("/account")
 @limiter.limit("1/hour")
-async def delete_account(body: AccountDelete, response: Response,
+async def delete_account(request: Request, body: AccountDelete, response: Response,
                          user: dict = Depends(get_current_user)):
     """
     Permanently delete the current user's account and ALL of their data
@@ -827,7 +759,7 @@ async def delete_account(body: AccountDelete, response: Response,
 
 @auth_router.post("/forgot-password")
 @limiter.limit("3/hour")
-async def forgot_password(body: ForgotPassword):
+async def forgot_password(request: Request, body: ForgotPassword):
     """Self-service: generate a reset link for an email."""
     try:
         email = body.email.lower().strip()
@@ -869,11 +801,14 @@ async def forgot_password(body: ForgotPassword):
 async def create_password_reset(user_id: str) -> str:
     """Create a one-time password-reset token (valid 1 hour)."""
     token = secrets.token_urlsafe(32)
+    _exp_dt = datetime.now(timezone.utc) + timedelta(hours=1)
     await db.password_resets.insert_one({
         "token": token,
         "user_id": user_id,
         "used": False,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "expires_at": _exp_dt.isoformat(),
+        # Real BSON date for the TTL index (auto-purges used/expired tokens).
+        "expire_at": _exp_dt,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return token
@@ -898,7 +833,7 @@ async def _valid_reset(token: str) -> dict:
 
 @auth_router.get("/reset-info")
 @limiter.limit("10/hour")
-async def reset_info(token: str):
+async def reset_info(request: Request, token: str):
     """Get reset link info (email and name)."""
     try:
         rec = await _valid_reset(token)
@@ -915,7 +850,7 @@ async def reset_info(token: str):
 
 @auth_router.post("/reset-password")
 @limiter.limit("5/hour")
-async def reset_password(body: ResetPassword):
+async def reset_password(request: Request, body: ResetPassword):
     """Complete password reset with new password."""
     try:
         rec = await _valid_reset(body.token)
@@ -949,7 +884,7 @@ MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MB
 
 @auth_router.post("/avatar")
 @limiter.limit("10/hour")
-async def upload_avatar(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def upload_avatar(request: Request, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     """Upload (or replace) the current user's avatar image."""
     try:
         if file.content_type not in ALLOWED_AVATAR_TYPES:
@@ -992,7 +927,7 @@ async def upload_avatar(file: UploadFile = File(...), user: dict = Depends(get_c
 
 @auth_router.delete("/avatar")
 @limiter.limit("10/hour")
-async def delete_avatar(user: dict = Depends(get_current_user)):
+async def delete_avatar(request: Request, user: dict = Depends(get_current_user)):
     """Delete user's avatar."""
     try:
         old = user.get("picture") or ""

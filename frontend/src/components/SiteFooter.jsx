@@ -44,7 +44,7 @@ export const SiteFooter = () => {
             <span aria-hidden="true">&#127468;&#127463;</span> UK-owned · UK GDPR · UK eIDAS &amp; ECA 2000 aligned
           </p>
           <p className="mt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
-            CIVICSIGN Technologies Ltd · 71-75 Shelton Street, Covent Garden, London WC2H 9JQ, United Kingdom
+            CivicBot LTD · 71-75 Shelton Street, Covent Garden, London WC2H 9JQ, United Kingdom
           </p>
         </div>
         {COLS.map((c) => (
@@ -66,7 +66,7 @@ export const SiteFooter = () => {
       </div>
       <div className="border-t border-[var(--c-border)]">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-[var(--muted-foreground)] sm:flex-row sm:px-6">
-          <p>© {new Date().getFullYear()} CIVICSIGN Technologies Ltd · Registered in England &amp; Wales. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} CivicBot LTD · Registered in England &amp; Wales. All rights reserved.</p>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:text-[var(--c-ink)]">Privacy</Link>
             <Link to="/terms" className="hover:text-[var(--c-ink)]">Terms</Link>

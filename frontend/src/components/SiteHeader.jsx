@@ -146,7 +146,7 @@ export const SiteHeader = () => {
         </nav>
         <div className="flex items-center gap-2">
           <Link to="/login" className="hidden sm:block"><Button variant="ghost" data-testid="nav-signin-button">Sign in</Button></Link>
-          <Link to="/register"><Button data-testid="nav-getstarted-button" style={{ background: "var(--c-ink)", color: "#fff" }}>Start free</Button></Link>
+          <Link to="/register"><Button data-testid="nav-getstarted-button" style={{ background: "var(--c-ink-solid)", color: "#fff" }}>Start free</Button></Link>
           <button className="md:hidden" onClick={() => setOpen((o) => !o)} aria-label="menu">
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>

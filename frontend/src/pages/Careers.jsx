@@ -63,7 +63,7 @@ export default function Careers() {
       <section className="border-b border-[var(--c-border)]">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-            <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Careers at CIVICSIGN
+            <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Careers at CivicSign
           </span>
           <h1 className="mt-4 font-heading text-4xl font-bold text-[var(--c-ink)] sm:text-5xl">
             Help us build the UK&rsquo;s trusted signing platform.

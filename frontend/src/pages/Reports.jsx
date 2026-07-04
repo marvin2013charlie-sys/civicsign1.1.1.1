@@ -59,7 +59,7 @@ export default function Reports() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
         ) : (
           <>
-            <StatCard icon={Files} label="Total" value={stats.total} accent="#1FB8A6" />
+            <StatCard icon={Files} label="Total" value={stats.total} accent="#14B8A6" />
             <StatCard icon={Clock} label="Awaiting" value={stats.pending} accent="#0284C7" />
             <StatCard icon={CheckCircle2} label="Completed" value={stats.counts.completed} accent="#16A34A" />
             <StatCard icon={TrendingUp} label="Completion" value={`${stats.completion_rate}%`} accent="#FF7A5C" />
@@ -77,14 +77,14 @@ export default function Reports() {
                   <AreaChart data={stats.series} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1FB8A6" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="#1FB8A6" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#14B8A6" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#14B8A6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#5C6B73" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "#5C6B73" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E3D7C6", fontSize: 12 }} />
-                    <Area type="monotone" dataKey="count" stroke="#1FB8A6" strokeWidth={2} fill="url(#rg)" />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1DDD1", fontSize: 12 }} />
+                    <Area type="monotone" dataKey="count" stroke="#14B8A6" strokeWidth={2} fill="url(#rg)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -102,7 +102,7 @@ export default function Reports() {
                     <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E3D7C6", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1DDD1", fontSize: 12 }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>

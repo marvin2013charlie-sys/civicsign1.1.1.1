@@ -1,4 +1,4 @@
-"""Backend tests for CIVICSIGN avatar upload + regression of login/me/blog/careers.
+"""Backend tests for CivicSign avatar upload + regression of login/me/blog/careers.
 Covers the new feature endpoints related to:
   - Avatar upload/delete/fetch (POST/DELETE/GET /api/auth/avatar)
   - Regression: login (user + admin), GET /api/auth/me
@@ -8,14 +8,20 @@ import io
 import os
 import struct
 import zlib
+from pathlib import Path
 import pytest
 import requests
+from dotenv import load_dotenv
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://git-workspace-3.preview.emergentagent.com").rstrip("/")
-USER_EMAIL = "user@civicsign.app"
-USER_PASS = "Welcome@2026!"
-ADMIN_EMAIL = "admin@civicsign.app"
-ADMIN_PASS = "Admin@2026!"
+# Load backend/.env so credential env vars match the running server's seed.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
+# Track whatever accounts the backend seeds (see backend/.env).
+USER_EMAIL = os.environ.get("ADMIN_EMAIL", "user@civicsign.app")
+USER_PASS = os.environ.get("ADMIN_PASSWORD", "Welcome@2026!")
+ADMIN_EMAIL = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicsign.app")
+ADMIN_PASS = os.environ.get("INTERNAL_ADMIN_PASSWORD", "Admin@2026!")
 
 
 def _make_png(size_px: int = 8) -> bytes:

@@ -1,5 +1,6 @@
-"""CIVICSIGN backend — FastAPI app: auth, envelopes, signer flow, finalization."""
+"""CivicSign backend — FastAPI app: auth, envelopes, signer flow, finalization."""
 import os
+import json
 import uuid
 import asyncio
 import logging
@@ -17,8 +18,12 @@ from fastapi import (
 )
 from fastapi.responses import Response as FastResponse
 from starlette.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from db import db, upload_file, download_file, delete_file
+from db import db, upload_file, download_file, delete_file, ping as db_ping
+from schema import ensure_database
 import pdf_service
 import email_service
 from models import (
@@ -31,16 +36,17 @@ from blog_admin import public_router as blog_public_router, admin_router as blog
 from careers import public_router as careers_public_router, admin_router as careers_admin_router
 from assistant import assistant_router
 from billing import billing_router
-from sample_templates import seed_sample_templates
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("civicsign")
 
-app = FastAPI(title="CIVICSIGN API")
+app = FastAPI(title="CivicSign API")
+app.state.limiter = Limiter(key_func=get_remote_address)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 api_router = APIRouter(prefix="/api")
 
-RECIPIENT_COLORS = ["#1FB8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"]
+RECIPIENT_COLORS = ["#14B8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"]
 DOCX_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/msword",
@@ -129,7 +135,7 @@ def build_envelope_from_template(tpl: dict, owner: dict, new_file_id: str,
             "recipient_id": rid,
             "name": (info.get("name") or role["name"]).strip(),
             "email": (info.get("email") or "").lower().strip(),
-            "order": role.get("order", 1), "color": role.get("color", "#1FB8A6"),
+            "order": role.get("order", 1), "color": role.get("color", "#14B8A6"),
             "status": "pending", "access_token": uuid.uuid4().hex,
             "viewed_at": None, "signed_at": None, "signer_name": None,
         })
@@ -202,7 +208,18 @@ async def finalize_envelope_doc(env: dict):
 # --------------------------------------------------------------------------
 @api_router.get("/")
 async def root():
-    return {"service": "CIVICSIGN", "status": "ok"}
+    return {"service": "CivicSign", "status": "ok"}
+
+
+@api_router.get("/health")
+async def health():
+    """Liveness + database reachability (for load balancers / uptime checks)."""
+    db_ok = await db_ping()
+    return FastResponse(
+        content=json.dumps({"status": "ok" if db_ok else "degraded", "database": db_ok}),
+        media_type="application/json",
+        status_code=200 if db_ok else 503,
+    )
 
 
 @api_router.post("/contact")
@@ -228,7 +245,7 @@ async def contact(body: ContactRequest, request: Request):
                 f"<p><b>{doc['name']}</b> ({doc['email']}) wrote:</p>"
                 f"<p><b>{doc['subject']}</b></p><p>{doc['message']}</p>",
             )
-            _send(support, f"[CIVICSIGN] Contact: {doc['subject']}", html)
+            _send(support, f"[CivicSign] Contact: {doc['subject']}", html)
     except Exception as e:
         logger.warning(f"contact email skipped: {e}")
     return {"ok": True, "message": "Thanks! We'll get back to you within 1 business day."}
@@ -571,7 +588,7 @@ async def create_template(envelope_id: str, body: TemplateCreate,
         role_id = f"role_{uuid.uuid4().hex[:10]}"
         role_map[r["recipient_id"]] = role_id
         roles.append({"role_id": role_id, "name": r["name"], "order": r.get("order", 1),
-                      "color": r.get("color", "#1FB8A6")})
+                      "color": r.get("color", "#14B8A6")})
     fields = [{
         "field_id": f"fld_{uuid.uuid4().hex[:10]}", "role_id": role_map[f["recipient_id"]],
         "page": f["page"], "type": f["type"], "x": f["x"], "y": f["y"], "w": f["w"],
@@ -600,7 +617,8 @@ async def list_templates(user: dict = Depends(get_current_user)):
 
 @api_router.get("/templates/samples")
 async def list_sample_templates(user: dict = Depends(get_current_user)):
-    return await db.templates.find({"is_sample": True}, {"_id": 0}).sort("name", 1).to_list(100)
+    # Starter/sample templates were removed — the Templates feature is "coming soon".
+    return []
 
 
 @api_router.get("/templates/{template_id}")
@@ -725,7 +743,7 @@ async def signer_view(token: str, request: Request):
         editable = (f["recipient_id"] == recipient["recipient_id"] and signable
                     and recipient["status"] not in ("signed", "declined"))
         rcolor = next((r["color"] for r in env["recipients"]
-                       if r["recipient_id"] == f["recipient_id"]), "#1FB8A6")
+                       if r["recipient_id"] == f["recipient_id"]), "#14B8A6")
         merged = {**f, "editable": editable, "recipient_color": rcolor}
         if (merged.get("value") in (None, "")
                 and editable
@@ -890,24 +908,18 @@ async def expiry_loop():
 
 @app.on_event("startup")
 async def startup():
+    # Single source of truth: collections, indexes, TTLs, and validators.
     try:
-        await db.users.create_index("email", unique=True)
-        await db.users.create_index("user_id", unique=True)
-        await db.envelopes.create_index("owner_id")
-        await db.envelopes.create_index("envelope_id", unique=True)
-        await db.envelopes.create_index("recipients.access_token")
-        await db.templates.create_index("owner_id")
-        await db.templates.create_index("template_id", unique=True)
+        await ensure_database(db)
     except Exception as e:
-        logger.warning(f"index creation: {e}")
+        logger.warning(f"schema ensure: {e}")
     await seed_admin()
-    await seed_sample_templates()
     asyncio.create_task(expiry_loop())
     try:
         mem = Path("/app/memory")
         mem.mkdir(parents=True, exist_ok=True)
         (mem / "test_credentials.md").write_text(
-            "# CIVICSIGN Test Credentials\n\n"
+            "# CivicSign Test Credentials\n\n"
             "## Demo sender account (email/password)\n"
             f"- Email: {os.environ.get('ADMIN_EMAIL','user@civicsign.app')}\n"
             f"- Password: {os.environ.get('ADMIN_PASSWORD','Welcome@2026!')}\n\n"
@@ -920,7 +932,7 @@ async def startup():
         )
     except Exception as e:
         logger.warning(f"could not write test_credentials: {e}")
-    logger.info("CIVICSIGN backend started")
+    logger.info("CivicSign backend started")
 
 
 @app.on_event("shutdown")

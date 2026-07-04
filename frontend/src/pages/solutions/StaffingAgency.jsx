@@ -50,7 +50,7 @@ export default function StaffingAgency() {
               Place candidates. <span style={{ color: "var(--c-primary)" }}>Sign contracts.</span> Done.
             </h1>
             <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CIVICSIGN is the UK-built e-signature platform for recruitment agencies, staffing firms and umbrella companies. Get terms of business, employment contracts and Right to Work forms signed &mdash; legally binding, UK GDPR compliant, in minutes.
+              CivicSign is the UK-built e-signature platform for recruitment agencies, staffing firms and umbrella companies. Get terms of business, employment contracts and Right to Work forms signed &mdash; legally binding, UK GDPR compliant, in minutes.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="staff-cta-start">
@@ -91,7 +91,7 @@ export default function StaffingAgency() {
       {/* WHY */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
-          <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK recruiters choose CIVICSIGN</h2>
+          <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK recruiters choose CivicSign</h2>
           <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">Designed around the way British staffing agencies actually work &mdash; from perm contracts to umbrella schedules &mdash; not adapted from an American product.</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -130,7 +130,7 @@ export default function StaffingAgency() {
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-10 text-center text-white sm:p-14">
+        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Ready to place faster?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first contract signed today. Free for 5 documents a month &mdash; no card required, UK GDPR compliant from day one.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">

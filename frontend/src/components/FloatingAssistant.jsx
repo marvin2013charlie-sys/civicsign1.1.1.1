@@ -21,7 +21,16 @@ export const FloatingAssistant = () => {
   const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(
+    () => !localStorage.getItem("cs_cookie_consent")
+  );
   const endRef = useRef(null);
+
+  useEffect(() => {
+    const onConsent = () => setBannerVisible(false);
+    window.addEventListener("cs-cookie-consent", onConsent);
+    return () => window.removeEventListener("cs-cookie-consent", onConsent);
+  }, []);
 
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,8 +65,8 @@ export const FloatingAssistant = () => {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close assistant" : "Open assistant"}
         data-testid="floating-assistant-toggle"
-        className="fixed bottom-5 right-5 z-[300] flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-        style={{ background: "var(--c-primary)", boxShadow: "0 10px 30px rgba(31,184,166,0.4)" }}
+        className={`fixed ${bannerVisible ? "bottom-[190px] sm:bottom-28" : "bottom-5"} right-5 z-[300] flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-[bottom,transform] duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
+        style={{ background: "var(--c-primary)", boxShadow: "0 10px 30px rgba(20,184,166,0.4)" }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>
@@ -66,10 +75,10 @@ export const FloatingAssistant = () => {
       {open && (
         <div
           data-testid="floating-assistant-panel"
-          className="fixed bottom-24 right-5 z-[300] flex h-[min(560px,75vh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-2xl"
+          className={`fixed ${bannerVisible ? "bottom-[270px] sm:bottom-[184px] h-[min(560px,calc(100vh-290px))] sm:h-[min(560px,calc(100vh-204px))]" : "bottom-24 h-[min(560px,75vh)]"} right-5 z-[300] flex w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-2xl`}
           style={{ animation: "cs-pop 200ms ease-out" }}
         >
-          <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-4 py-3" style={{ background: "var(--c-ink)" }}>
+          <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-4 py-3" style={{ background: "var(--c-ink-solid)" }}>
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)" }}>
               <Bot className="h-4 w-4 text-white" />
             </span>

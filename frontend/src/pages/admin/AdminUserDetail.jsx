@@ -90,9 +90,8 @@ function ImpersonateDialog({ open, onOpenChange, userId, targetName }) {
             <LogIn className="h-5 w-5" style={{ color: "var(--c-primary)" }} /> Enter {targetName}'s account
           </DialogTitle>
           <DialogDescription>
-            For security, entering a user's account requires a one-time verification code.
-            In production this code is emailed to the user for consent — while email delivery is
-            in skip-mode it is shown below for the support team.
+            Entering a user's account requires their consent: a one-time code is emailed to
+            the user, and they must read it back to you before you can proceed.
           </DialogDescription>
         </DialogHeader>
 
@@ -102,11 +101,16 @@ function ImpersonateDialog({ open, onOpenChange, userId, targetName }) {
           </div>
         ) : request ? (
           <div className="space-y-4">
-            {request.dev_mode && (
+            {request.dev_mode ? (
               <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-paper-2)] p-4 text-center" data-testid="impersonate-dev-otp">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Dev one-time code</p>
                 <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-[var(--c-ink)]">{request.otp}</p>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">Expires in 5 minutes</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">Expires in 5 minutes (email delivery is off in this environment)</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-[var(--c-border)] bg-[var(--status-sent-bg)] p-4 text-sm text-[var(--c-ink)]" data-testid="impersonate-emailed-note">
+                A 6-digit code has been emailed to <b>{request.target_email}</b>. Ask the user to
+                read it to you — it expires in 5 minutes.
               </div>
             )}
             <div>
@@ -147,6 +151,7 @@ export default function AdminUserDetail() {
   const navigate = useNavigate();
   const { user: actor } = useAuth();
   const isSuperAdmin = actor?.role === "admin";
+  const canImpersonate = isSuperAdmin || (actor?.permissions || []).includes("impersonate");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -364,13 +369,14 @@ export default function AdminUserDetail() {
           </div>
         </div>
 
-        {/* Support actions — super-admin only */}
-        {isSuperAdmin && (
+        {/* Support actions — super-admin, or staff granted the impersonate permission */}
+        {canImpersonate && (
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-detail-support">
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Support actions</h2>
           <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Help this user recover access or troubleshoot their account.</p>
 
-          {/* Password reset */}
+          {/* Password reset — super-admin only */}
+          {isSuperAdmin && (
           <div className="mt-4 rounded-lg border border-[var(--c-border)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -405,6 +411,7 @@ export default function AdminUserDetail() {
               </div>
             )}
           </div>
+          )}
 
           {/* Impersonation */}
           <div className="mt-3 rounded-lg border border-[var(--c-border)] p-4">

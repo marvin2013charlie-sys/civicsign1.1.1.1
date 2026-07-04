@@ -86,7 +86,7 @@ export default function Blog() {
               data-testid={`blog-category-${c.toLowerCase().replace(/\s|&/g, "-")}`}
               className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 activeCategory === c
-                  ? "border-[var(--c-ink)] bg-[var(--c-ink)] text-white"
+                  ? "border-[var(--c-ink)] bg-[var(--c-ink-solid)] text-white"
                   : "border-[var(--c-border)] bg-[var(--c-paper)] text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"
               }`}
             >
@@ -171,7 +171,7 @@ export default function Blog() {
 
       {/* Newsletter CTA */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-10 text-center text-white sm:p-14">
+        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Get UK e-signature insights, monthly.</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">No spam, no fluff — just clear takes on UK e-signature law, product updates and tips for paperless British businesses.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">

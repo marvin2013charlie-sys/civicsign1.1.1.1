@@ -1,12 +1,12 @@
-"""Resend email delivery for CIVICSIGN. Gracefully skips when no API key is
+"""Resend email delivery for CivicSign. Gracefully skips when no API key is
 configured so the app remains fully functional via shareable signing links."""
 import os
 import logging
 
 logger = logging.getLogger("civicsign.email")
 
-BRAND = "#1FB8A6"
-INK = "#0F1720"
+BRAND = "#14B8A6"
+INK = "#122120"
 
 
 def _enabled():
@@ -29,8 +29,8 @@ def _shell(title: str, body_html: str, cta_label: str = None, cta_url: str = Non
             f'{cta_label}</a>'
         )
     return f"""
-    <div style="background:#F7F3EC;padding:32px 0;font-family:Arial,Helvetica,sans-serif">
-      <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #E3D7C6;border-radius:16px;overflow:hidden">
+    <div style="background:#F8F7F2;padding:32px 0;font-family:Arial,Helvetica,sans-serif">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #E1DDD1;border-radius:16px;overflow:hidden">
         <div style="background:{INK};padding:20px 28px">
           <span style="color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.5px">CIVIC<span style="color:{BRAND}">SIGN</span></span>
         </div>
@@ -40,7 +40,7 @@ def _shell(title: str, body_html: str, cta_label: str = None, cta_url: str = Non
           <div style="margin-top:20px">{cta}</div>
         </div>
         <div style="padding:16px 28px;border-top:1px solid #eee;color:#8a9299;font-size:12px">
-          Sent securely via CIVICSIGN \u2022 Electronic signatures with a tamper-evident audit trail.
+          Sent securely via CivicSign \u2022 Electronic signatures with a tamper-evident audit trail.
         </div>
       </div>
     </div>"""
@@ -81,34 +81,53 @@ def is_configured() -> bool:
 def send_password_reset(to_email, name, reset_url):
     body = (
         f"<p>Hi {name or 'there'},</p>"
-        f"<p>A password reset was requested for your CIVICSIGN account. "
+        f"<p>A password reset was requested for your CivicSign account. "
         f"Click the button below to choose a new password. This link expires in 1 hour.</p>"
         f"<p style=\"color:#8a9299;font-size:13px\">If you didn't request this, you can safely ignore this email.</p>"
     )
     html = _shell("Reset your password", body, "Reset password", reset_url)
-    return _send(to_email, "Reset your CIVICSIGN password", html)
+    return _send(to_email, "Reset your CivicSign password", html)
 
 
 def send_verification_code(to_email, name, code):
     body = (
         f"<p>Hi {name or 'there'},</p>"
-        f"<p>Welcome to CIVICSIGN! Use the verification code below to confirm your email "
+        f"<p>Welcome to CivicSign! Use the verification code below to confirm your email "
         f"address and activate your account. This code expires in 15 minutes.</p>"
         f"<div style=\"margin:18px 0;text-align:center\">"
-        f"<span style=\"display:inline-block;background:#F2ECE3;border:1px solid #E3D7C6;"
+        f"<span style=\"display:inline-block;background:#F0EEE6;border:1px solid #E1DDD1;"
         f"border-radius:12px;padding:14px 24px;font-size:30px;font-weight:700;letter-spacing:8px;"
         f"color:{INK};font-family:Arial,sans-serif\">{code}</span></div>"
-        f"<p style=\"color:#8a9299;font-size:13px\">If you didn't create a CIVICSIGN account, "
+        f"<p style=\"color:#8a9299;font-size:13px\">If you didn't create a CivicSign account, "
         f"you can safely ignore this email.</p>"
     )
     html = _shell("Verify your email", body)
-    return _send(to_email, f"Your CIVICSIGN verification code: {code}", html)
+    return _send(to_email, f"Your CivicSign verification code: {code}", html)
+
+
+def send_impersonation_otp(to_email, name, code, staff_email):
+    """Consent OTP: a support member may only enter this user's account if the
+    user reads this code back to them. Sent to the USER, never to staff."""
+    body = (
+        f"<p>Hi {name or 'there'},</p>"
+        f"<p>A CivicSign support team member (<b>{staff_email}</b>) has asked to access "
+        f"your account to help troubleshoot an issue. To approve this, share the "
+        f"one-time code below with them. It expires in 5 minutes.</p>"
+        f"<div style=\"margin:18px 0;text-align:center\">"
+        f"<span style=\"display:inline-block;background:#F0EEE6;border:1px solid #E1DDD1;"
+        f"border-radius:12px;padding:14px 24px;font-size:30px;font-weight:700;letter-spacing:8px;"
+        f"color:{INK};font-family:Arial,sans-serif\">{code}</span></div>"
+        f"<p style=\"color:#8a9299;font-size:13px\">If you did not request support, do NOT share "
+        f"this code — simply ignore this email and no one will be able to access your account.</p>"
+    )
+    html = _shell("Approve support access", body)
+    return _send(to_email, f"CivicSign support access code: {code}", html)
 
 
 def send_welcome(to_email, name):
     body = (
         f"<p>Hi {name or 'there'},</p>"
-        f"<p>Your email is verified and your CIVICSIGN account is ready. \U0001F389</p>"
+        f"<p>Your email is verified and your CivicSign account is ready. \U0001F389</p>"
         f"<p>You can now prepare documents, add signature fields, and send them for "
         f"legally binding e-signatures \u2014 each with a tamper-evident audit trail.</p>"
         f"<ul style=\"color:#3a4650;font-size:14px;line-height:1.7\">"
@@ -117,12 +136,12 @@ def send_welcome(to_email, name):
         f"<li>Send a secure signing link \u2014 no account required for signers</li>"
         f"</ul>"
     )
-    html = _shell("Welcome to CIVICSIGN", body)
-    return _send(to_email, "Welcome to CIVICSIGN \U0001F389", html)
+    html = _shell("Welcome to CivicSign", body)
+    return _send(to_email, "Welcome to CivicSign \U0001F389", html)
 
 
 def send_signing_invite(to_email, signer_name, sender_name, doc_title, sign_url, message=None):
-    extra = f'<p style="background:#F2ECE3;border-left:3px solid {BRAND};padding:10px 14px;border-radius:6px;margin:14px 0">\u201c{message}\u201d</p>' if message else ""
+    extra = f'<p style="background:#F0EEE6;border-left:3px solid {BRAND};padding:10px 14px;border-radius:6px;margin:14px 0">\u201c{message}\u201d</p>' if message else ""
     body = (
         f"<p>Hi {signer_name or 'there'},</p>"
         f"<p><b>{sender_name}</b> has requested your signature on "

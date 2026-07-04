@@ -1,7 +1,7 @@
 """
 Blog post + internal staff management for the admin/internal-team portal.
 
-Roles in CIVICSIGN:
+Roles in CivicSign:
   - admin: super-admin with full access (billing, refunds, audit, users, blog, staff).
   - staff: internal team member with limited access (blog management only).
   - user / business: regular customers (no admin access).
@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 
-from auth import require_admin, require_admin_or_staff, require_permission
+from auth import require_admin, require_permission
 from db import db
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -247,7 +247,7 @@ async def create_staff(body: StaffCreate, admin: dict = Depends(require_admin)):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="A user with that email already exists")
-    allowed = {"blog", "contacts", "users-read", "careers"}
+    allowed = {"blog", "contacts", "users-read", "careers", "envelopes", "billing", "audit", "impersonate"}
     perms = sorted(set(body.permissions) & allowed) or ["blog"]
     user = {
         "user_id": "user_" + secrets.token_hex(8),

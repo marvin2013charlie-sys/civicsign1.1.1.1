@@ -12,7 +12,7 @@ import json
 from datetime import datetime, timezone
 
 # Use the production-configured external URL from frontend/.env
-BASE_URL = "https://git-workspace-3.preview.emergentagent.com/api"
+BASE_URL = "http://localhost:8001/api"
 
 class Colors:
     GREEN = '\033[92m'

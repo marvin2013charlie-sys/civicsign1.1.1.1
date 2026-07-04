@@ -22,7 +22,7 @@ export default function FinancialServices() {
         { value: "MLR 2017", label: "AML-aware audit trail" },
         { value: "100%", label: "UK-owned & UK-hosted" },
       ]}
-      whyHeadline="Why UK practices choose CIVICSIGN"
+      whyHeadline="Why UK practices choose CivicSign"
       whySubhead="Designed around the MLR 2017 / 2019 regulations and ICAEW / ACCA / AAT engagement-letter guidance."
       why={[
         { icon: Clock, title: "Get fee approvals before the deadline", body: "Send engagement letters with fee schedules pre-filled. Client signs from their phone before HMRC's filing deadline." },
@@ -33,7 +33,7 @@ export default function FinancialServices() {
       compliance={{
         eyebrow: { icon: Landmark, label: "ICAEW · electronic engagement letters" },
         headline: "ICAEW confirms: electronic engagement letters are valid.",
-        body: "Both ICAEW and ACCA permit engagement letters to be signed electronically, provided you can evidence the client's identity and the date of agreement. CIVICSIGN captures both — IP, timestamp, email verification and a sealed Certificate of Completion. Your file passes monitoring review every time.",
+        body: "Both ICAEW and ACCA permit engagement letters to be signed electronically, provided you can evidence the client's identity and the date of agreement. CivicSign captures both — IP, timestamp, email verification and a sealed Certificate of Completion. Your file passes monitoring review every time.",
       }}
       docsHeadline="Every accounting & financial document, signed in minutes"
       docsSubhead="Save your engagement pack as a template — every client, in one click."

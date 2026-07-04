@@ -1,7 +1,7 @@
-"""Stripe billing for CIVICSIGN.
+"""Stripe billing for CivicSign.
 
-One-time Checkout charges for plan upgrades (Pro / Business) using the Emergent
-Stripe Checkout wrapper. Prices are defined server-side ONLY and never trusted
+One-time Checkout charges for plan upgrades (Pro / Business) using the official
+Stripe SDK. Prices are defined server-side ONLY and never trusted
 from the client. Every attempt is recorded in `payment_transactions`, and plan
 upgrades are applied idempotently (guarded by a `processed` flag) from either the
 status-polling endpoint or the webhook.
@@ -15,6 +15,7 @@ SECURITY HARDENING:
 """
 import os
 import uuid
+import asyncio
 import logging
 import hmac
 import hashlib
@@ -24,9 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest,
-)
+import stripe
 
 from db import db
 from auth import get_current_user, _public_user
@@ -64,13 +63,12 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _get_checkout(request: Request) -> StripeCheckout:
+def _require_stripe_key() -> str:
     api_key = os.environ.get("STRIPE_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Billing is not configured")
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url}api/webhook/stripe"
-    return StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+    stripe.api_key = api_key
+    return api_key
 
 
 def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
@@ -184,7 +182,11 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     """Create a Stripe checkout session for plan upgrade."""
     plan_id = (body.plan_id or "").lower().strip()
     if plan_id not in PLANS:
-        raise HTTPException(status_code=400, detail="Choose a paid plan (Pro or Business) to upgrade.")
+        raise HTTPException(status_code=400, detail="Choose a paid plan to upgrade.")
+    if plan_id == "business":
+        # Business is sales-led: no self-serve checkout — the team quotes custom pricing.
+        raise HTTPException(status_code=400,
+                            detail="The Business plan is tailored to your team. Please contact us via the Contact page.")
     if user.get("plan") == plan_id:
         raise HTTPException(status_code=400, detail=f"You are already on the {PLANS[plan_id]['name']} plan.")
 
@@ -202,13 +204,23 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "source": "civicsign_subscription",
     }
 
-    stripe_checkout = _get_checkout(request)
-    checkout_request = CheckoutSessionRequest(
-        amount=amount, currency=CURRENCY,
-        success_url=success_url, cancel_url=cancel_url, metadata=metadata,
-    )
+    _require_stripe_key()
     try:
-        session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.create,
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": CURRENCY,
+                    "product_data": {"name": f"CivicSign {PLANS[plan_id]['name']} plan"},
+                    "unit_amount": int(round(amount * 100)),  # server-defined amount only
+                },
+                "quantity": 1,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
     except Exception as e:
         logger.error(f"[billing] create_checkout_session failed: {e}")
         raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
@@ -217,7 +229,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     await db.payment_transactions.insert_one({
         "tx_id": tx_id,
-        "session_id": session.session_id,
+        "session_id": session.id,
         "user_id": user["user_id"],
         "email": user["email"],
         "plan_id": plan_id,
@@ -231,7 +243,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "updated_at": _now(),
     })
 
-    return {"url": session.url, "session_id": session.session_id, "tx_id": tx_id}
+    return {"url": session.url, "session_id": session.id, "tx_id": tx_id}
 
 
 @billing_router.get("/billing/status/{session_id}")
@@ -262,38 +274,33 @@ async def checkout_status(session_id: str, request: Request,
         )
         raise HTTPException(status_code=403, detail="This payment session belongs to another account")
 
-    stripe_checkout = _get_checkout(request)
+    _require_stripe_key()
     try:
-        status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
     except Exception as e:
         logger.error(f"[billing] get_checkout_status failed: {e}")
         raise HTTPException(status_code=502, detail="Could not verify payment status. Please try again.")
 
     # CRITICAL: Only apply upgrade if status truly shows "paid"
     # Never trust payment_status from user input - always re-verify with Stripe
-    await _apply_plan_upgrade(session_id, status.payment_status, status.status)
+    await _apply_plan_upgrade(session_id, session.payment_status, session.status)
 
     # Best-effort: capture payment_intent on the tx so refunds can target it.
     try:
-        if status.payment_status == "paid" and not tx.get("payment_intent_id"):
-            import stripe as _stripe
-            _stripe.api_key = os.environ.get("STRIPE_API_KEY")
-            if _stripe.api_key:
-                sess = _stripe.checkout.Session.retrieve(session_id)
-                pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
-                if pi:
-                    await db.payment_transactions.update_one(
-                        {"session_id": session_id}, {"$set": {"payment_intent_id": pi, "updated_at": _now()}}
-                    )
+        pi = getattr(session, "payment_intent", None)
+        if session.payment_status == "paid" and pi and not tx.get("payment_intent_id"):
+            await db.payment_transactions.update_one(
+                {"session_id": session_id}, {"$set": {"payment_intent_id": pi, "updated_at": _now()}}
+            )
     except Exception as _e:
         logger.warning(f"[billing] could not capture payment_intent for {session_id}: {_e}")
 
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return {
-        "status": status.status,
-        "payment_status": status.payment_status,
-        "amount_total": status.amount_total,
-        "currency": status.currency,
+        "status": session.status,
+        "payment_status": session.payment_status,
+        "amount_total": session.amount_total,
+        "currency": session.currency,
         "plan_id": tx.get("plan_id"),
         "user": _public_user(fresh) if fresh else None,
     }
@@ -317,25 +324,25 @@ async def stripe_webhook(request: Request):
         logger.error("[billing] webhook received without Stripe-Signature header - rejecting")
         raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
 
-    stripe_checkout = _get_checkout(request)
+    _require_stripe_key()
     try:
-        event = await stripe_checkout.handle_webhook(payload, sig_header)
+        event = stripe.Webhook.construct_event(payload, sig_header, get_webhook_secret())
     except Exception as e:
         logger.error(f"[billing] webhook signature verification failed: {e}")
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    # We only care about completed checkout sessions; acknowledge everything else.
+    if event.get("type") not in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+        return {"received": True}
+
+    session = event.get("data", {}).get("object") or {}
+    session_id = session.get("id")
+    payment_status = session.get("payment_status")
+
     # CRITICAL: Only process valid events
-    if not event or not hasattr(event, 'session_id'):
+    if not session_id or not payment_status:
         logger.warning("[billing] webhook event missing required fields")
         raise HTTPException(status_code=400, detail="Invalid webhook event structure")
-
-    # CRITICAL: Verify event contains expected data
-    if not hasattr(event, 'payment_status'):
-        logger.warning("[billing] webhook event missing payment_status")
-        raise HTTPException(status_code=400, detail="Invalid webhook event structure")
-
-    session_id = event.session_id
-    payment_status = event.payment_status
 
     # Validate session_id and payment_status format
     if not isinstance(session_id, str) or len(session_id) > 256:

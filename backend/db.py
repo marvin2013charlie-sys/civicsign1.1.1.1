@@ -1,4 +1,4 @@
-"""Shared MongoDB connection + GridFS helpers for CIVICSIGN."""
+"""Shared MongoDB connection + GridFS helpers for CivicSign."""
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -9,9 +9,29 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+
+# Works transparently for both a local `mongodb://` URL and a hosted
+# `mongodb+srv://` MongoDB Atlas cluster. Atlas needs TLS + SRV (dnspython),
+# both already handled by the driver. These options give fast failure on a
+# bad/unreachable cluster and enable safe retryable writes.
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=8000,
+    connectTimeoutMS=8000,
+    retryWrites=True,
+    appname="civicsign",
+)
 db = client[os.environ['DB_NAME']]
 fs = AsyncIOMotorGridFSBucket(db)
+
+
+async def ping() -> bool:
+    """Return True if the database is reachable (used by health checks)."""
+    try:
+        await client.admin.command("ping")
+        return True
+    except Exception:
+        return False
 
 
 async def upload_file(data: bytes, filename: str, content_type: str = "application/pdf") -> str:

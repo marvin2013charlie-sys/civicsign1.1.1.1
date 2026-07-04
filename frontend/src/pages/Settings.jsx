@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError, API_ORIGIN } from "@/lib/api";
+import { validatePassword } from "@/lib/password";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -40,18 +41,18 @@ const PLAN_DEFS = [
     ],
   },
   {
-    id: "business", name: "Business", price: "£49", period: "/ month", icon: Building2,
+    id: "business", name: "Business", price: "Custom", period: "pricing", icon: Building2,
     tagline: "For organisations at scale",
     features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send & advanced routing", "API access & webhooks", "Dedicated priority support"],
   },
 ];
 
 const FAQS = [
-  { q: "Are CIVICSIGN signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion \u2014 aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
+  { q: "Are CivicSign signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion \u2014 aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
   { q: "What file types can I upload?", a: "You can upload PDF and Microsoft Word (.docx) documents. Word files are automatically converted to PDF before preparation." },
   { q: "Do my signers need an account?", a: "No. Recipients receive a secure signing link and can complete only their assigned fields without creating an account." },
   { q: "How do reminders and expiration work?", a: "From an envelope's detail page you can send a reminder to pending signers. When sending, you can also set the document to expire in 3, 7, 14, or 30 days." },
-  { q: "Can I reuse documents I send often?", a: "Yes. Prepare a document with fields and roles, then choose 'Save as template'. You can also use the ready-made Starter templates such as NDA, Offer Letter and more." },
+  { q: "Can I reuse documents I send often?", a: "Reusable templates are coming soon — you'll be able to save any prepared document as a template and send it again in seconds." },
   { q: "How do I change or cancel my plan?", a: "Head to the Subscription tab on this page to switch between Free, Pro, and Business plans at any time." },
 ];
 
@@ -178,7 +179,7 @@ function AvatarCard() {
           <button
             type="button" onClick={onPick} data-testid="avatar-upload-overlay"
             aria-label="Change profile picture"
-            className="absolute -bottom-1 -right-1 inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--card)] bg-[var(--c-ink)] text-white shadow-sm transition-transform hover:scale-105"
+            className="absolute -bottom-1 -right-1 inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--card)] bg-[var(--c-ink-solid)] text-white shadow-sm transition-transform hover:scale-105"
           >
             <Camera className="h-3.5 w-3.5" />
           </button>
@@ -257,7 +258,8 @@ function ProfileTab() {
   };
 
   const changePassword = async () => {
-    if (pwd.new_password.length < 6) { toast.error("New password must be at least 6 characters"); return; }
+    const pwdError = validatePassword(pwd.new_password);
+    if (pwdError) { toast.error(pwdError); return; }
     if (pwd.new_password !== pwd.confirm) { toast.error("New passwords do not match"); return; }
     setChangingPwd(true);
     try {
@@ -607,13 +609,21 @@ function SubscriptionTab() {
                   </li>
                 ))}
               </ul>
-              <Button className="mt-5" disabled={isCurrent || switching === p.id || verifying} onClick={() => choose(p.id)}
-                data-testid={`plan-select-${p.id}`}
-                variant={isCurrent ? "outline" : "default"}
-                style={isCurrent ? {} : { background: "var(--c-primary)", color: "#fff" }}>
-                {switching === p.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                {isCurrent ? "Current plan" : p.id === "free" ? "Switch to Free" : `Upgrade to ${p.name}`}
-              </Button>
+              {p.id === "business" && !isCurrent ? (
+                <Button className="mt-5" data-testid="plan-select-business"
+                  onClick={() => window.location.assign("/contact")}
+                  style={{ background: "var(--c-primary)", color: "#fff" }}>
+                  Talk to our team
+                </Button>
+              ) : (
+                <Button className="mt-5" disabled={isCurrent || switching === p.id || verifying} onClick={() => choose(p.id)}
+                  data-testid={`plan-select-${p.id}`}
+                  variant={isCurrent ? "outline" : "default"}
+                  style={isCurrent ? {} : { background: "var(--c-primary)", color: "#fff" }}>
+                  {switching === p.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                  {isCurrent ? "Current plan" : p.id === "free" ? "Switch to Free" : `Upgrade to ${p.name}`}
+                </Button>
+              )}
             </div>
           );
         })}

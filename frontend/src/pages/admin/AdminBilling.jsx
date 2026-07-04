@@ -207,7 +207,7 @@ export default function AdminBilling() {
           <>
             <KPI icon={PoundSterling} label="Gross revenue" value={fmtMoney(metrics.totals.gross, currency)} accent="#16A34A" sub={`${metrics.totals.paid_count} paid`} />
             <KPI icon={RefreshCcw} label="Refunded" value={fmtMoney(metrics.totals.refunded, currency)} accent="#DC2626" sub={`${metrics.totals.refunded_count} refund(s)`} />
-            <KPI icon={TrendingUp} label="Net revenue" value={fmtMoney(metrics.totals.net, currency)} accent="#1FB8A6" sub="Gross − refunded" />
+            <KPI icon={TrendingUp} label="Net revenue" value={fmtMoney(metrics.totals.net, currency)} accent="#14B8A6" sub="Gross − refunded" />
             <KPI icon={ReceiptText} label="Transactions" value={metrics.totals.transactions} accent="#0284C7" sub="All time" />
           </>
         )}

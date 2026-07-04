@@ -50,7 +50,7 @@ export const FIELD_ORDER = [
 ];
 
 export function hexToRgba(hex, a = 1) {
-  const h = (hex || "#1FB8A6").replace("#", "");
+  const h = (hex || "#14B8A6").replace("#", "");
   const r = parseInt(h.substring(0, 2), 16);
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);

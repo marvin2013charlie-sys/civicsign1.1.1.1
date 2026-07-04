@@ -22,7 +22,7 @@ import {
   GripVertical, X, Users, ListOrdered, LayoutTemplate, LayoutGrid,
 } from "lucide-react";
 
-const COLORS = ["#1FB8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"];
+const COLORS = ["#14B8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"];
 
 function PrepareField({ f, color, selected, onSelect, onChange, onDelete }) {
   const meta = FIELD_TYPES[f.type] || FIELD_TYPES.text;
@@ -189,7 +189,7 @@ export default function PrepareStudio() {
   const updateField = (fid, patch) => setFields((p) => p.map((f) => (f.field_id === fid ? { ...f, ...patch } : f)));
   const deleteField = (fid) => { setFields((p) => p.filter((f) => f.field_id !== fid)); setSelected(null); };
 
-  const colorFor = (rid) => recipients.find((r) => r.recipient_id === rid)?.color || "#1FB8A6";
+  const colorFor = (rid) => recipients.find((r) => r.recipient_id === rid)?.color || "#14B8A6";
 
   const persist = async () => {
     const payload = {
@@ -353,7 +353,7 @@ export default function PrepareStudio() {
         {/* Document canvas */}
         <div className="min-w-0 flex-1 overflow-auto cs-scroll cs-grid-paper" data-testid="prepare-canvas">
           {tool && (
-            <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-[var(--c-ink)] px-4 py-2 text-sm text-white">
+            <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-[var(--c-ink-solid)] px-4 py-2 text-sm text-white">
               <Plus className="h-4 w-4" /> Placing <b>{FIELD_TYPES[tool].label}</b> — click on the document. <button className="ml-2 underline" onClick={() => setTool(null)}>Done</button>
             </div>
           )}

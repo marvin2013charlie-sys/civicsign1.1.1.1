@@ -1,6 +1,6 @@
 {
   "short_name": "CivicSign",
-  "name": "CIVICSIGN — UK GDPR e-signature",
+  "name": "CivicSign — UK GDPR e-signature",
   "icons": [
     { "src": "favicon.ico", "sizes": "16x16 32x32 48x48", "type": "image/x-icon" },
     { "src": "favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
@@ -10,6 +10,6 @@
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#0F1720",
-  "background_color": "#F7F3EC"
+  "theme_color": "#122120",
+  "background_color": "#F8F7F2"
 }

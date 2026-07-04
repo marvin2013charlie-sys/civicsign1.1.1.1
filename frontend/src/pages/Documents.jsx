@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import api, { formatApiError } from "@/lib/api";
+import api, { formatApiError, downloadFile } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye, Inbox,
+  FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye, Inbox, Download,
 } from "lucide-react";
 
 export default function Documents() {
@@ -57,6 +57,17 @@ export default function Documents() {
       setEnvelopes((prev) => prev.filter((x) => x.envelope_id !== id));
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const downloadDoc = async (e) => {
+    const completed = e.status === "completed" && e.completed_file_id;
+    const path = completed ? `/envelopes/${e.envelope_id}/completed` : `/envelopes/${e.envelope_id}/file`;
+    const filename = `${e.title || "document"}${completed ? "-completed" : ""}.pdf`;
+    try {
+      await downloadFile(path, filename);
+    } catch {
+      toast.error("Could not download this document");
     }
   };
 
@@ -146,6 +157,9 @@ export default function Documents() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => openEnvelope(e)}>
                         {e.status === "draft" ? <><Send className="mr-2 h-4 w-4" /> Continue</> : <><Eye className="mr-2 h-4 w-4" /> View</>}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => downloadDoc(e)} data-testid="document-row-download">
+                        <Download className="mr-2 h-4 w-4" /> Download{e.status === "completed" ? " (signed)" : ""}
                       </DropdownMenuItem>
                       <DropdownMenuItem className="text-red-600" onClick={() => remove(e.envelope_id)}>
                         <Trash2 className="mr-2 h-4 w-4" /> Delete

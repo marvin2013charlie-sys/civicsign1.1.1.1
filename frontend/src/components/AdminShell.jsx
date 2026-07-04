@@ -13,12 +13,12 @@ import { hasAdminAccess } from "@/components/RequirePerm";
 const NAV = [
   { to: "/admin",          end: true, label: "Overview",          icon: LayoutDashboard, testid: "admin-nav-overview", perm: "admin" },
   { to: "/admin/users",                label: "Users",             icon: Users,           testid: "admin-nav-users",     perm: "users-read" },
-  { to: "/admin/envelopes",            label: "Envelopes",         icon: FileText,        testid: "admin-nav-envelopes", perm: "admin" },
+  { to: "/admin/envelopes",            label: "Envelopes",         icon: FileText,        testid: "admin-nav-envelopes", perm: "envelopes" },
   { to: "/admin/blog",                 label: "Blog",              icon: BookOpen,        testid: "admin-nav-blog",      perm: "blog" },
   { to: "/admin/careers",              label: "Careers",           icon: Briefcase,       testid: "admin-nav-careers",   perm: "careers" },
   { to: "/admin/team",                 label: "Internal Team",     icon: UserCog,         testid: "admin-nav-team",      perm: "admin" },
-  { to: "/admin/billing",              label: "Billing & Refunds", icon: CreditCard,      testid: "admin-nav-billing",   perm: "admin" },
-  { to: "/admin/audit",                label: "Audit Log",         icon: History,         testid: "admin-nav-audit",     perm: "admin" },
+  { to: "/admin/billing",              label: "Billing & Refunds", icon: CreditCard,      testid: "admin-nav-billing",   perm: "billing" },
+  { to: "/admin/audit",                label: "Audit Log",         icon: History,         testid: "admin-nav-audit",     perm: "audit" },
   { to: "/admin/contacts",             label: "Contact Inbox",     icon: Inbox,           testid: "admin-nav-contacts",  perm: "contacts" },
 ];
 
@@ -88,14 +88,14 @@ export const AdminShell = () => {
 
   return (
     <div className="min-h-screen bg-[var(--c-paper)]">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 bg-[var(--c-ink)] lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 bg-[var(--c-ink-solid)] lg:block">
         <NavList user={user} onLogout={handleLogout} goApp={goApp} />
       </aside>
 
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 w-64 bg-[var(--c-ink)] shadow-xl">
+          <div className="absolute inset-y-0 left-0 w-64 bg-[var(--c-ink-solid)] shadow-xl">
             <button className="absolute right-3 top-3 text-white/70" onClick={() => setOpen(false)}><X className="h-5 w-5" /></button>
             <NavList user={user} onLogout={handleLogout} goApp={goApp} onNavigate={() => setOpen(false)} />
           </div>

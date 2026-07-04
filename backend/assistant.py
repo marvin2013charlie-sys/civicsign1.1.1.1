@@ -1,15 +1,13 @@
-"""CIVICSIGN in-app AI help assistant.
+"""CivicSign in-app AI help assistant.
 
-Uses Google Gemini (gemini-2.5-flash) via the Emergent universal LLM key through
-the `emergentintegrations` library. Conversation history is supplied by the client
-(short-lived help widget), so no server-side persistence is required here. The chat
-endpoint is public so the floating assistant can also help visitors on the homepage.
+The LLM integration was removed along with the Emergent platform dependencies.
+The chat endpoint stays public so the floating help widget keeps working: it now
+returns a friendly static reply until a new LLM provider is wired in (see
+SYSTEM_PROMPT below, kept for that purpose).
 """
-import os
-import uuid
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from models import ChatRequest
 
@@ -18,7 +16,7 @@ logger = logging.getLogger("civicsign.assistant")
 assistant_router = APIRouter(prefix="/api/assistant", tags=["assistant"])
 
 SYSTEM_PROMPT = (
-    "You are CivicSign Assistant, the friendly in-app guide for CIVICSIGN, a modern "
+    "You are CivicSign Assistant, the friendly in-app guide for CivicSign, a modern "
     "UK-based e-signature platform. You help both prospective visitors and signed-in users. "
     "Product help topics: uploading PDF or Word documents; the Prepare Studio (drag-and-drop "
     "signature, initials, date, text and checkbox fields; adding recipients; sequential vs "
@@ -47,47 +45,19 @@ SYSTEM_PROMPT = (
     "consult a qualified solicitor for their specific situation. Never fabricate features that don't exist."
 )
 
-MODEL_PROVIDER = "gemini"
-MODEL_NAME = "gemini-2.5-flash"
+FALLBACK_REPLY = (
+    "Thanks for your message! The AI assistant is offline at the moment, but here are "
+    "some quick pointers:\n\n"
+    "• Send a document: Dashboard → New Envelope → upload a PDF or Word file, drag "
+    "your fields in the Prepare Studio, add recipients and hit Send.\n"
+    "• Plans (GBP): Free £0 · Pro £15/mo · Business £49/mo — manage them under "
+    "Settings → Subscription.\n"
+    "• UK law: e-signatures are generally legally valid under the Electronic "
+    "Communications Act 2000 and UK eIDAS.\n\n"
+    "For anything else, reach us via the Contact page and we'll get back to you."
+)
 
 
 @assistant_router.post("/chat")
 async def chat(body: ChatRequest):
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="The AI assistant is not configured yet.")
-
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:  # pragma: no cover
-        logger.error(f"emergentintegrations import failed: {e}")
-        raise HTTPException(status_code=503, detail="The AI assistant is not available.")
-
-    # Keep only the most recent turns to bound token usage.
-    history = (body.history or [])[-10:]
-    convo_lines = []
-    for m in history:
-        speaker = "User" if (m.role or "").lower() == "user" else "Assistant"
-        convo_lines.append(f"{speaker}: {m.content}")
-
-    if convo_lines:
-        prompt = (
-            "Conversation so far:\n" + "\n".join(convo_lines) +
-            f"\n\nUser's new message: {body.message}\n\nReply as CivicSign Assistant."
-        )
-    else:
-        prompt = body.message
-
-    reply = ""
-    try:
-        chat_client = LlmChat(
-            api_key=api_key,
-            session_id=f"help_{uuid.uuid4().hex[:12]}",
-            system_message=SYSTEM_PROMPT,
-        ).with_model(MODEL_PROVIDER, MODEL_NAME)
-        reply = await chat_client.send_message(UserMessage(text=prompt))
-    except Exception as e:
-        logger.error(f"assistant chat error: {e}")
-        raise HTTPException(status_code=502, detail="The assistant is temporarily unavailable. Please try again.")
-
-    return {"reply": reply if isinstance(reply, str) else str(reply)}
+    return {"reply": FALLBACK_REPLY}

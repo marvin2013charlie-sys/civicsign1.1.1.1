@@ -9,7 +9,7 @@ import subprocess
 import json
 from datetime import datetime
 
-BASE_URL = "https://git-workspace-3.preview.emergentagent.com/api"
+BASE_URL = "http://localhost:8001/api"
 
 class Colors:
     GREEN = '\033[92m'

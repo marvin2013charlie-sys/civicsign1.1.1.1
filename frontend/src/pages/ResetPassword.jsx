@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api, { formatApiError } from "@/lib/api";
+import { validatePassword } from "@/lib/password";
 import { Loader2, KeyRound, ShieldCheck, CircleCheck, CircleAlert } from "lucide-react";
 
 export default function ResetPassword() {
@@ -40,7 +41,8 @@ export default function ResetPassword() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (pwd.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    const pwdError = validatePassword(pwd);
+    if (pwdError) { toast.error(pwdError); return; }
     if (pwd !== confirm) { toast.error("Passwords do not match"); return; }
     setSaving(true);
     try {
@@ -57,17 +59,17 @@ export default function ResetPassword() {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between bg-[var(--c-ink)] p-10 text-white lg:flex">
+      <div className="relative hidden flex-col justify-between bg-[var(--c-ink-solid)] p-10 text-white lg:flex">
         <Logo dark />
         <div>
           <h2 className="font-heading text-4xl font-bold leading-tight">Set a new password</h2>
-          <p className="mt-4 max-w-sm text-white/70">Choose a strong password to secure your CIVICSIGN account. Reset links expire one hour after they're issued.</p>
+          <p className="mt-4 max-w-sm text-white/70">Choose a strong password to secure your CivicSign account. Reset links expire one hour after they're issued.</p>
           <div className="mt-8 space-y-4 text-white/80">
             <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Encrypted, tamper-evident workflows</p>
             <p className="flex items-center gap-3"><KeyRound className="h-5 w-5" style={{ color: "#7fe9dd" }} /> One-time, single-use reset links</p>
           </div>
         </div>
-        <p className="text-xs text-white/50">© {new Date().getFullYear()} CIVICSIGN</p>
+        <p className="text-xs text-white/50">© {new Date().getFullYear()} CivicSign</p>
       </div>
 
       {/* Form */}

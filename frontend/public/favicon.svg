@@ -1,12 +1,9 @@
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <!-- CIVICSIGN favicon: teal "sign wave" on dark navy rounded square -->
-  <rect width="64" height="64" rx="14" fill="#0F1720"/>
-  <path
-    d="M12 40c7-3 10-16 18-16s8 11 16 8 10-13 12-13"
-    fill="none"
-    stroke="#1FB8A6"
-    stroke-width="6"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+  <!-- CivicSign favicon: "C" drawn as a stroked arc (no font dependency)
+       over the brand teal rule + dot, on dark ink rounded square -->
+  <rect width="64" height="64" rx="14" fill="#122120"/>
+  <path d="M 42.5 16.5 A 14.5 14.5 0 1 0 42.5 35.5"
+        fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+  <rect x="14" y="47" width="28" height="4" rx="2" fill="#14B8A6"/>
+  <circle cx="48" cy="49" r="3.5" fill="#2DD4BF"/>
 </svg>

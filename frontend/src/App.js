@@ -8,7 +8,6 @@ import { Loader2 } from "lucide-react";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import AuthCallback from "@/pages/AuthCallback";
 import Dashboard from "@/pages/Dashboard";
 import NewEnvelope from "@/pages/NewEnvelope";
 import Documents from "@/pages/Documents";
@@ -99,10 +98,6 @@ function IdleLogoutGuard() {
 }
 
 function AppRoutes() {
-  // Handle Emergent Google OAuth callback BEFORE any route/auth logic (race-safe).
-  if (typeof window !== "undefined" && window.location.hash && window.location.hash.includes("session_id=")) {
-    return <AuthCallback />;
-  }
   return (
     <>
       <IdleLogoutGuard />
@@ -139,14 +134,15 @@ function AppRoutes() {
       <Route path="/reports" element={<Protected><Reports /></Protected>} />
       <Route path="/usage" element={<Protected><Usage /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
+      {/* Internal team sign-in lives on an unlisted path (not linked from the public UI). */}
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
         <Route index element={<AdminIndex />} />
         <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
         <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
-        <Route path="envelopes" element={<RequirePerm perm="admin"><AdminEnvelopes /></RequirePerm>} />
-        <Route path="billing" element={<RequirePerm perm="admin"><AdminBilling /></RequirePerm>} />
-        <Route path="audit" element={<RequirePerm perm="admin"><AdminAuditLog /></RequirePerm>} />
+        <Route path="envelopes" element={<RequirePerm perm="envelopes"><AdminEnvelopes /></RequirePerm>} />
+        <Route path="billing" element={<RequirePerm perm="billing"><AdminBilling /></RequirePerm>} />
+        <Route path="audit" element={<RequirePerm perm="audit"><AdminAuditLog /></RequirePerm>} />
         <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
         <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
         <Route path="careers" element={<RequirePerm perm="careers"><AdminCareers /></RequirePerm>} />

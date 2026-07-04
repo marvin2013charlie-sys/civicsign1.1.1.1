@@ -8,73 +8,81 @@
   --font-heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
 
-  /* CIVICSIGN brand hex tokens */
-  --c-ink: #0F1720;
-  --c-ink-2: #16212C;
-  --c-paper: #F7F3EC;
-  --c-paper-2: #F2ECE3;
-  --c-border: #E3D7C6;
-  --c-primary: #1FB8A6;
-  --c-primary-hover: #0EA5A4;
+  /* CivicSign brand hex tokens (teal matched to the final logo lockup).
+     Neutrals are a soft ivory with the yellow cast dialed back so the teal
+     reads clean; ink is a deep green-black that echoes the logo wordmark. */
+  --c-ink: #122120;
+  --c-ink-2: #1B2E2C;
+  /* Always-dark surface (does NOT flip in dark mode) — for footers, CTA pills,
+     cookie banner and other dark panels that carry light text. */
+  --c-ink-solid: #122120;
+  --c-paper: #F8F7F2;
+  --c-paper-2: #F0EEE6;
+  --c-border: #E1DDD1;
+  --c-primary: #14B8A6;
+  --c-primary-hover: #0D9488;
+  --c-logo-dot: #2DD4BF;
   --c-accent: #FF7A5C;
   --c-accent-hover: #FF6A4A;
 
   /* Card surface (opaque hex so direct `bg-[var(--card)]` works without `hsl()` wrapping) */
-  --card: #FBF8F2;
+  --card: #FCFBF7;
 
   /* status tokens */
-  --status-draft-bg: #F2ECE3; --status-draft-fg: #16212C; --status-draft-border: #D8C7A6;
-  --status-sent-bg: #E6F7F4; --status-sent-fg: #0F1720; --status-sent-border: #1FB8A6;
-  --status-viewed-bg: #E6F2FA; --status-viewed-fg: #0F1720; --status-viewed-border: #0284C7;
-  --status-completed-bg: #EAF7EE; --status-completed-fg: #0F1720; --status-completed-border: #16A34A;
-  --status-declined-bg: #FDECEC; --status-declined-fg: #0F1720; --status-declined-border: #DC2626;
-  --status-expired-bg: #F4EFE6; --status-expired-fg: #0F1720; --status-expired-border: #B45309;
+  --status-draft-bg: #F0EEE6; --status-draft-fg: #1B2E2C; --status-draft-border: #D5CFBE;
+  --status-sent-bg: #E4F6F2; --status-sent-fg: #122120; --status-sent-border: #14B8A6;
+  --status-viewed-bg: #E6F2FA; --status-viewed-fg: #122120; --status-viewed-border: #0284C7;
+  --status-completed-bg: #EAF7EE; --status-completed-fg: #122120; --status-completed-border: #16A34A;
+  --status-declined-bg: #FDECEC; --status-declined-fg: #122120; --status-declined-border: #DC2626;
+  --status-expired-bg: #F4EFE4; --status-expired-fg: #122120; --status-expired-border: #B45309;
 }
 
 /* Dark mode palette — applied when <html data-theme="dark"> */
 html[data-theme="dark"] {
-  --c-ink: #F4F6F8;
-  --c-ink-2: #E5E9EE;
-  --c-paper: #0B1117;
-  --c-paper-2: #131B23;
-  --c-border: #1F2A35;
+  --c-ink: #F1F5F3;
+  --c-ink-2: #E2E9E6;
+  --c-ink-solid: #0A1513;
+  --c-paper: #0C1311;
+  --c-paper-2: #141F1B;
+  --c-border: #22302B;
   --c-primary: #2DD4BF;
   --c-primary-hover: #14B8A6;
+  --c-logo-dot: #5EEAD4;
   --c-accent: #FF8B6F;
   --c-accent-hover: #FF7A5C;
-  --card: #131B23;
+  --card: #141F1B;
 
-  --status-draft-bg: #1A222B; --status-draft-fg: #E5E9EE; --status-draft-border: #2A3744;
-  --status-sent-bg: #0C2A26; --status-sent-fg: #E5E9EE; --status-sent-border: #2DD4BF;
-  --status-viewed-bg: #0C2030; --status-viewed-fg: #E5E9EE; --status-viewed-border: #0284C7;
-  --status-completed-bg: #0F2A1B; --status-completed-fg: #E5E9EE; --status-completed-border: #22C55E;
-  --status-declined-bg: #2A1417; --status-declined-fg: #E5E9EE; --status-declined-border: #EF4444;
-  --status-expired-bg: #2A1F12; --status-expired-fg: #E5E9EE; --status-expired-border: #D97706;
+  --status-draft-bg: #1B2622; --status-draft-fg: #E2E9E6; --status-draft-border: #2E3D37;
+  --status-sent-bg: #0C2A26; --status-sent-fg: #E2E9E6; --status-sent-border: #2DD4BF;
+  --status-viewed-bg: #0C2030; --status-viewed-fg: #E2E9E6; --status-viewed-border: #0284C7;
+  --status-completed-bg: #0F2A1B; --status-completed-fg: #E2E9E6; --status-completed-border: #22C55E;
+  --status-declined-bg: #2A1417; --status-declined-fg: #E2E9E6; --status-declined-border: #EF4444;
+  --status-expired-bg: #2A1F12; --status-expired-fg: #E2E9E6; --status-expired-border: #D97706;
 }
 
 @layer base {
   :root {
-    --background: 36 33% 95%;
-    --foreground: 210 33% 9%;
-    --card: 36 33% 98%;
-    --card-foreground: 210 33% 9%;
+    --background: 50 30% 96%;
+    --foreground: 176 29% 10%;
+    --card: 48 45% 98%;
+    --card-foreground: 176 29% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 33% 9%;
-    --primary: 173 71% 42%;
+    --popover-foreground: 176 29% 10%;
+    --primary: 173 80% 40%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 36 22% 90%;
-    --secondary-foreground: 210 33% 12%;
-    --muted: 36 18% 92%;
-    --muted-foreground: 200 10% 38%;
+    --secondary: 48 20% 91%;
+    --secondary-foreground: 176 26% 13%;
+    --muted: 48 18% 92%;
+    --muted-foreground: 176 10% 36%;
     --accent: 16 100% 68%;
-    --accent-foreground: 210 33% 9%;
+    --accent-foreground: 176 29% 10%;
     --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 36 14% 84%;
-    --input: 36 14% 84%;
-    --ring: 173 71% 42%;
+    --border: 45 21% 85%;
+    --input: 45 21% 85%;
+    --ring: 173 80% 40%;
     --radius: 0.75rem;
-    --chart-1: 173 71% 42%;
+    --chart-1: 173 80% 40%;
     --chart-2: 16 100% 68%;
     --chart-3: 199 89% 48%;
     --chart-4: 38 92% 50%;
@@ -82,25 +90,25 @@ html[data-theme="dark"] {
   }
 
   html[data-theme="dark"] {
-    --background: 210 26% 7%;
-    --foreground: 210 16% 95%;
-    --card: 210 22% 11%;
-    --card-foreground: 210 16% 95%;
-    --popover: 210 22% 11%;
-    --popover-foreground: 210 16% 95%;
-    --primary: 173 65% 51%;
-    --primary-foreground: 210 33% 9%;
-    --secondary: 210 18% 16%;
-    --secondary-foreground: 210 16% 95%;
-    --muted: 210 18% 14%;
-    --muted-foreground: 215 14% 70%;
+    --background: 163 23% 6%;
+    --foreground: 150 12% 95%;
+    --card: 160 21% 10%;
+    --card-foreground: 150 12% 95%;
+    --popover: 160 21% 10%;
+    --popover-foreground: 150 12% 95%;
+    --primary: 172 66% 50%;
+    --primary-foreground: 176 29% 10%;
+    --secondary: 160 16% 15%;
+    --secondary-foreground: 150 12% 95%;
+    --muted: 160 16% 13%;
+    --muted-foreground: 160 10% 70%;
     --accent: 16 100% 72%;
-    --accent-foreground: 210 33% 9%;
+    --accent-foreground: 176 29% 10%;
     --destructive: 0 78% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 210 14% 18%;
-    --input: 210 14% 18%;
-    --ring: 173 65% 51%;
+    --border: 160 17% 16%;
+    --input: 160 17% 16%;
+    --ring: 172 66% 50%;
   }
 }
 
@@ -114,7 +122,3 @@ html[data-theme="dark"] {
   }
   h1, h2, h3, h4, h5, .font-heading { font-family: var(--font-heading); }
 }
-
-
-/* White-label safety net: hide any injected third-party attribution badge */
-#emergent-badge { display: none !important; }

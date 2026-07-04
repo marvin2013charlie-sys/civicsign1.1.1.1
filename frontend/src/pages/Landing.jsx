@@ -54,24 +54,24 @@ const PLANS = [
       "Real-time commenting & collaboration",
       "Custom branding (logo & colours) to build trust",
     ] },
-  { name: "Business", price: "£49", note: "per user / month", cta: "Start free", to: "/register", highlight: false,
+  { name: "Business", price: "Custom", note: "tailored to your team", cta: "Talk to our team", to: "/contact", highlight: false,
     features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send", "API & webhooks", "Priority support"] },
 ];
 
 const TESTIMONIALS = [
-  { quote: "We replaced our clunky old tool in a day. CIVICSIGN is faster and our clients love how clean the signing page is.", name: "Maya Chen", role: "COO, Northwind Studio" },
+  { quote: "We replaced our clunky old tool in a day. CivicSign is faster and our clients love how clean the signing page is.", name: "Maya Chen", role: "COO, Northwind Studio" },
   { quote: "The audit trail and sealed certificate on every document gave our legal team instant peace of mind.", name: "David Okafor", role: "Head of Legal, Brightwave" },
   { quote: "Setup took minutes. Drag a few fields, hit send, done. Exactly what a small team needs.", name: "Sara Liang", role: "Founder, Tertia" },
 ];
 
 const FAQS = [
-  ["Are signatures from CIVICSIGN legally binding?", "Yes. CIVICSIGN is built around UK law — the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents — capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
-  ["Is CIVICSIGN UK GDPR compliant?", "Yes. CIVICSIGN is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with strict access controls, encryption in transit, and a clear data-subject rights process you can exercise at any time."],
+  ["Are signatures from CivicSign legally binding?", "Yes. CivicSign is built around UK law — the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents — capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
+  ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with strict access controls, encryption in transit, and a clear data-subject rights process you can exercise at any time."],
   ["Do my signers need an account?", "No. Recipients sign through a secure, tokenized link on any device — no account or download required."],
   ["What file types can I upload?", "PDF and Word (.docx) documents. Word files are automatically converted to PDF while preserving your layout."],
   ["How do you keep documents secure?", "We use encryption in transit, hashed passwords, tokenized links, and seal every finalized document with a SHA-256 hash so any change is detectable."],
   ["Can multiple people sign the same document?", "Yes. Add as many recipients as you need and choose sequential or parallel signing order, with color-coded fields per signer."],
-  ["What happens when everyone signs?", "CIVICSIGN finalizes a sealed PDF and appends a Certificate of Completion containing the full audit trail, then delivers it to all parties."],
+  ["What happens when everyone signs?", "CivicSign finalizes a sealed PDF and appends a Certificate of Completion containing the full audit trail, then delivers it to all parties."],
 ];
 
 export default function Landing() {
@@ -91,7 +91,7 @@ export default function Landing() {
               Sign documents.<br /><span style={{ color: "var(--c-primary)" }}>Close deals.</span> Done.
             </h1>
             <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CIVICSIGN is Britain&rsquo;s own e-signature platform &mdash; built in the UK, UK GDPR compliant, and aligned with the UK eIDAS Regulation and the Electronic Communications Act 2000. Upload, drag fields, send &mdash; get legally binding signatures with a tamper-evident audit trail.
+              CivicSign is Britain&rsquo;s own e-signature platform &mdash; built in the UK, UK GDPR compliant, and aligned with the UK eIDAS Regulation and the Electronic Communications Act 2000. Upload, drag fields, send &mdash; get legally binding signatures with a tamper-evident audit trail.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/register">
@@ -168,7 +168,7 @@ export default function Landing() {
       <section className="border-y border-[var(--c-border)] bg-[var(--card)]">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Built for every team</h2>
-          <p className="mt-3 max-w-2xl text-[var(--muted-foreground)]">From the first sales contract to the hundredth offer letter, CIVICSIGN fits the way you work.</p>
+          <p className="mt-3 max-w-2xl text-[var(--muted-foreground)]">From the first sales contract to the hundredth offer letter, CivicSign fits the way you work.</p>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {USE_CASES.map((u) => (
               <div key={u.title} className="flex gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] p-5">
@@ -223,7 +223,7 @@ export default function Landing() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink)] p-6 text-white">
+            <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-6 text-white">
               <div className="flex items-center gap-2 text-sm text-[#7fe9dd]"><Fingerprint className="h-4 w-4" /> Certificate of Completion</div>
               <div className="mt-4 space-y-2 font-mono text-xs text-white/80">
                 <p>Envelope ID: ENV-7f3a91c0</p>
@@ -247,7 +247,7 @@ export default function Landing() {
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
           {PLANS.map((p) => (
-            <div key={p.name} className={`relative rounded-2xl border p-6 ${p.highlight ? "border-[var(--c-primary)] bg-[var(--card)] shadow-[0_18px_50px_rgba(31,184,166,0.18)]" : "border-[var(--c-border)] bg-[var(--card)]"}`}>
+            <div key={p.name} className={`relative rounded-2xl border p-6 ${p.highlight ? "border-[var(--c-primary)] bg-[var(--card)] shadow-[0_18px_50px_rgba(20,184,166,0.18)]" : "border-[var(--c-border)] bg-[var(--card)]"}`}>
               {p.highlight && (
                 <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "var(--c-primary)" }}>
                   <Star className="h-3 w-3" /> Most popular
@@ -310,9 +310,9 @@ export default function Landing() {
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="rounded-3xl px-8 py-14 text-center" style={{ background: "linear-gradient(135deg, #1FB8A6 0%, #0EA5A4 60%, #0F1720 130%)" }}>
+        <div className="rounded-3xl px-8 py-14 text-center" style={{ background: "linear-gradient(135deg, #14B8A6 0%, #0D9488 60%, #122120 130%)" }}>
           <h2 className="font-heading text-3xl font-bold text-white sm:text-4xl">Ready to get your first signature?</h2>
-          <p className="mx-auto mt-3 max-w-md text-white/85">Create a free CIVICSIGN account and send your first document in minutes.</p>
+          <p className="mx-auto mt-3 max-w-md text-white/85">Create a free CivicSign account and send your first document in minutes.</p>
           <Link to="/register"><Button size="lg" className="mt-6" data-testid="cta-getstarted-button" style={{ background: "#fff", color: "var(--c-ink)" }}>Start free <ArrowRight className="ml-1.5 h-4 w-4" /></Button></Link>
         </div>
       </section>

@@ -22,7 +22,7 @@ export default function Education() {
         { value: "0 paper", label: "Lost trip permission slips" },
         { value: "MAT-ready", label: "Roll out across every school in your trust" },
       ]}
-      whyHeadline="Why UK education leaders trust CIVICSIGN"
+      whyHeadline="Why UK education leaders trust CivicSign"
       whySubhead="Designed around Keeping Children Safe in Education (KCSIE), DfE data protection guidance and the unique paperwork load of UK schools."
       why={[
         { icon: Clock, title: "Permission slips that don't live in a backpack", body: "Send the trip consent form by email — parent signs in 30 seconds, your office knows exactly who's coming." },
@@ -33,7 +33,7 @@ export default function Education() {
       compliance={{
         eyebrow: { icon: Landmark, label: "DfE · digital records for schools" },
         headline: "DfE: digital records satisfy single central record requirements.",
-        body: "The DfE's guidance for schools confirms that the single central record (SCR) can be maintained digitally, provided it captures every required field with a clear audit trail. CIVICSIGN gives you signed staff DBS declarations, safeguarding training acknowledgements and policy attestations — all timestamped and instantly retrievable for an Ofsted or DfE inspection.",
+        body: "The DfE's guidance for schools confirms that the single central record (SCR) can be maintained digitally, provided it captures every required field with a clear audit trail. CivicSign gives you signed staff DBS declarations, safeguarding training acknowledgements and policy attestations — all timestamped and instantly retrievable for an Ofsted or DfE inspection.",
       }}
       docsHeadline="Every school document, signed in minutes"
       docsSubhead="From parental consent to staff onboarding — paperless, audited, MAT-scalable."

@@ -31,10 +31,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    // If returning from Google OAuth, let AuthCallback exchange the session first.
-    if (window.location.hash && window.location.hash.includes("session_id=")) {
-      return;
-    }
     let active = true;
     (async () => {
       try {

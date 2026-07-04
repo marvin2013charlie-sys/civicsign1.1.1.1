@@ -60,7 +60,7 @@ function SidebarContent({ user, onLogout, onNavigate }) {
             className={({ isActive }) =>
               `mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
                 isActive
-                  ? "bg-[var(--c-ink)] text-white"
+                  ? "bg-[var(--c-ink-solid)] text-white"
                   : "text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"
               }`
             }
