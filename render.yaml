@@ -1,0 +1,50 @@
+# Render blueprint for the CivicSign FastAPI backend.
+# Deploy: Render Dashboard → New → Blueprint → pick this repo.
+# Secrets (sync:false) are set once in the dashboard, never committed.
+services:
+  - type: web
+    name: civicsign-api
+    runtime: docker
+    repo: https://github.com/marvin2013charlie-sys/civicsign1.3
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free               # free tier — sleeps after 15 min idle (~30-60s cold
+                             # start on wake). Change to "starter" ($7/mo) before
+                             # taking real traffic / enabling Stripe webhooks.
+    region: frankfurt        # closest Render region to the UK
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # --- Non-secret config ---
+      - key: DB_NAME
+        value: civicsign
+      - key: CORS_ORIGINS
+        value: https://civicsign.co.uk
+      - key: PUBLIC_SITE_URL
+        value: https://civicsign.co.uk
+      - key: SENDER_EMAIL
+        value: noreply@civicsign.co.uk
+      - key: SENDER_NAME
+        value: CivicSign
+      # --- Secrets: set these in the Render dashboard (sync:false) ---
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PLAN_ENCRYPTION_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: INTERNAL_ADMIN_EMAIL
+        sync: false
+      - key: INTERNAL_ADMIN_PASSWORD
+        sync: false
+      # --- Stripe (add when billing goes live) ---
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

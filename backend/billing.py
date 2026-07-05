@@ -82,12 +82,6 @@ def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
     return signature
 
 
-def _verify_plan_signature(user_id: str, plan_id: str, timestamp: str, signature: str) -> bool:
-    """Verify HMAC signature for plan validity."""
-    expected_signature = _generate_plan_signature(user_id, plan_id, timestamp)
-    return hmac.compare_digest(expected_signature, signature)
-
-
 async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str):
     """
     Idempotently update a transaction and upgrade the user's plan on success.
@@ -360,65 +354,3 @@ async def stripe_webhook(request: Request):
         logger.info(f"[billing] webhook processed payment for session {session_id}")
 
     return {"received": True}
-
-
-@billing_router.get("/billing/user-plan-verify")
-async def verify_user_plan(user: dict = Depends(get_current_user)):
-    """
-    Verify user's plan is valid and matches stored signature.
-    
-    This endpoint allows frontend to verify that plan hasn't been tampered with.
-    """
-    user_plan = user.get("plan", "free")
-    plan_sig = user.get("plan_signature")
-    plan_updated_at = user.get("plan_updated_at")
-
-    # Free plan doesn't require verification
-    if user_plan == "free":
-        return {
-            "plan": user_plan,
-            "verified": True,
-            "message": "Free plan (no signature required)"
-        }
-
-    # Paid plans must have signature
-    if not plan_sig or not plan_updated_at:
-        logger.warning(
-            f"[billing] user {user['user_id']} has paid plan but missing signature - "
-            "plan may have been tampered with"
-        )
-        # Downgrade to free as failsafe
-        await db.users.update_one(
-            {"user_id": user["user_id"]},
-            {"$set": {"plan": "free", "plan_signature": None}}
-        )
-        return {
-            "plan": "free",
-            "verified": False,
-            "message": "Plan verification failed - downgraded to free"
-        }
-
-    # Verify signature
-    is_valid = _verify_plan_signature(user["user_id"], user_plan, plan_updated_at, plan_sig)
-    
-    if not is_valid:
-        logger.error(
-            f"[billing] plan signature verification FAILED for user {user['user_id']} - "
-            "possible tampering detected!"
-        )
-        # Downgrade to free as failsafe
-        await db.users.update_one(
-            {"user_id": user["user_id"]},
-            {"$set": {"plan": "free", "plan_signature": None}}
-        )
-        return {
-            "plan": "free",
-            "verified": False,
-            "message": "Plan signature invalid - downgraded to free as failsafe"
-        }
-
-    return {
-        "plan": user_plan,
-        "verified": True,
-        "message": "Plan verified"
-    }

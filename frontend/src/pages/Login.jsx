@@ -125,6 +125,7 @@ export default function Login() {
         <div className="w-full max-w-md lg:my-auto">
           <div className="mb-8 flex justify-center lg:hidden"><Logo /></div>
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8 shadow-xl shadow-black/[0.04]">
+            <Logo className="mb-6" />
             <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Welcome back</h1>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Sign in to your CivicSign account.</p>
 

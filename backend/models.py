@@ -159,17 +159,6 @@ class ContactHandle(BaseModel):
     handled: bool = True
 
 
-# ---- AI assistant ----
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1)
-    history: Optional[List[ChatMessage]] = None
-
-
 # ---- Account ----
 class AccountDelete(BaseModel):
     confirm: str

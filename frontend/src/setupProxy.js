@@ -7,7 +7,9 @@ module.exports = function (app) {
   app.use(
     "/api",
     createProxyMiddleware({
-      target: "http://localhost:8001",
+      // Use 127.0.0.1 (not "localhost") so the proxy always hits the IPv4
+      // address uvicorn binds — "localhost" can resolve to IPv6 ::1 and fail.
+      target: "http://127.0.0.1:8001",
       changeOrigin: true,
     })
   );

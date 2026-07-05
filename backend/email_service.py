@@ -1,12 +1,36 @@
 """Resend email delivery for CivicSign. Gracefully skips when no API key is
 configured so the app remains fully functional via shareable signing links."""
 import os
+import base64
 import logging
+from pathlib import Path
 
 logger = logging.getLogger("civicsign.email")
 
 BRAND = "#14B8A6"
 INK = "#122120"
+
+# Public site URL used for absolute links in email bodies (e.g. CTAs).
+SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://civicsign.co.uk").rstrip("/")
+
+# The CivicSign wordmark (rendered from the brand's Space Grotesk face) is
+# embedded INLINE in every email via a CID attachment. Email clients can't load
+# custom fonts or SVG, and many block remote images by default — inlining makes
+# the brand mark render everywhere, immediately, without depending on a deploy.
+_LOGO_CID = "civicsign-logo"
+_LOGO_PATH = Path(__file__).resolve().parent / "assets" / "email-logo.png"
+_logo_cache = None
+
+
+def _logo_bytes():
+    global _logo_cache
+    if _logo_cache is None:
+        try:
+            _logo_cache = _LOGO_PATH.read_bytes()
+        except Exception as e:
+            logger.warning(f"[email] logo not found at {_LOGO_PATH}: {e}")
+            _logo_cache = b""
+    return _logo_cache
 
 
 def _enabled():
@@ -31,9 +55,12 @@ def _shell(title: str, body_html: str, cta_label: str = None, cta_url: str = Non
     return f"""
     <div style="background:#F8F7F2;padding:32px 0;font-family:Arial,Helvetica,sans-serif">
       <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #E1DDD1;border-radius:16px;overflow:hidden">
-        <div style="background:{INK};padding:20px 28px">
-          <span style="color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.5px">CIVIC<span style="color:{BRAND}">SIGN</span></span>
-        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{INK}" style="background:{INK}">
+          <tr><td style="padding:22px 28px">
+            <img src="cid:{_LOGO_CID}" width="158" height="46" alt="CivicSign"
+                 style="display:block;border:0;outline:none;text-decoration:none">
+          </td></tr>
+        </table>
         <div style="padding:28px">
           <h1 style="color:{INK};font-size:20px;margin:0 0 12px">{title}</h1>
           <div style="color:#3a4650;font-size:15px;line-height:1.6">{body_html}</div>
@@ -59,11 +86,23 @@ def _send(to_email, subject, html, attachment_bytes=None, attachment_name="docum
             "subject": subject,
             "html": html,
         }
+        # Always embed the brand logo inline (referenced as cid:civicsign-logo).
+        attachments = []
+        logo = _logo_bytes()
+        if logo:
+            attachments.append({
+                "filename": "civicsign-logo.png",
+                "content": base64.b64encode(logo).decode(),
+                "content_type": "image/png",
+                "content_id": _LOGO_CID,
+            })
         if attachment_bytes:
-            params["attachments"] = [{
+            attachments.append({
                 "filename": attachment_name,
-                "content": list(attachment_bytes),
-            }]
+                "content": base64.b64encode(bytes(attachment_bytes)).decode(),
+            })
+        if attachments:
+            params["attachments"] = attachments
         result = resend.Emails.send(params)
         email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
         logger.info(f"[EMAIL sent] to={to_email} id={email_id}")
@@ -125,18 +164,25 @@ def send_impersonation_otp(to_email, name, code, staff_email):
 
 
 def send_welcome(to_email, name):
+    step = (
+        "border-radius:10px;padding:12px 14px;margin:10px 0;background:#F8F7F2;"
+        "border:1px solid #EFEDE4;color:#3a4650;font-size:14px;line-height:1.5"
+    )
+    num = (
+        f"display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;"
+        f"border-radius:6px;background:{BRAND};color:#fff;font-weight:700;font-size:13px;margin-right:8px"
+    )
     body = (
         f"<p>Hi {name or 'there'},</p>"
-        f"<p>Your email is verified and your CivicSign account is ready. \U0001F389</p>"
-        f"<p>You can now prepare documents, add signature fields, and send them for "
-        f"legally binding e-signatures \u2014 each with a tamper-evident audit trail.</p>"
-        f"<ul style=\"color:#3a4650;font-size:14px;line-height:1.7\">"
-        f"<li>Upload a PDF or Word document</li>"
-        f"<li>Drag-and-drop signature, date and text fields</li>"
-        f"<li>Send a secure signing link \u2014 no account required for signers</li>"
-        f"</ul>"
+        f"<p>Your email is verified and your CivicSign account is ready. \U0001F389 "
+        f"Here's how to send your first document for a legally binding e-signature:</p>"
+        f"<div style=\"{step}\"><span style=\"{num}\">1</span>Upload a PDF or Word document from your dashboard.</div>"
+        f"<div style=\"{step}\"><span style=\"{num}\">2</span>Drag on signature, date and text fields in the Prepare Studio.</div>"
+        f"<div style=\"{step}\"><span style=\"{num}\">3</span>Add recipients and send a secure link \u2014 no account needed to sign.</div>"
+        f"<p style=\"margin-top:16px\">Every completed document comes with a tamper-evident audit "
+        f"trail and a Certificate of Completion.</p>"
     )
-    html = _shell("Welcome to CivicSign", body)
+    html = _shell("Welcome to CivicSign", body, "Go to your dashboard", f"{SITE_URL}/dashboard")
     return _send(to_email, "Welcome to CivicSign \U0001F389", html)
 
 

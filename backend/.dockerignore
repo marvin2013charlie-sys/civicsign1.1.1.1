@@ -1,0 +1,13 @@
+# Keep the image lean and secrets out of the build context.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+tests/
+*.md
+.pytest_cache/
+.DS_Store
+migrate_to_atlas.py

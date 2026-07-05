@@ -21,7 +21,6 @@ import secrets
 import logging
 import re
 import hmac
-import hashlib
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
@@ -46,25 +45,6 @@ limiter = Limiter(key_func=get_remote_address)
 
 STATUSES = ["draft", "sent", "viewed", "completed", "declined", "expired"]
 PLANS = ["free", "pro", "business"]
-ROLES = ["user", "admin"]
-
-# Plan secret for HMAC verification (must match billing.py)
-def get_plan_secret() -> str:
-    secret = os.environ.get("PLAN_ENCRYPTION_SECRET")
-    if not secret:
-        raise RuntimeError("PLAN_ENCRYPTION_SECRET environment variable is not set")
-    return secret
-
-
-def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
-    """Generate HMAC signature for plan verification."""
-    message = f"{user_id}:{plan_id}:{timestamp}".encode('utf-8')
-    signature = hmac.new(
-        get_plan_secret().encode('utf-8'),
-        message,
-        hashlib.sha256
-    ).hexdigest()
-    return signature
 
 
 def _now():
@@ -89,22 +69,6 @@ def _sanitize_string(value: str, max_length: int = 255) -> str:
     value = value[:max_length]
     # HTML escape for safe display
     return escape(value)
-
-
-def _validate_regex_pattern(pattern: str) -> str:
-    """Validate and sanitize regex pattern to prevent ReDoS attacks."""
-    if not isinstance(pattern, str):
-        raise ValueError("Pattern must be a string")
-    # Limit pattern length to prevent ReDoS
-    if len(pattern) > 100:
-        raise ValueError("Pattern too long (max 100 chars)")
-    # Escape special regex characters to prevent injection
-    # Allow only safe pattern matching
-    try:
-        re.compile(pattern)
-    except re.error as e:
-        raise ValueError(f"Invalid regex pattern: {str(e)}")
-    return pattern
 
 
 @admin_router.get("/metrics")

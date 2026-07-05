@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { hasAdminAccess } from "@/components/RequirePerm";
+import { Logo } from "@/components/Logo";
 
 // Each entry declares the permission it requires (see RequirePerm.jsx).
 // "admin" entries are super-admin only and are hidden from staff sidebars.
@@ -27,16 +28,11 @@ function NavList({ user, onLogout, onNavigate, goApp }) {
   const items = NAV.filter((n) => hasAdminAccess(user, n.perm));
   return (
     <div className="flex h-full flex-col text-white">
-      <div className="flex items-center gap-2 px-5 py-5">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)" }}>
-          <ShieldCheck className="h-4 w-4 text-white" />
-        </span>
-        <div className="leading-tight">
-          <p className="font-heading text-base font-bold tracking-tight">CIVIC<span style={{ color: "var(--c-primary)" }}>SIGN</span></p>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
-            {isStaff ? "Staff Console" : "Admin Console"}
-          </p>
-        </div>
+      <div className="px-5 py-5">
+        <Logo dark />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-white/50">
+          {isStaff ? "Staff Console" : "Admin Console"}
+        </p>
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map((n) => (

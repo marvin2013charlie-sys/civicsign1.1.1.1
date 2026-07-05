@@ -69,10 +69,7 @@ export default function AdminLogin() {
         <div className="w-full max-w-md lg:my-auto">
           <div className="mb-8 flex justify-center lg:hidden"><Logo /></div>
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8 shadow-xl shadow-black/[0.04]" data-testid="admin-login-card">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--c-primary)" }}>
-              <ShieldCheck className="h-6 w-6 text-white" />
-            </span>
-            <h1 className="mt-4 font-heading text-2xl font-bold text-[var(--c-ink)]">
+            <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">
               CivicSign <span style={{ color: "var(--c-primary)" }}>Admin</span>
             </h1>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Authorized team members only.</p>

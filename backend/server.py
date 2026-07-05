@@ -34,7 +34,6 @@ from auth import auth_router, get_current_user, seed_admin
 from admin import admin_router
 from blog_admin import public_router as blog_public_router, admin_router as blog_admin_router
 from careers import public_router as careers_public_router, admin_router as careers_admin_router
-from assistant import assistant_router
 from billing import billing_router
 
 logging.basicConfig(level=logging.INFO,
@@ -880,7 +879,6 @@ app.include_router(blog_admin_router)
 app.include_router(blog_public_router)
 app.include_router(careers_admin_router)
 app.include_router(careers_public_router)
-app.include_router(assistant_router)
 app.include_router(billing_router)
 
 app.add_middleware(

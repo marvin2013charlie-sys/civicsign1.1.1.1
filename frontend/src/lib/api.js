@@ -1,22 +1,11 @@
 import axios from "axios";
 
-// Use a same-origin "/api" base when the configured backend URL points to a
-// different origin than the page (e.g. workspace URL baked into a deployed
-// build). Kubernetes ingress routes /api/* to the backend on every preview
-// and deployment, so a relative URL works in all environments and avoids
-// cross-origin CORS issues with credentialed requests.
-const ENV_URL = process.env.REACT_APP_BACKEND_URL || "";
-let BACKEND_URL = ENV_URL;
-try {
-  if (typeof window !== "undefined" && ENV_URL) {
-    const envOrigin = new URL(ENV_URL).origin;
-    if (envOrigin !== window.location.origin) {
-      BACKEND_URL = ""; // fall back to same-origin
-    }
-  }
-} catch {
-  BACKEND_URL = ""; // malformed URL -> same-origin
-}
+// Backend base URL. In production set REACT_APP_BACKEND_URL to the API origin
+// (e.g. https://api.civicsign.co.uk) — requests go there with a Bearer token.
+// When unset (local dev), we use a relative "/api" so setupProxy.js forwards
+// to the local backend. Trailing slashes are trimmed so `${BACKEND_URL}/api`
+// is always well-formed.
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
 export const API_BASE = `${BACKEND_URL}/api`;
 // Bare backend origin (no `/api` suffix) — used for absolute media URLs like avatars.
 export const API_ORIGIN = BACKEND_URL;
