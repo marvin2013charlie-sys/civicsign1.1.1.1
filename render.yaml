@@ -19,7 +19,15 @@ services:
       - key: DB_NAME
         value: civicsign
       - key: CORS_ORIGINS
+        value: https://civicsign.co.uk,https://www.civicsign.co.uk
+      - key: FRONTEND_URL
         value: https://civicsign.co.uk
+      - key: DEV_MODE
+        value: "false"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
       - key: PUBLIC_SITE_URL
         value: https://civicsign.co.uk
       - key: SENDER_EMAIL
@@ -32,6 +40,8 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: PLAN_ENCRYPTION_SECRET
+        sync: false
+      - key: DOCUMENT_ENCRYPTION_KEY
         sync: false
       - key: RESEND_API_KEY
         sync: false

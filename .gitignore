@@ -15,6 +15,7 @@ frontend/.env
 
 # Test artifacts
 test-results/
+.dev-logs/
 scripts/certificates/
 scripts/reports/
 playwright-report/

@@ -1,4 +1,13 @@
-.PHONY: dev-backend dev-frontend build test-backend smoke test-e2e test-all
+.PHONY: dev-backend dev-frontend dev-all dev-stop dev-status build test-backend smoke test-e2e test-all
+
+dev-all:
+	bash scripts/dev-all.sh
+
+dev-stop:
+	bash scripts/dev-stop.sh
+
+dev-status:
+	bash scripts/dev-status.sh
 
 dev-backend:
 	cd backend && .venv/bin/python -m uvicorn server:app --reload --host 127.0.0.1 --port 8001
@@ -23,6 +32,9 @@ build-report:
 
 weekly-roadmap:
 	python3 scripts/generate_weekly_roadmap.py
+
+verify-integrations:
+	python3 scripts/verify_integrations.py
 
 test-e2e:
 	npx playwright test
