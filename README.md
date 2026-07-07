@@ -2,6 +2,9 @@
 
 UK e-signature platform — frontend (React) + backend (FastAPI).
 
+**GitHub:** https://github.com/marvin2013charlie-sys/civicsign1.1.1.1  
+**Deploy branch:** `civicsign-2026-overhaul` (or `main` — both track the same code)
+
 ## Local development
 
 **Requirements:** Node.js 18+, Python 3.12+, MongoDB (local or Atlas).
