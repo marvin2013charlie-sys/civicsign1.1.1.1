@@ -1,0 +1,26 @@
+name: Docker build
+
+on:
+  push:
+    branches: [civicsign-2026-overhaul]
+    paths:
+      - backend/**
+      - render.yaml
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t civicsign-api:test ./backend
+
+      - name: Verify imports inside image
+        run: |
+          docker run --rm \
+            -e MONGO_URL=mongodb://localhost:27017 \
+            -e DB_NAME=civicsign \
+            -e JWT_SECRET=ci-test-jwt-secret-minimum-32-characters-long \
+            civicsign-api:test \
+            python -c "import server; print('server import OK')"
