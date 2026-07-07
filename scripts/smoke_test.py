@@ -516,6 +516,29 @@ def main() -> int:
     out = ROOT / "scripts" / "smoke_test_results.json"
     out.write_text(json.dumps(results, indent=2))
     print(f"\nResults written to {out}")
+
+    if not failed:
+        cert_script = ROOT / "scripts" / "generate_smoke_certificate.py"
+        venv_python = ROOT / "backend" / ".venv" / "bin" / "python"
+        python = venv_python if venv_python.exists() else Path(sys.executable)
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "scripts")}
+        try:
+            proc = __import__("subprocess").run(
+                [str(python), str(cert_script)],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=env,
+            )
+            if proc.returncode == 0:
+                print(proc.stdout.rstrip())
+            else:
+                detail = (proc.stderr or proc.stdout or "unknown error").strip()
+                print(f"Certificate generation skipped: {detail}")
+        except Exception as exc:
+            print(f"Certificate generation skipped: {exc}")
+
     return 1 if failed else 0
 
 

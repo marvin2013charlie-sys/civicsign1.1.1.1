@@ -18,10 +18,10 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 # Track whatever accounts the backend seeds (see backend/.env).
-USER_EMAIL = os.environ.get("ADMIN_EMAIL", "user@civicsign.app")
-USER_PASS = os.environ.get("ADMIN_PASSWORD", "Welcome@2026!")
-ADMIN_EMAIL = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicsign.app")
-ADMIN_PASS = os.environ.get("INTERNAL_ADMIN_PASSWORD", "Admin@2026!")
+USER_EMAIL = os.environ.get("TEST_USER_EMAIL", os.environ.get("ADMIN_EMAIL", "freetest@civicbot.co.uk"))
+USER_PASS = os.environ.get("TEST_USER_PASSWORD", os.environ.get("ADMIN_PASSWORD", "FreePass123!"))
+ADMIN_EMAIL = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@example.com")
+ADMIN_PASS = os.environ.get("INTERNAL_ADMIN_PASSWORD", "AdminPass123!")
 
 
 def _make_png(size_px: int = 8) -> bytes:

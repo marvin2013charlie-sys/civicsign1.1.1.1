@@ -15,6 +15,15 @@ test-backend:
 smoke:
 	python3 scripts/smoke_test.py
 
+smoke-cert:
+	python3 scripts/generate_smoke_certificate.py
+
+build-report:
+	python3 scripts/generate_build_report.py
+
+weekly-roadmap:
+	python3 scripts/generate_weekly_roadmap.py
+
 test-e2e:
 	npx playwright test
 
