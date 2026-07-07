@@ -13,10 +13,13 @@ RUN pip install --no-cache-dir cryptography==44.0.2 httpx==0.28.1
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    && python -c "import importlib; importlib.import_module('document_crypto'); importlib.import_module('integrations'); print('import check OK')"
+    && python -c "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import httpx; print('deps OK')"
 
 # App code (includes assets/: email logo + PDF fonts).
 COPY . .
+
+# Verify local modules import after source is in the image.
+RUN python -c "import document_crypto, integrations; print('import check OK')"
 
 # Hosts (Render/Fly/Railway) inject $PORT; default to 8000 for local runs.
 ENV PORT=8000
