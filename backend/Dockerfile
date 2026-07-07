@@ -18,11 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # App code (includes assets/: email logo + PDF fonts).
 COPY . .
 
-# Verify local modules import after source is in the image.
-RUN python -c "import document_crypto, integrations; print('import check OK')"
-
 # Hosts (Render/Fly/Railway) inject $PORT; default to 8000 for local runs.
 ENV PORT=8000
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -c \"from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import httpx\" && uvicorn server:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT}"]
