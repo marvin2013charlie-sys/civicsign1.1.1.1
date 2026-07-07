@@ -17,7 +17,7 @@ The frontend talks to the backend cross-origin using a **Bearer token**
 
 ## 1. Backend → Render
 
-1. Push this repo to GitHub (already at `marvin2013charlie-sys/civicsign1.3`).
+1. Push this repo to GitHub (`marvin2013charlie-sys/civicsign1.1.1.1`).
 2. Render Dashboard → **New → Blueprint** → select this repo. Render reads
    [`render.yaml`](render.yaml) and creates the `civicsign-api` web service
    (Docker, region `frankfurt`, health check `/api/health`).
