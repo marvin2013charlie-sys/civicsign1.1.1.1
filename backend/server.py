@@ -2067,7 +2067,8 @@ async def startup():
     await seed_admin()
     asyncio.create_task(expiry_loop())
     # Credentials are never written to disk — configure ADMIN_EMAIL / ADMIN_PASSWORD in env.
-    logger.info("CivicSign backend started")
+    commit = os.environ.get("RENDER_GIT_COMMIT", "local")[:7]
+    logger.info("CivicSign backend started (commit %s)", commit)
 
 
 @app.on_event("shutdown")

@@ -7,10 +7,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install dependencies first for better layer caching.
+# Install startup-critical packages in their own layer so a stale Docker cache
+# cannot ship an image missing cryptography (crashes db.py import on Render).
+RUN pip install --no-cache-dir cryptography==44.0.2 httpx==0.28.1
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    && python -c "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import httpx; print('startup deps OK')"
+    && python -c "import importlib; importlib.import_module('document_crypto'); importlib.import_module('integrations'); print('import check OK')"
 
 # App code (includes assets/: email logo + PDF fonts).
 COPY . .
@@ -19,4 +22,4 @@ COPY . .
 ENV PORT=8000
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python -c \"from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import httpx\" && uvicorn server:app --host 0.0.0.0 --port ${PORT}"]

@@ -6,8 +6,10 @@ services:
     name: civicsign-api
     runtime: docker
     repo: https://github.com/marvin2013charlie-sys/civicsign1.3
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    branch: civicsign-2026-overhaul   # default branch (main) lacks this Dockerfile
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free               # free tier — sleeps after 15 min idle (~30-60s cold
                              # start on wake). Change to "starter" ($7/mo) before
                              # taking real traffic / enabling Stripe webhooks.
