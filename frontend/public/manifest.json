@@ -1,6 +1,6 @@
 {
   "short_name": "CivicSign",
-  "name": "CivicSign — UK GDPR e-signature",
+  "name": "CivicSign | UK GDPR e-signature",
   "icons": [
     { "src": "favicon.ico", "sizes": "16x16 32x32 48x48", "type": "image/x-icon" },
     { "src": "favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },

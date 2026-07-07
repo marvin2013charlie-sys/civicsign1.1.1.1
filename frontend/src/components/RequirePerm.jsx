@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 export const ADMIN_ROUTE_PERMS = {
   "": "admin",          // /admin (Overview)
   "users": "users-read",
-  "envelopes": "admin",
+
   "blog": "blog",
   "careers": "careers",
   "team": "admin",
+  "organizations": "admin",
   "billing": "admin",
   "audit": "admin",
   "contacts": "contacts",
@@ -62,7 +63,7 @@ function AccessDenied({ perm }) {
         <ShieldAlert className="h-6 w-6 text-red-600" />
       </span>
       <h2 className="mt-4 font-heading text-xl font-bold text-[var(--c-ink)]">Access denied</h2>
-      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+      <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
         You don&apos;t have the <span className="font-semibold">{label}</span> permission. Ask a super-admin to grant it from <span className="font-mono">/admin/team</span>.
       </p>
       <div className="mt-5 flex items-center justify-center gap-2">

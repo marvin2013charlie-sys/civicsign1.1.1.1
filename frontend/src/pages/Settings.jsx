@@ -19,61 +19,94 @@ import {
   User, CreditCard, LifeBuoy, Loader2, Save, KeyRound, Check, Mail,
   MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2,
   Trash2, AlertTriangle, Bot, SendHorizonal, Camera, ImagePlus, ImageOff,
+  Palette, Plug, Webhook, Headphones,
 } from "lucide-react";
+import { usePlan } from "@/hooks/usePlan";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { ContactEmailLink, RichTextWithContactEmail } from "@/components/BrandText";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
+import { getPlanPriceDisplay } from "@/lib/pricing";
+
 
 const PLAN_DEFS = [
   {
-    id: "free", name: "Free", price: "£0", period: "forever", icon: Sparkles,
+    id: "free", name: "Free", icon: Sparkles,
     tagline: "For individuals getting started",
-    features: ["5 documents / month", "Up to 2 recipients", "Draw, type & upload signatures", "Tamper-evident audit trail"],
+    features: [
+      "5 documents per billing period (resets on your signup anniversary; deleting does not restore quota)",
+      "£1 per extra document when at limit",
+      "Up to 2 recipients",
+      "Draw, type & upload signatures",
+      "Electronic signatures with tamper-evident audit trail",
+    ],
   },
   {
-    id: "pro", name: "Pro", price: "£15", period: "/ month", icon: Crown,
+    id: "pro", name: "Pro", icon: Crown,
     tagline: "For professionals & growing teams",
     features: [
       "All Free features, plus:",
       "Up to 500 documents per user / month",
-      "Simple Electronic Signatures (SES) from your recipients",
+      "£1 per extra document when at limit",
+      "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
+      "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
       "Shared team templates for standardised agreements",
       "Real-time commenting & collaboration",
+      "Seal verification — check tamper-evident seals on any signed document",
       "Custom branding (logo & colours) to build trust",
     ],
   },
   {
-    id: "business", name: "Business", price: "Custom", period: "pricing", icon: Building2,
+    id: "business", name: "Business", icon: Building2,
     tagline: "For organisations at scale",
-    features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send & advanced routing", "API access & webhooks", "Dedicated priority support"],
+    features: [
+      "Everything in Pro, high-volume fair use (10k+/mo, custom contracts available)",
+      "£1 per extra document when at fair-use limit",
+      "AES as default, strengthened with SMS / KBA recipient authentication",
+      "Qualified Electronic Signatures (QES) on request via QTSP partner",
+      "Bulk send",
+      "API & webhooks",
+      "Priority support",
+    ],
   },
 ];
 
 const FAQS = [
-  { q: "Are CivicSign signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion \u2014 aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
+  { q: "Are CivicSign signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion, aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
   { q: "What file types can I upload?", a: "You can upload PDF and Microsoft Word (.docx) documents. Word files are automatically converted to PDF before preparation." },
   { q: "Do my signers need an account?", a: "No. Recipients receive a secure signing link and can complete only their assigned fields without creating an account." },
   { q: "How do reminders and expiration work?", a: "From an envelope's detail page you can send a reminder to pending signers. When sending, you can also set the document to expire in 3, 7, 14, or 30 days." },
-  { q: "Can I reuse documents I send often?", a: "Reusable templates are coming soon — you'll be able to save any prepared document as a template and send it again in seconds." },
+  { q: "Can I reuse documents I send often?", a: "Yes. Save any prepared draft as a template from Prepare Studio, then reuse it from the Templates page. Pro users can also share templates with their team." },
   { q: "How do I change or cancel my plan?", a: "Head to the Subscription tab on this page to switch between Free, Pro, and Business plans at any time." },
 ];
 
 function DeleteAccountDialog({ open, onOpenChange }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [step, setStep] = useState("ask");
   const [confirm, setConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => { if (!open) { const t = setTimeout(() => setConfirm(""), 0); return () => clearTimeout(t); } return undefined; }, [open]);
+  useEffect(() => {
+    if (!open) {
+      const t = setTimeout(() => {
+        setStep("ask");
+        setConfirm("");
+      }, 0);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [open]);
 
   const del = async () => {
     setDeleting(true);
     try {
       await api.delete("/auth/account", { data: { confirm } });
-      localStorage.removeItem("cs_token");
       toast.success("Your account and all data have been deleted");
       await logout();
       navigate("/");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setDeleting(false);
     }
@@ -81,28 +114,62 @@ function DeleteAccountDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="delete-account-dialog">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-heading text-[#B91C1C]">
-            <AlertTriangle className="h-5 w-5" /> Delete account
-          </DialogTitle>
-          <DialogDescription>
-            This permanently deletes your account and <b>all</b> of your envelopes, templates and documents. This cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <div>
-          <Label htmlFor="confirm-delete">Type <span className="font-mono font-semibold">DELETE</span> to confirm</Label>
-          <Input id="confirm-delete" className="mt-1" value={confirm} autoComplete="off"
-            onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" data-testid="delete-confirm-input" />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={del} disabled={deleting || confirm.trim().toUpperCase() !== "DELETE"}
-            data-testid="confirm-delete-account-btn"
-            style={{ background: "#DC2626", color: "#fff" }}>
-            {deleting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />} Delete my account
-          </Button>
-        </DialogFooter>
+      <DialogContent data-testid="delete-account-dialog" className="max-w-md">
+        {step === "ask" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-heading text-[#B91C1C]">
+                <AlertTriangle className="h-4 w-4" /> Delete account?
+              </DialogTitle>
+              <DialogDescription>
+                This permanently removes your account and all envelopes, templates and documents. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button
+                onClick={() => setStep("confirm")}
+                data-testid="delete-account-continue-btn"
+                style={{ background: "#DC2626", color: "#fff" }}
+              >
+                Yes, delete my account
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="font-heading text-[#B91C1C]">Confirm deletion</DialogTitle>
+              <DialogDescription>
+                Type <span className="font-mono font-semibold">DELETE</span> below to permanently delete your account.
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <Label htmlFor="confirm-delete" className="sr-only">Confirmation</Label>
+              <Input
+                id="confirm-delete"
+                className="mt-1"
+                value={confirm}
+                autoComplete="off"
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="DELETE"
+                data-testid="delete-confirm-input"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep("ask")}>Back</Button>
+              <Button
+                onClick={del}
+                disabled={deleting || confirm.trim().toUpperCase() !== "DELETE"}
+                data-testid="confirm-delete-account-btn"
+                style={{ background: "#DC2626", color: "#fff" }}
+              >
+                {deleting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+                Delete permanently
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -143,7 +210,7 @@ function AvatarCard() {
       setUser(data);
       toast.success("Avatar updated");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setUploading(false);
     }
@@ -156,7 +223,7 @@ function AvatarCard() {
       setUser(data);
       toast.success("Avatar removed");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setRemoving(false);
     }
@@ -165,7 +232,7 @@ function AvatarCard() {
   return (
     <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="avatar-card">
       <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Profile picture</h3>
-      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+      <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">
         Shown to your recipients on the signing page and in audit emails. JPG, PNG, WebP or GIF, up to 2&nbsp;MB.
       </p>
       <div className="mt-5 flex items-center gap-5">
@@ -251,7 +318,7 @@ function ProfileTab() {
       setUser(data);
       toast.success("Profile updated");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -269,7 +336,7 @@ function ProfileTab() {
       toast.success("Password updated");
       setPwd({ current_password: "", new_password: "", confirm: "" });
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setChangingPwd(false);
     }
@@ -281,7 +348,7 @@ function ProfileTab() {
         <AvatarCard />
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
           <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Personal information</h3>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Update your name, email and mobile number.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Update your name, email and mobile number.</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="name">Full name</Label>
@@ -297,7 +364,7 @@ function ProfileTab() {
               <Label htmlFor="email">Email address</Label>
               <Input id="email" type="email" className="mt-1" value={form.email} data-testid="settings-email-input"
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">This is the email you use to sign in.</p>
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">This is the email you use to sign in.</p>
             </div>
           </div>
           <div className="mt-5 flex justify-end">
@@ -313,7 +380,7 @@ function ProfileTab() {
           <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
             <Building2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Business details
           </h3>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Used on invoices, signing emails and your branded signing page.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Used on invoices, signing emails and your branded signing page.</p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="company">Company / Organisation</Label>
@@ -353,9 +420,9 @@ function ProfileTab() {
                 className="mt-1 h-10 w-full rounded-md border border-[var(--c-border)] bg-[var(--card)] px-3 text-sm text-[var(--c-ink)]">
                 <option value="">Select size…</option>
                 <option value="1">Just me</option>
-                <option value="2-10">2 – 10</option>
-                <option value="11-50">11 – 50</option>
-                <option value="51-200">51 – 200</option>
+                <option value="2-10">2, 10</option>
+                <option value="11-50">11, 50</option>
+                <option value="51-200">51, 200</option>
                 <option value="200+">200+</option>
               </select>
             </div>
@@ -392,7 +459,7 @@ function ProfileTab() {
               />
               <span>
                 <strong>Send me product updates & UK e-signature tips</strong>
-                <span className="block text-xs text-[var(--muted-foreground)]">Occasional, no spam. You can opt out anytime — UK GDPR compliant.</span>
+                <span className="block text-xs text-[var(--c-muted-fg)]">Occasional, no spam. You can opt out anytime, UK GDPR compliant.</span>
               </span>
             </label>
           </div>
@@ -413,7 +480,7 @@ function ProfileTab() {
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               <div>
                 <Label htmlFor="cur">Current password</Label>
-                <Input id="cur" type="password" autoComplete="new-password" className="mt-1" value={pwd.current_password} data-testid="settings-current-password"
+                <Input id="cur" type="password" autoComplete="current-password" className="mt-1" value={pwd.current_password} data-testid="settings-current-password"
                   onChange={(e) => setPwd((p) => ({ ...p, current_password: e.target.value }))} />
               </div>
               <div>
@@ -435,41 +502,36 @@ function ProfileTab() {
           </div>
         )}
 
-        {/* Danger zone */}
-        <div className="rounded-xl border p-6" style={{ borderColor: "#FCA5A5", background: "#FEF2F2" }} data-testid="danger-zone">
-          <h3 className="flex items-center gap-2 font-heading text-lg font-semibold" style={{ color: "#B91C1C" }}>
-            <AlertTriangle className="h-4 w-4" /> Danger zone
-          </h3>
-          <p className="mt-1 text-sm" style={{ color: "#7F1D1D" }}>
-            Permanently delete your account and all associated envelopes, templates and documents. This action cannot be undone.
-          </p>
-          <div className="mt-4">
-            <Button onClick={() => setDelOpen(true)} data-testid="delete-account-button"
-              style={{ background: "#DC2626", color: "#fff" }}>
-              <Trash2 className="mr-1.5 h-4 w-4" /> Delete account
-            </Button>
-          </div>
-        </div>
       </div>
 
       <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 self-start" data-testid="account-summary-card">
         <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Account</h3>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex items-center justify-between">
-            <dt className="text-[var(--muted-foreground)]">Sign-in method</dt>
+            <dt className="text-[var(--c-muted-fg)]">Sign-in method</dt>
             <dd className="font-medium capitalize text-[var(--c-ink)]">{user?.auth_provider === "google" ? "Google" : "Email & password"}</dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-[var(--muted-foreground)]">Current plan</dt>
+            <dt className="text-[var(--c-muted-fg)]">Current plan</dt>
             <dd className="font-semibold capitalize" style={{ color: "var(--c-primary)" }}>{user?.plan || "free"}</dd>
           </div>
           {user?.role === "admin" && (
             <div className="flex items-center justify-between">
-              <dt className="text-[var(--muted-foreground)]">Role</dt>
+              <dt className="text-[var(--c-muted-fg)]">Role</dt>
               <dd className="inline-flex items-center gap-1 font-medium text-[var(--c-ink)]"><ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Admin</dd>
             </div>
           )}
         </dl>
+        <div className="mt-4 border-t border-[var(--c-border)] pt-4" data-testid="danger-zone">
+          <button
+            type="button"
+            onClick={() => setDelOpen(true)}
+            data-testid="delete-account-button"
+            className="text-xs text-[var(--c-muted-fg)] underline-offset-2 transition-colors hover:text-[#B91C1C] hover:underline"
+          >
+            Delete account
+          </button>
+        </div>
       </div>
 
       <DeleteAccountDialog open={delOpen} onOpenChange={setDelOpen} />
@@ -482,7 +544,9 @@ function SubscriptionTab() {
   const [params, setParams] = useSearchParams();
   const [switching, setSwitching] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [billingInterval, setBillingInterval] = useState("monthly");
   const current = user?.plan || "free";
+  const isOrgAccount = !!user?.org_id;
 
   // When Stripe redirects back with ?session_id=..., poll the backend until the
   // payment is confirmed (polling is the source of truth for one-time checkout).
@@ -506,8 +570,13 @@ function SubscriptionTab() {
         if (cancelled) return;
         if (data.payment_status === "paid") {
           await checkAuth();
-          const name = (data.plan_id || "").charAt(0).toUpperCase() + (data.plan_id || "").slice(1);
-          toast.success(`Payment successful — you're now on the ${name} plan`);
+          if (data.purchase_type === "extra_document") {
+            const n = data.document_credits || 1;
+            toast.success(`Payment successful, ${n} extra document credit${n !== 1 ? "s" : ""} added`);
+          } else {
+            const name = (data.plan_id || "").charAt(0).toUpperCase() + (data.plan_id || "").slice(1);
+            toast.success(`Payment successful, you're now on the ${name} plan`);
+          }
           setVerifying(false);
           clearSessionParam();
           return;
@@ -541,14 +610,14 @@ function SubscriptionTab() {
   const choose = async (planId) => {
     if (planId === current) return;
     setSwitching(planId);
-    // Free is a downgrade — no payment required.
+    // Free is a downgrade, no payment required.
     if (planId === "free") {
       try {
         const { data } = await api.post("/auth/subscription", { plan: planId });
         setUser(data);
         toast.success("You're now on the Free plan");
       } catch (err) {
-        toast.error(formatApiError(err.response?.data?.detail));
+        toast.error(formatApiError(err));
       } finally {
         setSwitching("");
       }
@@ -557,7 +626,9 @@ function SubscriptionTab() {
     // Paid plans go through Stripe Checkout.
     try {
       const { data } = await api.post("/billing/checkout", {
-        plan_id: planId, origin_url: window.location.origin,
+        plan_id: planId,
+        billing_interval: billingInterval,
+        origin_url: window.location.origin,
       });
       if (data.url) {
         window.location.assign(data.url); // redirect to Stripe-hosted checkout
@@ -565,10 +636,47 @@ function SubscriptionTab() {
         throw new Error("No checkout URL received");
       }
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
       setSwitching("");
     }
   };
+
+  if (isOrgAccount) {
+    return (
+      <div data-testid="org-subscription-panel">
+        <div className="rounded-xl border border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 p-6">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+              <Building2 className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+            </span>
+            <div>
+              <h3 className="font-heading text-lg font-bold text-[var(--c-ink)]">Organisation plan</h3>
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
+                Your account is on an organisation contract with the full organisation feature set.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-[var(--c-ink)]">
+                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Up to <strong>500 documents per seat</strong> per month</li>
+                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Bulk send, API, webhooks, branding &amp; team features included</li>
+                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> <strong>Contract pricing</strong> is agreed with your account manager — not billed via self-serve checkout</li>
+              </ul>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button onClick={() => window.location.assign("/organisation")}
+                  style={{ background: "var(--c-primary)", color: "#fff" }}>
+                  Open organisation portal
+                </Button>
+                <Button variant="outline" onClick={() => window.location.assign("/contact")}>
+                  Contact account team
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p className="mt-4 text-xs text-[var(--c-muted-fg)]">
+          Need more seats or a higher allocation? Email info@civicbot.co.uk or book a call to review your contract.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -582,10 +690,16 @@ function SubscriptionTab() {
         <CreditCard className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
         <span className="text-[var(--c-ink)]">You are currently on the <b className="capitalize">{current}</b> plan.</span>
       </div>
+      <BillingIntervalToggle
+        className="mt-4 justify-start"
+        value={billingInterval}
+        onChange={setBillingInterval}
+      />
       <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {PLAN_DEFS.map((p) => {
+        {PLAN_DEFS.filter((p) => !(current === "pro" && p.id === "business")).map((p) => {
           const isCurrent = p.id === current;
           const Icon = p.icon;
+          const { price, note, savings } = getPlanPriceDisplay(p.name, billingInterval);
           return (
             <div key={p.id} data-testid={`plan-card-${p.id}`}
               className="flex flex-col rounded-xl border bg-[var(--card)] p-6 transition-shadow hover:shadow-md"
@@ -597,10 +711,15 @@ function SubscriptionTab() {
                 {isCurrent && <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "var(--c-primary)", color: "#fff" }}>Current</span>}
               </div>
               <h3 className="mt-4 font-heading text-xl font-bold text-[var(--c-ink)]">{p.name}</h3>
-              <p className="text-sm text-[var(--muted-foreground)]">{p.tagline}</p>
-              <div className="mt-3 flex items-end gap-1">
-                <span className="font-heading text-3xl font-bold text-[var(--c-ink)]">{p.price}</span>
-                <span className="mb-1 text-sm text-[var(--muted-foreground)]">{p.period}</span>
+              <p className="text-sm text-[var(--c-muted-fg)]">{p.tagline}</p>
+              {savings && (
+                <span className="mt-2 inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: "#0d9488" }}>
+                  {savings}
+                </span>
+              )}
+              <div className="mt-3 flex flex-wrap items-end gap-x-1 gap-y-1">
+                <span className="font-heading text-3xl font-bold text-[var(--c-ink)]">{price}</span>
+                <span className="mb-1 text-sm text-[var(--c-muted-fg)]">{note}</span>
               </div>
               <ul className="mt-4 flex-1 space-y-2">
                 {p.features.map((f) => (
@@ -628,9 +747,17 @@ function SubscriptionTab() {
           );
         })}
       </div>
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-4 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]">
         <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
         Payments are processed securely by Stripe. Upgrades are charged once and take effect immediately; downgrading to Free is always free.
+        {billingInterval === "yearly" ? " Annual Pro is billed at 10 months\u2019 price (2 months free)." : ""}
+      </p>
+      <p className="mt-2 text-xs text-[var(--c-muted-fg)]">
+        Refunds and billing disputes are covered in our{" "}
+        <Link to="/legal/refunds" className="font-medium text-[var(--c-primary)] hover:underline" data-testid="settings-refund-policy-link">
+          Refund Policy
+        </Link>
+        .
       </p>
     </div>
   );
@@ -682,7 +809,7 @@ function AiAssistant() {
         </span>
         <div>
           <p className="text-sm font-semibold text-[var(--c-ink)]">CivicSign Assistant</p>
-          <p className="text-xs text-[var(--muted-foreground)]">AI-powered help · available 24/7</p>
+          <p className="text-xs text-[var(--c-muted-fg)]">AI-powered help · available 24/7</p>
         </div>
       </div>
 
@@ -697,7 +824,7 @@ function AiAssistant() {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm bg-[var(--c-paper-2)] px-3.5 py-2 text-sm text-[var(--muted-foreground)]">
+            <div className="rounded-2xl rounded-bl-sm bg-[var(--c-paper-2)] px-3.5 py-2 text-sm text-[var(--c-muted-fg)]">
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
           </div>
@@ -709,7 +836,7 @@ function AiAssistant() {
         <div className="flex flex-wrap gap-2 px-5 pb-2">
           {suggestions.map((s) => (
             <button key={s} onClick={() => setInput(s)} data-testid="help-ai-suggestion"
-              className="rounded-full border border-[var(--c-border)] px-3 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]">
+              className="rounded-full border border-[var(--c-border)] px-3 py-1 text-xs text-[var(--c-muted-fg)] transition-colors hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]">
               {s}
             </button>
           ))}
@@ -728,10 +855,352 @@ function AiAssistant() {
   );
 }
 
+function BrandingTab() {
+  const { has, features } = usePlan();
+  const brandingEnabled = features.custom_branding;
+  const [branding, setBranding] = useState({
+    logo_url: null, primary_color: "#14B8A6", accent_color: "#0F766E", banner_text: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const logoRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!brandingEnabled) { setLoading(false); return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/me/branding");
+        if (!cancelled) {
+          setBranding({
+            logo_url: data.logo_url || null,
+            primary_color: data.primary_color || "#14B8A6",
+            accent_color: data.accent_color || "#0F766E",
+            banner_text: data.banner_text || "",
+          });
+        }
+      } catch (err) {
+        if (!cancelled) toast.error(formatApiError(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [brandingEnabled]);
+
+  if (!brandingEnabled) {
+    return (
+      <UpgradePrompt
+        feature="custom_branding"
+        title="Custom branding is a Pro feature"
+        description="Add your logo, brand colours and a signing-page banner so recipients see your business, not generic CivicSign chrome. Included on Pro (£15/month)."
+      />
+    );
+  }
+
+  const logoSrc = branding.logo_url?.startsWith("/")
+    ? `${API_ORIGIN}${branding.logo_url}`
+    : branding.logo_url;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.patch("/me/branding", {
+        primary_color: branding.primary_color,
+        accent_color: branding.accent_color,
+        banner_text: branding.banner_text.trim() || null,
+      });
+      setBranding((b) => ({ ...b, ...data }));
+      toast.success("Branding saved");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onLogo = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(jpe?g|png|webp|gif)$/i.test(file.type)) {
+      toast.error("Please choose a JPG, PNG, WebP or GIF image"); return;
+    }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Logo must be under 2 MB"); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/me/branding/logo", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setBranding((b) => ({ ...b, logo_url: data.logo_url }));
+      toast.success("Logo uploaded");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex h-48 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" /></div>;
+  }
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="branding-settings">
+        <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
+          <Palette className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Signing page branding
+        </h3>
+        <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">
+          Your logo and colours appear on signing links and emails you send.
+        </p>
+        <div className="mt-5 space-y-4">
+          <div>
+            <Label>Logo</Label>
+            <div className="mt-2 flex items-center gap-4">
+              <div className="flex h-16 w-32 items-center justify-center rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)]">
+                {logoSrc
+                  ? <img src={logoSrc} alt="Brand logo" className="max-h-14 max-w-[7rem] object-contain" />
+                  : <ImagePlus className="h-6 w-6 text-[var(--c-muted-fg)]" />}
+              </div>
+              <Button variant="outline" onClick={() => logoRef.current?.click()} disabled={uploading} data-testid="branding-logo-upload">
+                {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-1.5 h-4 w-4" />}
+                {logoSrc ? "Replace logo" : "Upload logo"}
+              </Button>
+            </div>
+            <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={onLogo} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="primary-color">Primary colour</Label>
+              <div className="mt-1 flex items-center gap-2">
+                <input id="primary-color" type="color" value={branding.primary_color}
+                  onChange={(e) => setBranding((b) => ({ ...b, primary_color: e.target.value }))}
+                  className="h-10 w-12 cursor-pointer rounded border border-[var(--c-border)]" data-testid="branding-primary-color" />
+                <Input value={branding.primary_color} onChange={(e) => setBranding((b) => ({ ...b, primary_color: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="accent-color">Accent colour</Label>
+              <div className="mt-1 flex items-center gap-2">
+                <input id="accent-color" type="color" value={branding.accent_color}
+                  onChange={(e) => setBranding((b) => ({ ...b, accent_color: e.target.value }))}
+                  className="h-10 w-12 cursor-pointer rounded border border-[var(--c-border)]" data-testid="branding-accent-color" />
+                <Input value={branding.accent_color} onChange={(e) => setBranding((b) => ({ ...b, accent_color: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="banner-text">Signing page banner</Label>
+            <Input id="banner-text" className="mt-1" maxLength={140} placeholder="e.g. Acme Solicitors, secure signing"
+              value={branding.banner_text}
+              onChange={(e) => setBranding((b) => ({ ...b, banner_text: e.target.value }))}
+              data-testid="branding-banner-text" />
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <Button onClick={save} disabled={saving} data-testid="branding-save" style={{ background: "var(--c-primary)", color: "#fff" }}>
+            {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />} Save branding
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 self-start" data-testid="branding-preview">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Preview</p>
+        <div className="mt-3 overflow-hidden rounded-lg border border-[var(--c-border)]">
+          <div className="flex items-center gap-3 px-4 py-3" style={{ background: branding.primary_color }}>
+            {logoSrc && <img src={logoSrc} alt="" className="h-8 max-w-[5rem] object-contain" />}
+            <span className="text-sm font-semibold text-white">{branding.banner_text || "Your signing page"}</span>
+          </div>
+          <div className="bg-[var(--c-paper)] p-4 text-sm text-[var(--c-ink)]">
+            <p>Recipients see your brand colours on the signing experience.</p>
+            <span className="mt-3 inline-block rounded px-3 py-1.5 text-xs font-medium text-white" style={{ background: branding.accent_color }}>
+              Finish & Sign
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationsTab() {
+  const { features } = usePlan();
+  const [keys, setKeys] = useState([]);
+  const [webhook, setWebhook] = useState({ url: "", enabled: false, events: [], has_secret: false });
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [savingWh, setSavingWh] = useState(false);
+  const [newKey, setNewKey] = useState(null);
+
+  useEffect(() => {
+    if (!features.api_webhooks) { setLoading(false); return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [kRes, wRes] = await Promise.all([
+          api.get("/me/api-keys"),
+          api.get("/me/webhook"),
+        ]);
+        if (!cancelled) {
+          setKeys(kRes.data || []);
+          setWebhook(wRes.data || {});
+        }
+      } catch (err) {
+        if (!cancelled) toast.error(formatApiError(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [features.api_webhooks]);
+
+  if (!features.api_webhooks) {
+    return (
+      <UpgradePrompt
+        tier="business"
+        feature="api_webhooks"
+        title="API & webhooks are a Business feature"
+        description="Generate API keys to integrate CivicSign with your systems, and receive real-time webhook events when envelopes are sent, signed or completed."
+      />
+    );
+  }
+
+  const createKey = async () => {
+    setCreating(true);
+    try {
+      const { data } = await api.post("/me/api-keys", { label: "Integration key" });
+      setNewKey(data.api_key);
+      setKeys((k) => [...k, { key_id: data.key_id, prefix: data.prefix, label: "Integration key", created_at: new Date().toISOString() }]);
+      toast.success("API key created, copy it now");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revokeKey = async (keyId) => {
+    try {
+      await api.delete(`/me/api-keys/${keyId}`);
+      setKeys((k) => k.filter((x) => x.key_id !== keyId));
+      toast.success("API key revoked");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const saveWebhook = async (regen = false) => {
+    setSavingWh(true);
+    try {
+      const { data } = await api.patch("/me/webhook", {
+        url: webhook.url,
+        enabled: webhook.enabled,
+        regenerate_secret: regen,
+      });
+      setWebhook(data);
+      if (data.secret) toast.success("Webhook secret regenerated, copy it now");
+      else toast.success("Webhook settings saved");
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setSavingWh(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex h-48 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" /></div>;
+  }
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="api-keys-card">
+        <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
+          <KeyRound className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> API keys
+        </h3>
+        <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">
+          Use <code className="rounded bg-[var(--c-paper-2)] px-1">X-API-Key</code> header for programmatic access (e.g. <code className="rounded bg-[var(--c-paper-2)] px-1">GET /api/v1/envelopes</code>).
+        </p>
+        {newKey && (
+          <div className="mt-4 rounded-lg border border-[var(--c-primary)] bg-[var(--status-sent-bg)] p-3 text-sm">
+            <p className="font-semibold text-[var(--c-ink)]">Copy your new key, shown once:</p>
+            <code className="mt-2 block break-all font-mono text-xs">{newKey}</code>
+          </div>
+        )}
+        <div className="mt-4 space-y-2">
+          {keys.map((k) => (
+            <div key={k.key_id} className="flex items-center justify-between rounded-lg border border-[var(--c-border)] px-3 py-2 text-sm">
+              <span><span className="font-mono">{k.prefix}…</span> · {k.label || "API key"}</span>
+              <Button variant="ghost" size="sm" className="text-red-600" onClick={() => revokeKey(k.key_id)}>Revoke</Button>
+            </div>
+          ))}
+        </div>
+        <Button className="mt-4" onClick={createKey} disabled={creating} data-testid="create-api-key"
+          style={{ background: "var(--c-primary)", color: "#fff" }}>
+          {creating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <KeyRound className="mr-1.5 h-4 w-4" />}
+          Generate API key
+        </Button>
+      </div>
+      <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="webhook-card">
+        <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
+          <Webhook className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Webhooks
+        </h3>
+        <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">
+          Receive HTTPS POST callbacks when envelopes are sent, signed, completed or declined.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div>
+            <Label htmlFor="wh-url">Endpoint URL</Label>
+            <Input id="wh-url" className="mt-1" placeholder="https://your-app.com/webhooks/civicsign"
+              value={webhook.url || ""} onChange={(e) => setWebhook((w) => ({ ...w, url: e.target.value }))}
+              data-testid="webhook-url" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!!webhook.enabled}
+              onChange={(e) => setWebhook((w) => ({ ...w, enabled: e.target.checked }))}
+              data-testid="webhook-enabled" />
+            Enable webhooks
+          </label>
+          {webhook.secret && (
+            <div className="rounded-lg bg-[var(--c-paper-2)] p-3 text-xs font-mono break-all">
+              Signing secret: {webhook.secret}
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={() => saveWebhook(false)} disabled={savingWh} data-testid="webhook-save"
+            style={{ background: "var(--c-primary)", color: "#fff" }}>
+            {savingWh ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+            Save webhook
+          </Button>
+          <Button variant="outline" onClick={() => saveWebhook(true)} disabled={savingWh}>Regenerate secret</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HelpTab() {
+  const { features } = usePlan();
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-5">
+        {features.priority_support && (
+          <div className="rounded-xl border border-[var(--c-primary)] bg-[var(--status-sent-bg)] p-5" data-testid="priority-support-banner">
+            <div className="flex items-center gap-3">
+              <Headphones className="h-8 w-8" style={{ color: "var(--c-primary)" }} />
+              <div>
+                <p className="font-heading font-semibold text-[var(--c-ink)]">Business priority support</p>
+                <p className="text-sm text-[var(--c-muted-fg)]">
+                  Your account has priority handling, we aim to respond within 4 business hours.
+                  Email <ContactEmailLink /> with &ldquo;Business&rdquo; in the subject line.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <AiAssistant />
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
           <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
@@ -741,7 +1210,9 @@ function HelpTab() {
             {FAQS.map((f, i) => (
               <AccordionItem key={f.q} value={`faq-${i}`}>
                 <AccordionTrigger className="text-left text-sm font-semibold text-[var(--c-ink)]">{f.q}</AccordionTrigger>
-                <AccordionContent className="text-sm text-[var(--muted-foreground)]">{f.a}</AccordionContent>
+                <AccordionContent className="text-sm text-[var(--c-muted-fg)]">
+                  <RichTextWithContactEmail text={f.a} />
+                </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
@@ -753,7 +1224,7 @@ function HelpTab() {
             <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
           </span>
           <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need a human?</h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Our team typically replies within one business day. Send us a message and we will get right back to you.</p>
+          <p className="mt-1 text-sm text-[var(--c-muted-fg)]">Our team typically replies within one business day. Send us a message and we will get right back to you.</p>
           <Link to="/contact" data-testid="help-contact-link">
             <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
               <Mail className="mr-1.5 h-4 w-4" /> Contact support
@@ -762,7 +1233,7 @@ function HelpTab() {
         </div>
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-sm">
           <p className="font-semibold text-[var(--c-ink)]">Email us directly</p>
-          <a href="mailto:support@civicsign.com" className="mt-1 inline-block font-medium" style={{ color: "var(--c-primary)" }}>support@civicsign.com</a>
+          <ContactEmailLink className="mt-1 inline-block" />
         </div>
       </div>
     </div>
@@ -771,8 +1242,19 @@ function HelpTab() {
 
 export default function Settings() {
   const [params, setParams] = useSearchParams();
+  const { user } = useAuth();
+  const { has } = usePlan();
   const tab = params.get("tab") || "profile";
   const setTab = (t) => setParams(t === "profile" ? {} : { tab: t });
+  const showBranding = has("custom_branding");
+  const showIntegrations = has("api_webhooks");
+  useEffect(() => {
+    if ((tab === "branding" && !showBranding)
+      || (tab === "integrations" && !showIntegrations)
+      || tab === "org-team") {
+      setParams({}, { replace: true });
+    }
+  }, [tab, showBranding, showIntegrations, setParams]);
 
   return (
     <AppShell title="Settings">
@@ -784,12 +1266,26 @@ export default function Settings() {
           <TabsTrigger value="subscription" data-testid="settings-tab-subscription" className="data-[state=active]:bg-[var(--card)]">
             <CreditCard className="mr-1.5 h-4 w-4" /> Subscription
           </TabsTrigger>
+          {showBranding && (
+            <TabsTrigger value="branding" data-testid="settings-tab-branding" className="data-[state=active]:bg-[var(--card)]">
+              <Palette className="mr-1.5 h-4 w-4" /> Branding
+            </TabsTrigger>
+          )}
+          {showIntegrations && (
+            <TabsTrigger value="integrations" data-testid="settings-tab-integrations" className="data-[state=active]:bg-[var(--card)]">
+              <Plug className="mr-1.5 h-4 w-4" /> Integrations
+            </TabsTrigger>
+          )}
+
           <TabsTrigger value="help" data-testid="settings-tab-help" className="data-[state=active]:bg-[var(--card)]">
             <LifeBuoy className="mr-1.5 h-4 w-4" /> Help & Support
           </TabsTrigger>
         </TabsList>
         <TabsContent value="profile"><ProfileTab /></TabsContent>
         <TabsContent value="subscription"><SubscriptionTab /></TabsContent>
+        {showBranding && <TabsContent value="branding"><BrandingTab /></TabsContent>}
+        {showIntegrations && <TabsContent value="integrations"><IntegrationsTab /></TabsContent>}
+
         <TabsContent value="help"><HelpTab /></TabsContent>
       </Tabs>
     </AppShell>

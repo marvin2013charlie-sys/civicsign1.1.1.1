@@ -2,7 +2,9 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { handleQuotaApiError } from "@/lib/quota";
 import { AppShell } from "@/components/AppShell";
+import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,13 +17,18 @@ export default function NewEnvelope() {
   const [title, setTitle] = useState("");
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [quotaModal, setQuotaModal] = useState(false);
+  const [quotaDetail, setQuotaDetail] = useState(null);
 
   const accept = ".pdf,.docx,.doc";
   const isValid = (f) => /\.(pdf|docx|doc)$/i.test(f.name);
 
+  const MAX_BYTES = 25 * 1024 * 1024;
+
   const pick = (f) => {
     if (!f) return;
     if (!isValid(f)) { toast.error("Only PDF and Word (.docx) files are supported"); return; }
+    if (f.size > MAX_BYTES) { toast.error("File must be 25 MB or smaller"); return; }
     setFile(f);
     if (!title) setTitle(f.name.replace(/\.(pdf|docx|doc)$/i, ""));
   };
@@ -42,7 +49,12 @@ export default function NewEnvelope() {
       toast.success("Document uploaded");
       navigate(`/prepare/${data.envelope_id}`);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail) || "Upload failed");
+      if (!handleQuotaApiError(err, {
+        setDetail: setQuotaDetail,
+        setOpen: setQuotaModal,
+      })) {
+        toast.error(formatApiError(err) || "Upload failed");
+      }
     } finally {
       setUploading(false);
     }
@@ -51,7 +63,7 @@ export default function NewEnvelope() {
   return (
     <AppShell title="New Envelope">
       <div className="mx-auto max-w-2xl">
-        <p className="text-sm text-[var(--muted-foreground)]">Upload the document you want signed. We support PDF and Word (.docx) — Word files are automatically converted.</p>
+        <p className="text-sm text-[var(--c-muted-fg)]">Upload the document you want signed. We support PDF and Word (.docx), Word files are automatically converted.</p>
 
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -69,14 +81,14 @@ export default function NewEnvelope() {
                 <UploadCloud className="h-7 w-7" style={{ color: "var(--c-primary)" }} />
               </span>
               <p className="font-heading text-lg font-semibold text-[var(--c-ink)]">Drag & drop your document</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">or click to browse · PDF, DOCX up to 25MB</p>
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">or click to browse · PDF, DOCX up to 25MB</p>
             </>
           ) : (
             <div className="flex w-full items-center gap-3 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-4" onClick={(e) => e.stopPropagation()}>
               <FileText className="h-8 w-8" style={{ color: "var(--c-primary)" }} />
               <div className="min-w-0 flex-1 text-left">
                 <p className="truncate font-semibold text-[var(--c-ink)]">{file.name}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">{(file.size / 1024).toFixed(0)} KB</p>
+                <p className="text-xs text-[var(--c-muted-fg)]">{(file.size / 1024).toFixed(0)} KB</p>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setFile(null)}><X className="h-4 w-4" /></Button>
             </div>
@@ -99,6 +111,8 @@ export default function NewEnvelope() {
           </Button>
         </div>
       </div>
+
+      <QuotaLimitModal open={quotaModal} onOpenChange={setQuotaModal} detail={quotaDetail} />
     </AppShell>
   );
 }

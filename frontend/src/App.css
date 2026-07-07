@@ -19,14 +19,31 @@
   border-radius: inherit;
 }
 
-/* react-pdf */
-.react-pdf__Page { background: transparent !important; }
+/* react-pdf — keep page box flush with canvas so field overlays align */
+.react-pdf__Page {
+  position: relative !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+}
 .react-pdf__Page__canvas {
   display: block !important;
-  margin: 0 auto;
+  margin: 0 !important;
+  padding: 0 !important;
   border-radius: 4px;
+  vertical-align: top;
 }
 .react-pdf__message { padding: 2rem; color: var(--c-ink); }
+
+/* Organisation contract viewer — canvas only (text layer causes black bars) */
+.org-contract-pdf .react-pdf__Page {
+  background: #fff !important;
+}
+.org-contract-pdf .react-pdf__Page__textContent,
+.org-contract-pdf .react-pdf__Page__annotations {
+  display: none !important;
+}
 
 /* placed field box */
 .cs-field {
@@ -43,10 +60,48 @@
   user-select: none;
   overflow: hidden;
 }
+.cs-field-selected {
+  overflow: visible;
+  z-index: 20;
+}
+
+/* Prepare Studio — keep sidebar field chips inside the panel */
+.prepare-sidebar-scroll [data-radix-scroll-area-viewport] {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+.prepare-sidebar-scroll [data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+.prepare-panels section,
+.prepare-panels button,
+.prepare-panels input,
+.prepare-panels textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.prepare-panels [data-testid="prepare-fields-palette"] button {
+  overflow: hidden;
+  min-height: 3.25rem;
+}
+.prepare-panels [data-testid="prepare-fields-palette"] .grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cs-field img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left bottom;
+}
 
 /* thin custom scrollbar */
 .cs-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.cs-scroll::-webkit-scrollbar-thumb { background: #cdbfa6; border-radius: 8px; }
+.cs-scroll::-webkit-scrollbar-thumb { background: var(--c-scroll-thumb); border-radius: 8px; }
 .cs-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* floating assistant panel entrance */
@@ -56,7 +111,7 @@
 }
 
 .cs-grid-paper {
-  background-color: #ece4d6;
+  background-color: var(--c-studio-grid);
   background-image:
     linear-gradient(rgba(15,23,32,0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(15,23,32,0.04) 1px, transparent 1px);

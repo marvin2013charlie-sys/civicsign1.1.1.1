@@ -1,0 +1,121 @@
+================================================================================
+CivicSign — Local development test logins
+================================================================================
+App URL:  http://localhost:3000/login
+API URL:  http://localhost:8001
+Updated:  2026-07-07
+
+Use these ONLY on your local machine. Do not use in production.
+
+--------------------------------------------------------------------------------
+RECOMMENDED — one account per plan tier
+--------------------------------------------------------------------------------
+
+FREE (regular user)
+  Email:    freetest@civicbot.co.uk
+  Password: FreePass123!
+  Plan:     free
+  Login:    http://localhost:3000/login
+
+PRO (regular user)
+  Email:    protest@civicbot.co.uk
+  Password: ProTest123!
+  Plan:     pro
+  Login:    http://localhost:3000/login
+
+BUSINESS (regular user)
+  Email:    businesstest@civicbot.co.uk
+  Password: BusinessPass123!
+  Plan:     business
+  Login:    http://localhost:3000/login
+
+ORG OWNER (Test Bank Ltd — organisation portal)
+  Email:    orgowner-test@civicbot.co.uk
+  Password: OrgOwner123!
+  Plan:     business
+  Org:      Test Bank Ltd (org_37c2b18e54a044)
+  Role:     owner
+  Login:    http://localhost:3000/login
+  Portal:   http://localhost:3000/organisation
+
+--------------------------------------------------------------------------------
+ADMIN PORTALS (internal team — NOT the regular /login page)
+--------------------------------------------------------------------------------
+
+SUPER-ADMIN (full console — all sections)
+  Email:    admin@example.com
+  Password: AdminPass123!
+  Role:     admin (super-admin)
+  Login:    http://localhost:3000/admin/login
+  Console:  http://localhost:3000/admin
+
+STAFF (limited console — only granted areas)
+  Email:    stafftest@civicbot.co.uk
+  Password: StaffPass123!
+  Role:     staff
+  Grants:   blog, contacts, users-read
+  Login:    http://localhost:3000/admin/login
+  Console:  http://localhost:3000/admin  (shows Staff landing, not Overview)
+
+ADMIN PORTAL SECTIONS (super-admin only unless noted)
+  Overview .............. http://localhost:3000/admin
+  Users ................. http://localhost:3000/admin/users          (staff: users-read)
+  Envelopes ............. http://localhost:3000/admin/envelopes      (staff: envelopes)
+  Blog .................. http://localhost:3000/admin/blog           (staff: blog)
+  Careers ............... http://localhost:3000/admin/careers        (staff: careers)
+  Internal Team ......... http://localhost:3000/admin/team           (super-admin only)
+  Organisations ......... http://localhost:3000/admin/organizations  (super-admin only)
+  Billing & Refunds ..... http://localhost:3000/admin/billing        (super-admin only)
+  Audit Log ............. http://localhost:3000/admin/audit          (super-admin only)
+  Contact Inbox ......... http://localhost:3000/admin/contacts       (staff: contacts)
+
+--------------------------------------------------------------------------------
+ALTERNATE / LEGACY TEST ACCOUNTS
+--------------------------------------------------------------------------------
+
+Free (demo seed)
+  Email:    demo@example.com
+  Password: DemoPass123!
+  Plan:     free
+
+Pro (example.com)
+  Email:    pro@example.com
+  Password: ProPass123!
+  Plan:     pro
+
+Ops super-admin (from backend .env)
+  Email:    ops@civicbot.co.uk
+  Password: OpsAdmin2026!
+  Role:     admin
+  Login:    http://localhost:3000/admin/login
+
+Support super-admin (from backend .env)
+  Email:    support@civicbot.co.uk
+  Password: SupportAdmin2026!
+  Role:     admin
+  Login:    http://localhost:3000/admin/login
+
+--------------------------------------------------------------------------------
+QUICK REFERENCE
+--------------------------------------------------------------------------------
+
+Tier         | Email                         | Password
+-------------|-------------------------------|------------------
+Free         | freetest@civicbot.co.uk       | FreePass123!
+Pro          | protest@civicbot.co.uk        | ProTest123!
+Business     | businesstest@civicbot.co.uk   | BusinessPass123!
+Org owner    | orgowner-test@civicbot.co.uk  | OrgOwner123!
+Super-admin  | admin@example.com             | AdminPass123!
+Staff        | stafftest@civicbot.co.uk      | StaffPass123!
+
+--------------------------------------------------------------------------------
+NOTES
+--------------------------------------------------------------------------------
+- Passwords are case-sensitive.
+- Admin/staff accounts use /admin/login, NOT the regular /login page.
+- Regular users (free/pro/business) cannot access /admin — they get turned away.
+- Staff see only the sections granted to them; super-admin sees everything.
+- If login fails, hard-refresh the browser (Cmd+Shift+R).
+- Backend must be running on port 8001; frontend on port 3000.
+
+================================================================================

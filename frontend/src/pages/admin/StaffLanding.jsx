@@ -1,8 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { BookOpen, Users, Inbox, ShieldCheck, ArrowRight, Briefcase } from "lucide-react";
-
+import { BookOpen, Users, Inbox, ArrowRight, Briefcase } from "lucide-react";
 const PERM_CARDS = {
   blog: {
     label: "Manage blog posts",
@@ -18,7 +17,7 @@ const PERM_CARDS = {
   },
   "users-read": {
     label: "Browse users",
-    desc: "View user accounts (read-only — no edits).",
+    desc: "View user accounts (read-only, no edits).",
     icon: Users,
     href: "/admin/users",
   },
@@ -36,23 +35,18 @@ export default function StaffLanding() {
   const perms = user?.permissions || [];
   return (
     <div data-testid="staff-landing">
-      <div className="flex items-center gap-2">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100">
-          <ShieldCheck className="h-5 w-5 text-emerald-700" />
-        </span>
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">
-            Welcome, {user?.name || "team member"}
-          </h1>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Staff console — you can access the areas a super-admin has granted to you.
-          </p>
-        </div>
+      <div>
+        <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">
+          Welcome, {user?.name || "team member"}
+        </h1>
+        <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
+          Staff console. You can access the areas a super-admin has granted to you.
+        </p>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {perms.length === 0 ? (
-          <div className="col-span-full rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--muted-foreground)]">
+          <div className="col-span-full rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--c-muted-fg)]">
             No permissions granted yet. Ask a super-admin to grant access from <span className="font-mono">/admin/team</span>.
           </div>
         ) : (
@@ -73,9 +67,9 @@ export default function StaffLanding() {
                   </span>
                   <div className="flex-1">
                     <p className="font-semibold text-[var(--c-ink)]">{card.label}</p>
-                    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{card.desc}</p>
+                    <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">{card.desc}</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-[var(--muted-foreground)] transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight className="h-4 w-4 text-[var(--c-muted-fg)] transition-transform group-hover:translate-x-0.5" />
                 </div>
               </Link>
             );
@@ -83,7 +77,7 @@ export default function StaffLanding() {
         )}
       </div>
 
-      <p className="mt-6 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-6 text-xs text-[var(--c-muted-fg)]">
         Staff cannot access billing, refunds, audit logs, user impersonation or the Internal Team list. Only super-admins can.
       </p>
     </div>

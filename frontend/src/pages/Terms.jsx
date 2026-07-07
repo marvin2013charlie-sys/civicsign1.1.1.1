@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { LegalLayout } from "@/components/LegalLayout";
 
 const sections = [
@@ -23,8 +24,10 @@ const sections = [
   { heading: "Intellectual property", paragraphs: [
     "The Services, including all software, design, and branding, are owned by CivicSign and protected by applicable laws. You retain all rights to the documents and content you upload.",
   ] },
-  { heading: "Fees", paragraphs: [
-    "Certain features may require a paid subscription. Fees, billing cycles, and plan details will be presented at the time of purchase. Except where required by law, fees are non-refundable.",
+  { heading: "Fees & billing cycles", paragraphs: [
+    "Certain features may require a paid subscription. Fees, billing cycles, and plan details will be presented at the time of purchase.",
+    "Free and paid plans include a monthly document allowance that resets on the anniversary of your account registration date (not on the 1st of the calendar month). Deleting documents does not restore your allowance within the current billing period.",
+    <>Refund eligibility for subscriptions and pay-as-you-go purchases is set out in our <Link to="/legal/refunds" className="font-medium text-[var(--c-primary)] hover:underline">Refund Policy</Link>. Except where required by law or stated in that policy, fees are non-refundable once paid features have been used.</>,
   ] },
   { heading: "Disclaimers", paragraphs: [
     "The Services are provided “as is” and “as available” without warranties of any kind, whether express or implied, including merchantability, fitness for a particular purpose, and non-infringement. CivicSign does not provide legal advice.",
@@ -45,7 +48,7 @@ const sections = [
     "We may update these Terms from time to time. Continued use of the Services after changes take effect constitutes acceptance of the revised Terms.",
   ] },
   { heading: "Contact us", paragraphs: [
-    "Questions about these Terms can be directed to legal@civicsign.com or via our Contact page.",
+    "Questions about these Terms can be directed to info@civicbot.co.uk or via our Contact page.",
   ] },
 ];
 

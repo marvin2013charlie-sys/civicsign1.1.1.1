@@ -18,12 +18,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
-from passlib.context import CryptContext
-
-from auth import require_admin, require_permission
+from auth import require_admin, require_permission, hash_password, _validate_password_strength
 from db import db
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 
 # ---------------------------------------------------------------------------
@@ -247,13 +245,16 @@ async def create_staff(body: StaffCreate, admin: dict = Depends(require_admin)):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="A user with that email already exists")
+    is_valid, err = _validate_password_strength(body.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=err)
     allowed = {"blog", "contacts", "users-read", "careers", "envelopes", "billing", "audit", "impersonate"}
     perms = sorted(set(body.permissions) & allowed) or ["blog"]
     user = {
         "user_id": "user_" + secrets.token_hex(8),
         "email": email,
         "name": body.name.strip(),
-        "password_hash": pwd_ctx.hash(body.password),
+        "password_hash": hash_password(body.password),
         "auth_provider": "password",
         "role": "staff",
         "permissions": perms,
@@ -299,10 +300,13 @@ async def reset_staff_password(
         raise HTTPException(status_code=404, detail="Staff member not found")
     if target.get("role") != "staff":
         raise HTTPException(status_code=400, detail="This endpoint only resets staff passwords")
+    is_valid, err = _validate_password_strength(body.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=err)
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {
-            "password_hash": pwd_ctx.hash(body.password),
+            "password_hash": hash_password(body.password),
             "password_reset_at": datetime.now(timezone.utc).isoformat(),
             "password_reset_by": admin["user_id"],
         }},

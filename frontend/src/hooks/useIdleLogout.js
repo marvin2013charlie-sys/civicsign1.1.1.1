@@ -12,7 +12,7 @@ const ACTIVITY_KEY = "cs_last_activity";
  * stay signed in. Cross-tab safe: activity in one tab keeps every tab alive.
  */
 export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = {}) {
-  const { user, logout } = useAuth();
+  const { user, logout, impersonation } = useAuth();
   const navigate = useNavigate();
   const timersRef = useRef({ warn: null, logout: null });
   const warnedRef = useRef(false);
@@ -20,6 +20,7 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
   useEffect(() => {
     // Only arm the timer for authenticated users.
     if (!user) return undefined;
+    const effectiveIdle = impersonation ? idleMs * 2 : idleMs;
 
     const clearTimers = () => {
       clearTimeout(timersRef.current.warn);
@@ -34,7 +35,8 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
       try {
         await logout();
       } finally {
-        navigate("/login?reason=idle", { replace: true });
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        navigate(`/login?reason=idle&next=${next}`, { replace: true });
       }
     };
 
@@ -51,8 +53,8 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
 
     const arm = () => {
       clearTimers();
-      timersRef.current.warn = setTimeout(showWarning, Math.max(0, idleMs - warnMs));
-      timersRef.current.logout = setTimeout(doLogout, idleMs);
+      timersRef.current.warn = setTimeout(showWarning, Math.max(0, effectiveIdle - warnMs));
+      timersRef.current.logout = setTimeout(doLogout, effectiveIdle);
     };
 
     const noteActivity = () => {
@@ -70,7 +72,7 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
       window.addEventListener(ev, noteActivity, { passive: true })
     );
 
-    // Cross-tab activity sync — if another tab logs activity, reset our timer.
+    // Cross-tab activity sync, if another tab logs activity, reset our timer.
     const onStorage = (e) => {
       if (e.key === ACTIVITY_KEY) {
         warnedRef.current = false;
@@ -85,7 +87,7 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
       ACTIVITY_EVENTS.forEach((ev) => window.removeEventListener(ev, noteActivity));
       window.removeEventListener("storage", onStorage);
     };
-  }, [user, idleMs, warnMs, logout, navigate]);
+  }, [user, impersonation, idleMs, warnMs, logout, navigate]);
 }
 
 export default useIdleLogout;

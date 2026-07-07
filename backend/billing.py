@@ -22,27 +22,57 @@ import hashlib
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from pymongo import ReturnDocument
+from rate_limits import limiter
 
 import stripe
 
 from db import db
 from auth import get_current_user, _public_user
-from models import CheckoutRequest
+from security_utils import validate_redirect_base
+from models import CheckoutRequest, DocumentCheckoutRequest
 
 logger = logging.getLogger("civicsign.billing")
 
 billing_router = APIRouter(prefix="/api", tags=["billing"])
-limiter = Limiter(key_func=get_remote_address)
 
 CURRENCY = "gbp"
+EXTRA_DOCUMENT_PRICE_GBP = 1.00
 
 # Server-side, fixed plan catalogue. The frontend NEVER sends amounts.
+PRO_MONTHLY_GBP = 15.00
+YEARLY_MONTHS_PAID = 10  # pay 10 months, get 12
+
 PLANS = {
-    "pro": {"name": "Pro", "amount": 15.00},
-    "business": {"name": "Business", "amount": 49.00},
+    "pro": {
+        "name": "Pro",
+        "amount_monthly": PRO_MONTHLY_GBP,
+        "amount_yearly": PRO_MONTHLY_GBP * YEARLY_MONTHS_PAID,
+    },
+    "business": {
+        "name": "Business",
+        "amount_monthly": 49.00,
+        "amount_yearly": 49.00 * YEARLY_MONTHS_PAID,
+    },
 }
+
+
+def _plan_amount(plan_id: str, billing_interval: str) -> float:
+    plan = PLANS[plan_id]
+    interval = (billing_interval or "monthly").lower().strip()
+    if interval == "yearly":
+        return float(plan["amount_yearly"])
+    if interval != "monthly":
+        raise HTTPException(status_code=400, detail="billing_interval must be monthly or yearly")
+    return float(plan["amount_monthly"])
+
+
+def _plan_product_name(plan_id: str, billing_interval: str) -> str:
+    plan = PLANS[plan_id]
+    interval = (billing_interval or "monthly").lower().strip()
+    if interval == "yearly":
+        return f"CivicSign {plan['name']} plan (annual — 2 months free)"
+    return f"CivicSign {plan['name']} plan (monthly)"
 
 # Webhook signing secret - MUST be set in environment
 def get_webhook_secret() -> str:
@@ -82,83 +112,125 @@ def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
     return signature
 
 
+def _verify_plan_signature(user_id: str, plan_id: str, timestamp: str, signature: str) -> bool:
+    """Verify HMAC signature for plan validity."""
+    expected_signature = _generate_plan_signature(user_id, plan_id, timestamp)
+    return hmac.compare_digest(expected_signature, signature)
+
+
+def is_organisation_member(user: dict) -> bool:
+    """True when the user belongs to an enterprise organisation pool."""
+    org_id = user.get("org_id")
+    return bool(org_id and str(org_id).strip())
+
+
+def get_effective_plan(user: dict) -> str:
+    """Return the user's plan after verifying payment signature (anti-tamper)."""
+    # Organisation contract accounts include full Business-tier features.
+    if is_organisation_member(user):
+        return "business"
+    plan = user.get("plan", "free")
+    if plan == "free":
+        return "free"
+    sig = user.get("plan_signature")
+    ts = user.get("plan_updated_at")
+    if not sig or not ts:
+        return "free"
+    if not _verify_plan_signature(user["user_id"], plan, ts, sig):
+        return "free"
+    return plan
+
+
+async def _apply_document_credits(user_id: str, credits: int, session_id: str) -> bool:
+    if credits < 1:
+        return False
+    result = await db.users.update_one(
+        {"user_id": user_id},
+        {"$inc": {"extra_document_credits": credits}},
+    )
+    if result.matched_count == 0:
+        logger.error(f"[billing] user {user_id} not found for document credits")
+        return False
+    logger.info(
+        f"[billing] added {credits} document credit(s) to user={user_id} (session {session_id})"
+    )
+    return True
+
+
 async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str):
     """
-    Idempotently update a transaction and upgrade the user's plan on success.
-    
-    SECURITY:
-    - Uses database atomic operations to prevent race conditions
-    - Only processes once (checked with 'processed' flag)
-    - Verifies payment_status is 'paid' (not from user input alone)
-    - Generates cryptographic plan signature
-    """
-    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-    if not tx:
-        logger.warning(f"[billing] no transaction for session {session_id}")
-        return None
+    Idempotently update a transaction and fulfil checkout (plan upgrade or credits).
 
-    # CRITICAL: Check if already processed to prevent double-upgrades
-    if tx.get("processed"):
-        logger.info(f"[billing] session {session_id} already processed, skipping")
+    Uses find_one_and_update to atomically claim the `processed` flag so
+    concurrent webhook + status-poll cannot double-apply.
+    """
+    now_ts = _now()
+
+    if payment_status != "paid":
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": payment_status, "status": status, "updated_at": now_ts}},
+        )
+        return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+
+    # Atomically claim this paid session (only one caller wins).
+    tx = await db.payment_transactions.find_one_and_update(
+        {"session_id": session_id, "processed": False},
+        {"$set": {
+            "processed": True,
+            "payment_status": payment_status,
+            "status": status,
+            "updated_at": now_ts,
+        }},
+        return_document=ReturnDocument.BEFORE,
+    )
+    if not tx:
+        existing = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        if existing:
+            logger.info(f"[billing] session {session_id} already processed, skipping")
+        else:
+            logger.warning(f"[billing] no transaction for session {session_id}")
+        return existing
+
+    user_id = tx.get("user_id")
+    if not user_id:
+        logger.error(f"[billing] missing user_id for session {session_id}")
         return tx
 
-    updates = {"payment_status": payment_status, "status": status, "updated_at": _now()}
+    purchase_type = tx.get("purchase_type", "plan")
+    if purchase_type == "extra_document":
+        credits = int(tx.get("document_credits") or 1)
+        await _apply_document_credits(user_id, credits, session_id)
+        return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
 
-    # Only upgrade the plan once per paid session - use atomic operations
-    if payment_status == "paid":
-        plan_id = tx.get("plan_id")
-        user_id = tx.get("user_id")
-        
-        if not plan_id or not user_id:
-            logger.error(f"[billing] missing plan_id or user_id for session {session_id}")
-            updates["processed"] = True  # Mark as processed but failed
-            await db.payment_transactions.update_one(
-                {"session_id": session_id}, 
-                {"$set": updates}
-            )
-            return tx
+    plan_id = tx.get("plan_id")
+    if not plan_id:
+        logger.error(f"[billing] missing plan_id for session {session_id}")
+        return tx
 
-        if plan_id not in PLANS:
-            logger.error(f"[billing] invalid plan_id {plan_id} for session {session_id}")
-            updates["processed"] = True
-            await db.payment_transactions.update_one(
-                {"session_id": session_id}, 
-                {"$set": updates}
-            )
-            return tx
+    if plan_id not in PLANS:
+        logger.error(f"[billing] invalid plan_id {plan_id} for session {session_id}")
+        return tx
 
-        # Generate plan signature with current timestamp
-        now_ts = _now()
-        plan_sig = _generate_plan_signature(user_id, plan_id, now_ts)
-
-        # Atomically update user plan with signature (prevents external tampering)
-        result = await db.users.update_one(
-            {"user_id": user_id},
-            {
-                "$set": {
-                    "plan": plan_id,
-                    "plan_updated_at": now_ts,
-                    "plan_signature": plan_sig,  # HMAC signature for verification
-                    "plan_upgraded_via_payment": True,
-                }
-            }
-        )
-
-        if result.matched_count == 0:
-            logger.error(f"[billing] user {user_id} not found for plan upgrade")
-            return tx
-
-        updates["processed"] = True
-        logger.info(
-            f"[billing] upgraded user={user_id} -> plan={plan_id} "
-            f"(session {session_id}) with signature verification"
-        )
-
-    await db.payment_transactions.update_one(
-        {"session_id": session_id}, 
-        {"$set": updates}
+    plan_sig = _generate_plan_signature(user_id, plan_id, now_ts)
+    result = await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "plan": plan_id,
+            "plan_updated_at": now_ts,
+            "plan_signature": plan_sig,
+            "plan_upgraded_via_payment": True,
+        }},
     )
-    return tx
+    if result.matched_count == 0:
+        logger.error(f"[billing] user {user_id} not found for plan upgrade")
+        return tx
+
+    logger.info(
+        f"[billing] upgraded user={user_id} -> plan={plan_id} "
+        f"(session {session_id}) with signature verification"
+    )
+    return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
 
 
 @billing_router.get("/billing/plans")
@@ -166,7 +238,17 @@ async def list_plans():
     """Public plan catalogue (amounts come from the server)."""
     return {
         "currency": CURRENCY,
-        "plans": [{"id": pid, "name": p["name"], "amount": p["amount"]} for pid, p in PLANS.items()],
+        "extra_document_price": EXTRA_DOCUMENT_PRICE_GBP,
+        "yearly_months_paid": YEARLY_MONTHS_PAID,
+        "plans": [
+            {
+                "id": pid,
+                "name": p["name"],
+                "amount_monthly": p["amount_monthly"],
+                "amount_yearly": p["amount_yearly"],
+            }
+            for pid, p in PLANS.items()
+        ],
     }
 
 
@@ -184,17 +266,17 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     if user.get("plan") == plan_id:
         raise HTTPException(status_code=400, detail=f"You are already on the {PLANS[plan_id]['name']} plan.")
 
-    origin = (body.origin_url or "").rstrip("/")
-    if not origin:
-        raise HTTPException(status_code=400, detail="Missing origin URL")
-
-    amount = float(PLANS[plan_id]["amount"])  # server-defined amount only
+    origin = validate_redirect_base(body.origin_url or "")
+    billing_interval = (body.billing_interval or "monthly").lower().strip()
+    amount = _plan_amount(plan_id, billing_interval)
+    product_name = _plan_product_name(plan_id, billing_interval)
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/settings?tab=subscription"
     metadata = {
         "user_id": user["user_id"],
         "email": user["email"],
         "plan_id": plan_id,
+        "billing_interval": billing_interval,
         "source": "civicsign_subscription",
     }
 
@@ -206,7 +288,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
             line_items=[{
                 "price_data": {
                     "currency": CURRENCY,
-                    "product_data": {"name": f"CivicSign {PLANS[plan_id]['name']} plan"},
+                    "product_data": {"name": product_name},
                     "unit_amount": int(round(amount * 100)),  # server-defined amount only
                 },
                 "quantity": 1,
@@ -227,6 +309,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "user_id": user["user_id"],
         "email": user["email"],
         "plan_id": plan_id,
+        "billing_interval": billing_interval,
         "amount": amount,
         "currency": CURRENCY,
         "metadata": metadata,
@@ -238,6 +321,69 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     })
 
     return {"url": session.url, "session_id": session.id, "tx_id": tx_id}
+
+
+@billing_router.post("/billing/checkout-document")
+async def create_document_checkout(body: DocumentCheckoutRequest, request: Request,
+                                 user: dict = Depends(get_current_user)):
+    """One-time Stripe checkout for extra document credits (£1 each)."""
+    quantity = int(body.quantity or 1)
+    amount = round(EXTRA_DOCUMENT_PRICE_GBP * quantity, 2)
+    origin = validate_redirect_base(body.origin_url or "")
+    success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}&purchase=document"
+    cancel_url = f"{origin}/usage"
+    metadata = {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "purchase_type": "extra_document",
+        "document_credits": str(quantity),
+        "source": "civicsign_extra_document",
+    }
+
+    _require_stripe_key()
+    try:
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.create,
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": CURRENCY,
+                    "product_data": {
+                        "name": "CivicSign extra document"
+                        if quantity == 1
+                        else f"CivicSign extra documents ({quantity})",
+                    },
+                    "unit_amount": int(round(EXTRA_DOCUMENT_PRICE_GBP * 100)),
+                },
+                "quantity": quantity,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
+    except Exception as e:
+        logger.error(f"[billing] create_document_checkout failed: {e}")
+        raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
+
+    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
+    await db.payment_transactions.insert_one({
+        "tx_id": tx_id,
+        "session_id": session.id,
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "purchase_type": "extra_document",
+        "document_credits": quantity,
+        "amount": amount,
+        "currency": CURRENCY,
+        "metadata": metadata,
+        "status": "initiated",
+        "payment_status": "pending",
+        "processed": False,
+        "created_at": _now(),
+        "updated_at": _now(),
+    })
+
+    return {"url": session.url, "session_id": session.id, "tx_id": tx_id, "credits": quantity}
 
 
 @billing_router.get("/billing/status/{session_id}")
@@ -290,12 +436,15 @@ async def checkout_status(session_id: str, request: Request,
         logger.warning(f"[billing] could not capture payment_intent for {session_id}: {_e}")
 
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    fresh_tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     return {
         "status": session.status,
         "payment_status": session.payment_status,
         "amount_total": session.amount_total,
         "currency": session.currency,
-        "plan_id": tx.get("plan_id"),
+        "plan_id": fresh_tx.get("plan_id") if fresh_tx else tx.get("plan_id"),
+        "purchase_type": (fresh_tx or tx).get("purchase_type", "plan"),
+        "document_credits": (fresh_tx or tx).get("document_credits"),
         "user": _public_user(fresh) if fresh else None,
     }
 
@@ -354,3 +503,72 @@ async def stripe_webhook(request: Request):
         logger.info(f"[billing] webhook processed payment for session {session_id}")
 
     return {"received": True}
+
+
+@billing_router.get("/billing/user-plan-verify")
+async def verify_user_plan(user: dict = Depends(get_current_user)):
+    """
+    Verify user's plan is valid and matches stored signature.
+    
+    This endpoint allows frontend to verify that plan hasn't been tampered with.
+    """
+    if is_organisation_member(user):
+        return {
+            "plan": "business",
+            "verified": True,
+            "message": "Organisation contract — full organisation feature set included",
+        }
+
+    user_plan = user.get("plan", "free")
+    plan_sig = user.get("plan_signature")
+    plan_updated_at = user.get("plan_updated_at")
+
+    # Free plan doesn't require verification
+    if user_plan == "free":
+        return {
+            "plan": user_plan,
+            "verified": True,
+            "message": "Free plan (no signature required)"
+        }
+
+    # Paid plans must have signature
+    if not plan_sig or not plan_updated_at:
+        logger.warning(
+            f"[billing] user {user['user_id']} has paid plan but missing signature - "
+            "plan may have been tampered with"
+        )
+        # Downgrade to free as failsafe
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"plan": "free", "plan_signature": None}}
+        )
+        return {
+            "plan": "free",
+            "verified": False,
+            "message": "Plan verification failed - downgraded to free"
+        }
+
+    # Verify signature
+    is_valid = _verify_plan_signature(user["user_id"], user_plan, plan_updated_at, plan_sig)
+    
+    if not is_valid:
+        logger.error(
+            f"[billing] plan signature verification FAILED for user {user['user_id']} - "
+            "possible tampering detected!"
+        )
+        # Downgrade to free as failsafe
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"plan": "free", "plan_signature": None}}
+        )
+        return {
+            "plan": "free",
+            "verified": False,
+            "message": "Plan signature invalid - downgraded to free as failsafe"
+        }
+
+    return {
+        "plan": user_plan,
+        "verified": True,
+        "message": "Plan verified"
+    }

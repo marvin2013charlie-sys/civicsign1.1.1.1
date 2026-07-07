@@ -1,20 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
-import { API_BASE } from "@/lib/api";
+import { publicApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Briefcase, MapPin, Globe2, ArrowRight, Heart, Users, Sparkles, Search, X as XIcon } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
+import { ContactEmailLink } from "@/components/BrandText";
 
 const TYPE_LABEL = { "full-time": "Full-time", "part-time": "Part-time", contract: "Contract", internship: "Internship" };
 const WP_LABEL = { remote: "Remote", hybrid: "Hybrid", "on-site": "On-site" };
 
 const VALUES = [
   { icon: Heart,    title: "Make signing humane",         text: "We sweat the small details so signers and senders feel calm, not confused." },
-  { icon: Users,    title: "Build for the UK first",      text: "Compliance, language, payment rails and trust marks — all designed for Britain." },
+  { icon: Users,    title: "Build for the UK first",      text: "Compliance, language, payment rails and trust marks, all designed for Britain." },
   { icon: Sparkles, title: "Ship fast, write things down", text: "We move quickly but document decisions so the team can scale without losing context." },
 ];
 
@@ -26,7 +27,7 @@ export default function Careers() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get(`${API_BASE}/careers/jobs`);
+        const { data } = await publicApi.get("/careers/jobs");
         setJobs(data);
       } catch {
         setJobs([]);
@@ -68,7 +69,7 @@ export default function Careers() {
           <h1 className="mt-4 font-heading text-4xl font-bold text-[var(--c-ink)] sm:text-5xl">
             Help us build the UK&rsquo;s trusted signing platform.
           </h1>
-          <p className="mt-4 text-lg leading-relaxed text-[var(--muted-foreground)]">
+          <p className="mt-4 text-lg leading-relaxed text-[var(--c-muted-fg)]">
             We&rsquo;re a small, ambitious team turning a paperwork chore into a smooth, lawful, dignified experience. If you care about craft, compliance and the customers who depend on us, we&rsquo;d love to hear from you.
           </p>
         </div>
@@ -82,12 +83,12 @@ export default function Careers() {
             {VALUES.map((v) => {
               const Icon = v.icon;
               return (
-                <div key={v.title} className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--c-paper-2)]">
+                <div key={v.title} className={`bg-[var(--card)] p-6 ${greenHoverLg}`}>
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--c-paper-2)] ${greenHoverIcon}`}>
                     <Icon className="h-5 w-5 text-[var(--c-primary)]" />
                   </span>
-                  <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">{v.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{v.text}</p>
+                  <h3 className={`mt-3 font-heading text-lg font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{v.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{v.text}</p>
                 </div>
               );
             })}
@@ -101,7 +102,7 @@ export default function Careers() {
           <div className="flex items-end justify-between">
             <div>
               <h2 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Open positions</h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
                 {loading ? "Loading…" : visible.length === 0 ? "No matching roles right now." : `${visible.length} ${visible.length === 1 ? "role" : "roles"}${query ? " match your search" : " open"}`}
               </p>
             </div>
@@ -109,7 +110,7 @@ export default function Careers() {
 
           {/* Search bar */}
           <div className="mt-5 relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--c-muted-fg)]" />
             <Input
               type="search"
               value={query}
@@ -124,7 +125,7 @@ export default function Careers() {
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
                 data-testid="careers-search-clear"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--c-ink)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]"
               >
                 <XIcon className="h-4 w-4" />
               </button>
@@ -136,12 +137,12 @@ export default function Careers() {
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
             ) : visible.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-12 text-center" data-testid="careers-empty-state">
-                <Briefcase className="mx-auto h-8 w-8 text-[var(--muted-foreground)]" />
-                <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+                <Briefcase className="mx-auto h-8 w-8 text-[var(--c-muted-fg)]" />
+                <p className="mt-3 text-sm text-[var(--c-muted-fg)]">
                   {query ? (
                     <>No openings match &ldquo;<b>{query}</b>&rdquo;. Try a different keyword or clear the search.</>
                   ) : (
-                    <>We&rsquo;re not actively hiring right now, but we&rsquo;re always happy to hear from exceptional people. Email <a href="mailto:careers@civicsign.app" className="font-semibold text-[var(--c-primary)] hover:underline">careers@civicsign.app</a>.</>
+                    <>We&rsquo;re not actively hiring right now, but we&rsquo;re always happy to hear from exceptional people. Email <ContactEmailLink className="font-semibold" />.</>
                   )}
                 </p>
               </div>
@@ -151,17 +152,17 @@ export default function Careers() {
                   key={j.slug}
                   to={`/careers/${j.slug}`}
                   data-testid={`career-job-${j.slug}`}
-                  className="group block rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-5 transition-colors hover:border-[var(--c-primary)]/40"
+                  className={`block bg-[var(--card)] p-5 ${greenHoverLg}`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--c-primary)" }}>
                         {j.department}
                       </p>
-                      <h3 className="mt-1 font-heading text-lg font-semibold text-[var(--c-ink)] group-hover:text-[var(--c-primary)]">
+                      <h3 className={`mt-1 font-heading text-lg font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>
                         {j.title}
                       </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted-foreground)] line-clamp-2">
+                      <p className="mt-1.5 text-sm leading-relaxed text-[var(--c-muted-fg)] line-clamp-2">
                         {j.summary}
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
@@ -171,7 +172,7 @@ export default function Careers() {
                         {j.salary ? <Badge>{j.salary}</Badge> : null}
                       </div>
                     </div>
-                    <ArrowRight className="mt-1 h-5 w-5 text-[var(--muted-foreground)] transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRight className="mt-1 h-5 w-5 text-[var(--c-muted-fg)] transition-transform group-hover:translate-x-0.5" />
                   </div>
                 </Link>
               ))

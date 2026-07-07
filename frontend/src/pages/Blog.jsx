@@ -9,6 +9,8 @@ import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { POSTS as STATIC_POSTS, CATEGORIES, fetchAllPosts } from "@/lib/blogPosts";
+import { greenHoverLg, greenHoverTitle } from "@/lib/greenHover";
+import { BrandAccent } from "@/components/BrandText";
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = React.useState("All");
@@ -44,9 +46,9 @@ export default function Blog() {
               <BookOpen className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Resources · Blog
             </span>
             <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-              UK e-signature insights, <span style={{ color: "var(--c-primary)" }}>without the legalese.</span>
+              UK e-signature insights, <BrandAccent>without the legalese.</BrandAccent>
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-[var(--muted-foreground)]">
+            <p className="mt-5 text-lg leading-relaxed text-[var(--c-muted-fg)]">
               Honest, UK-grounded writing on electronic signatures, GDPR, sector compliance and the boring back-office paperwork we&rsquo;re here to fix.
             </p>
           </motion.div>
@@ -56,7 +58,7 @@ export default function Blog() {
       {/* Search + Category filter */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mb-4 relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--c-muted-fg)]" />
           <Input
             type="search"
             value={query}
@@ -71,7 +73,7 @@ export default function Blog() {
               onClick={() => setQuery("")}
               aria-label="Clear search"
               data-testid="blog-search-clear"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--c-ink)]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]"
             >
               <XIcon className="h-4 w-4" />
             </button>
@@ -99,17 +101,17 @@ export default function Blog() {
       {/* Featured + grid */}
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
         {visible.length === 0 ? (
-          <p className="py-16 text-center text-sm text-[var(--muted-foreground)]" data-testid="blog-empty-state">
+          <p className="py-16 text-center text-sm text-[var(--c-muted-fg)]" data-testid="blog-empty-state">
             {q
-              ? <>No articles match &ldquo;<b>{query}</b>&rdquo; — try a different keyword or clear the search.</>
-              : "No posts in this category yet — try another filter."}
+              ? <>No articles match &ldquo;<b>{query}</b>&rdquo;, try a different keyword or clear the search.</>
+              : "No posts in this category yet, try another filter."}
           </p>
         ) : (
           <>
             {/* Featured */}
             <Link
               to={`/blog/${featured.slug}`}
-              className="group block overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] transition-shadow hover:shadow-xl"
+              className={`block overflow-hidden bg-[var(--c-paper)] ${greenHoverLg}`}
               data-testid="blog-featured-card"
             >
               <div className="grid items-stretch gap-0 lg:grid-cols-5">
@@ -121,11 +123,11 @@ export default function Blog() {
                   <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--c-primary)]/12 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--c-primary)" }}>
                     <Tag className="h-3 w-3" /> {featured.category}
                   </span>
-                  <h2 className="mt-3 font-heading text-2xl font-bold leading-tight text-[var(--c-ink)] sm:text-3xl">
+                  <h2 className={`mt-3 font-heading text-2xl font-bold leading-tight text-[var(--c-ink)] sm:text-3xl ${greenHoverTitle}`}>
                     {featured.title}
                   </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">{featured.excerpt}</p>
-                  <div className="mt-5 flex items-center gap-4 text-xs text-[var(--muted-foreground)]">
+                  <p className="mt-3 text-sm leading-relaxed text-[var(--c-muted-fg)]">{featured.excerpt}</p>
+                  <div className="mt-5 flex items-center gap-4 text-xs text-[var(--c-muted-fg)]">
                     <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {featured.date}</span>
                     <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {featured.readTime}</span>
                   </div>
@@ -144,7 +146,7 @@ export default function Blog() {
                     key={p.slug}
                     to={`/blog/${p.slug}`}
                     data-testid="blog-card"
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] transition-shadow hover:shadow-lg"
+                    className={`flex flex-col overflow-hidden bg-[var(--c-paper)] ${greenHoverLg}`}
                   >
                     <div className="overflow-hidden">
                       <img src={p.image} alt={p.title} loading="lazy"
@@ -154,9 +156,9 @@ export default function Blog() {
                       <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
                         {p.category}
                       </span>
-                      <h3 className="mt-3 font-heading text-lg font-bold leading-snug text-[var(--c-ink)]">{p.title}</h3>
-                      <p className="mt-2 line-clamp-3 flex-1 text-sm text-[var(--muted-foreground)]">{p.excerpt}</p>
-                      <div className="mt-4 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]">
+                      <h3 className={`mt-3 font-heading text-lg font-bold leading-snug text-[var(--c-ink)] ${greenHoverTitle}`}>{p.title}</h3>
+                      <p className="mt-2 line-clamp-3 flex-1 text-sm text-[var(--c-muted-fg)]">{p.excerpt}</p>
+                      <div className="mt-4 flex items-center gap-3 text-[11px] text-[var(--c-muted-fg)]">
                         <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {p.date}</span>
                         <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {p.readTime}</span>
                       </div>
@@ -173,7 +175,7 @@ export default function Blog() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Get UK e-signature insights, monthly.</h2>
-          <p className="mx-auto mt-3 max-w-xl text-white/80">No spam, no fluff — just clear takes on UK e-signature law, product updates and tips for paperless British businesses.</p>
+          <p className="mx-auto mt-3 max-w-xl text-white/80">No spam, no fluff, just clear takes on UK e-signature law, product updates and tips for paperless British businesses.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link to="/contact">
               <Button size="lg" data-testid="blog-newsletter-cta" style={{ background: "var(--c-primary)", color: "#fff" }}>

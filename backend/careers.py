@@ -19,6 +19,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from auth import require_permission
 from db import db
+from rate_limits import limiter
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +113,8 @@ async def get_public_job(slug: str):
 
 
 @public_router.post("/apply")
-async def submit_application(body: ApplicationIn, request: Request):
+@limiter.limit("10/hour")
+async def submit_application(request: Request, body: ApplicationIn):
     job = await db.job_posts.find_one({"slug": body.job_slug, "published": True})
     if not job:
         raise HTTPException(status_code=404, detail="Position is no longer open")

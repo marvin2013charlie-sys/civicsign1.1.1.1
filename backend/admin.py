@@ -24,13 +24,13 @@ import hmac
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from rate_limits import limiter
 from html import escape
 
 import email_service
 from db import db
 from auth import require_admin, require_permission, _public_user, create_access_token, create_password_reset
+from security_utils import is_dev_mode, validate_redirect_base
 from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
 
 try:
@@ -41,7 +41,126 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger("civicsign.admin")
 
 admin_router = APIRouter(prefix="/api/admin", tags=["admin"])
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _is_super_admin(actor: dict) -> bool:
+    """Only role=admin (super-admin). Staff never see envelope metadata."""
+    return actor.get("role") == "admin"
+
+
+_USER_LIST_ROLE_ALIASES = {
+    "customer": "user",
+    "team": "internal",
+    "team_member": "internal",
+}
+
+
+def _normalize_user_list_role(role: str) -> str:
+    role = (role or "").strip().lower()
+    return _USER_LIST_ROLE_ALIASES.get(role, role)
+
+
+def _no_org_clause() -> dict:
+    return {"$or": [
+        {"org_id": {"$exists": False}},
+        {"org_id": None},
+        {"org_id": ""},
+    ]}
+
+
+def _in_org_clause() -> dict:
+    return {"org_id": {"$exists": True, "$nin": [None, ""]}}
+
+
+def _build_user_list_query(
+    *,
+    role: str,
+    plan: str,
+    org: str,
+    org_id: str,
+    org_role: str,
+    q: str,
+) -> dict:
+    """Compose Mongo filters for admin user list (role, plan tier, org, search)."""
+    clauses: list[dict] = []
+    role = _normalize_user_list_role(role)
+
+    if role and role != "all":
+        if role not in ("user", "staff", "admin", "internal"):
+            raise HTTPException(status_code=400, detail="Invalid role filter")
+        if role == "internal":
+            clauses.append({"role": {"$in": ["staff", "admin"]}})
+        elif role == "user":
+            clauses.append({"$or": [
+                {"role": "user"},
+                {"role": {"$exists": False}},
+                {"role": None},
+            ]})
+        else:
+            clauses.append({"role": role})
+
+    if plan and plan != "all":
+        if role not in ("user", "all", ""):
+            raise HTTPException(status_code=400, detail="Plan filter only applies to customer accounts")
+        if plan not in ("free", "pro", "business"):
+            raise HTTPException(status_code=400, detail="Invalid plan filter")
+        if plan == "free":
+            clauses.append({"$or": [
+                {"plan": "free"},
+                {"plan": {"$exists": False}},
+                {"plan": None},
+            ]})
+            clauses.append(_no_org_clause())
+        elif plan == "pro":
+            clauses.append({"plan": "pro"})
+            clauses.append(_no_org_clause())
+        else:
+            # Solo Business — single-user accounts, not organisation pool members.
+            clauses.append({"plan": "business"})
+            clauses.append(_no_org_clause())
+
+    org_id = (org_id or "").strip()
+    if org_id and org_id != "all":
+        if not re.match(r"^org_[a-f0-9]{10,20}$", org_id):
+            raise HTTPException(status_code=400, detail="Invalid organisation id")
+        if role not in ("user", "all", ""):
+            raise HTTPException(status_code=400, detail="Organisation filter only applies to customer accounts")
+        clauses.append({"org_id": org_id})
+    elif org and org != "all":
+        if org not in ("yes", "no"):
+            raise HTTPException(status_code=400, detail="Invalid organisation filter")
+        if role not in ("user", "all", ""):
+            raise HTTPException(status_code=400, detail="Organisation filter only applies to customer accounts")
+        if org == "yes":
+            clauses.append(_in_org_clause())
+        else:
+            clauses.append(_no_org_clause())
+
+    org_role = (org_role or "").strip().lower()
+    if org_role and org_role != "all":
+        if org_role not in ("owner", "member"):
+            raise HTTPException(status_code=400, detail="Invalid organisation role filter")
+        if role not in ("user", "all", ""):
+            raise HTTPException(status_code=400, detail="Organisation role filter only applies to customer accounts")
+        clauses.append({"org_role": org_role})
+
+    if q:
+        try:
+            escaped_q = re.escape(q)
+            clauses.append({"$or": [
+                {"email": {"$regex": escaped_q, "$options": "i"}},
+                {"name": {"$regex": escaped_q, "$options": "i"}},
+            ]})
+        except Exception as e:
+            logger.warning(f"[admin] search query error: {e}")
+            raise HTTPException(status_code=400, detail="Invalid search query")
+
+    if not clauses:
+        return {}
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"$and": clauses}
+
 
 STATUSES = ["draft", "sent", "viewed", "completed", "declined", "expired"]
 PLANS = ["free", "pro", "business"]
@@ -218,21 +337,9 @@ async def export_users(request: Request, admin: dict = Depends(require_permissio
 
 @admin_router.get("/export/envelopes.csv")
 @limiter.limit("5/minute")
-async def export_envelopes(request: Request, admin: dict = Depends(require_permission("envelopes"))):
-    """Export envelope list as CSV."""
-    try:
-        envs = await db.envelopes.find(
-            {}, {"_id": 0, "title": 1, "owner_name": 1, "status": 1, "recipients": 1,
-                 "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(50000)
-        rows = [[e.get("title", ""), e.get("owner_name", ""), e.get("status", ""),
-                 len(e.get("recipients", []) or []), e.get("created_at", ""),
-                 e.get("sent_at") or "", e.get("completed_at") or ""] for e in envs]
-        return _csv_response(
-            ["Title", "Owner", "Status", "Recipients", "Created", "Sent", "Completed"],
-            rows, "civicsign_envelopes.csv")
-    except Exception as e:
-        logger.error(f"[admin] export_envelopes error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to export envelopes")
+async def export_envelopes(request: Request, admin: dict = Depends(require_admin)):
+    """Disabled — envelope titles are not exported from the admin portal."""
+    raise HTTPException(status_code=404, detail="Envelope export is disabled for privacy")
 
 
 @admin_router.get("/export/contacts.csv")
@@ -252,49 +359,55 @@ async def export_contacts(request: Request, admin: dict = Depends(require_permis
         raise HTTPException(status_code=500, detail="Failed to export contacts")
 
 
+@admin_router.get("/users/organisation-options")
+@limiter.limit("30/minute")
+async def list_organisation_filter_options(
+    request: Request,
+    admin: dict = Depends(require_permission("users-read")),
+):
+    """Organisation names for the Users page nested filter (users-read staff can use this)."""
+    orgs = await db.organizations.find(
+        {}, {"_id": 0, "org_id": 1, "name": 1},
+    ).sort("name", 1).to_list(500)
+    return orgs
+
+
 @admin_router.get("/users")
 @limiter.limit("20/minute")
 async def list_users(
     request: Request,
     q: str = Query("", description="Search by name or email"),
-    role: str = Query("user", description="Filter by role: user | staff | admin | all"),
+    role: str = Query("user", description="Filter by role: user | customer | staff | admin | internal | team | all"),
+    plan: str = Query("", description="When role=user: free | pro | business | all"),
+    org: str = Query("", description="When role=user: yes (in org pool) | no | all"),
+    org_id: str = Query("", description="Filter to a specific organisation id"),
+    org_role: str = Query("", description="When filtering organisations: owner | member | all"),
     admin: dict = Depends(require_permission("users-read")),
 ):
-    """List users with optional search and role filtering (SQL injection protected)."""
+    """List users with optional search and role/plan filtering (SQL injection protected)."""
     try:
-        query = {}
         role = (role or "").strip().lower()
-        
-        # Validate role parameter
-        if role and role != "all":
-            if role not in ("user", "staff", "admin"):
-                raise HTTPException(status_code=400, detail="Invalid role filter")
-            query["role"] = role
-        
-        # SECURITY: Sanitize search query
+        plan = (plan or "").strip().lower()
+        org = (org or "").strip().lower()
+        org_id = (org_id or "").strip()
+        org_role = (org_role or "").strip().lower()
         q = _sanitize_string(q, max_length=100)
-        if q:
-            # Use escaped literal match instead of regex to prevent NoSQL injection
-            # This uses case-insensitive literal matching safely
-            try:
-                # Create case-insensitive regex with escaped pattern
-                escaped_q = re.escape(q)
-                query["$or"] = [
-                    {"email": {"$regex": escaped_q, "$options": "i"}},
-                    {"name": {"$regex": escaped_q, "$options": "i"}}
-                ]
-            except Exception as e:
-                logger.warning(f"[admin] search query error: {e}")
-                raise HTTPException(status_code=400, detail="Invalid search query")
+        query = _build_user_list_query(
+            role=role, plan=plan, org=org, org_id=org_id, org_role=org_role, q=q,
+        )
         
         users = await db.users.find(query, {"password_hash": 0, "_id": 0}).sort("created_at", -1).to_list(2000)
 
-        # Envelope counts per owner via a single aggregation
-        agg = await db.envelopes.aggregate(
-            [{"$group": {"_id": "$owner_id", "count": {"$sum": 1}}}]).to_list(20000)
-        counts = {a["_id"]: a["count"] for a in agg}
-        for u in users:
-            u["envelope_count"] = counts.get(u["user_id"], 0)
+        # Document counts are super-admin only — staff must not see envelope volumes.
+        if _is_super_admin(admin):
+            agg = await db.envelopes.aggregate(
+                [{"$group": {"_id": "$owner_id", "count": {"$sum": 1}}}]).to_list(20000)
+            counts = {a["_id"]: a["count"] for a in agg}
+            for u in users:
+                u["envelope_count"] = counts.get(u["user_id"], 0)
+        else:
+            for u in users:
+                u.pop("envelope_count", None)
         
         logger.info(f"[admin] list_users by {admin['email']} - returned {len(users)} results")
         return users
@@ -374,6 +487,33 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
         if body.active is not None:
             updates["active"] = body.active
 
+        if body.monthly_envelope_limit is not None:
+            if body.monthly_envelope_limit <= 0:
+                updates["monthly_envelope_limit"] = None
+            else:
+                updates["monthly_envelope_limit"] = body.monthly_envelope_limit
+            updates["enterprise_unlimited"] = False
+
+        if body.enterprise_unlimited is not None:
+            if body.enterprise_unlimited and target.get("plan", "free") != "business":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Enterprise unlimited applies to Business plan accounts only",
+                )
+            updates["enterprise_unlimited"] = body.enterprise_unlimited
+            if body.enterprise_unlimited:
+                updates["monthly_envelope_limit"] = None
+
+        if body.org_id is not None:
+            oid = (body.org_id or "").strip()
+            if not oid:
+                updates["org_id"] = None
+            else:
+                org = await db.organizations.find_one({"org_id": oid}, {"org_id": 1})
+                if not org:
+                    raise HTTPException(status_code=404, detail="Organisation not found")
+                updates["org_id"] = oid
+
         if not updates:
             raise HTTPException(status_code=400, detail="No changes provided")
 
@@ -420,15 +560,32 @@ async def user_detail(request: Request, user_id: str, admin: dict = Depends(requ
             raise HTTPException(status_code=404, detail="User not found")
         target = _clean_user(target)
 
-        envs = await db.envelopes.find(
-            {"owner_id": user_id},
-            {"_id": 0, "envelope_id": 1, "title": 1, "status": 1,
-             "created_at": 1, "sent_at": 1, "completed_at": 1}).sort("created_at", -1).to_list(2000)
-
-        stats = {s: 0 for s in STATUSES}
-        for e in envs:
-            stats[e.get("status", "draft")] = stats.get(e.get("status", "draft"), 0) + 1
         templates_count = await db.templates.count_documents({"owner_id": user_id})
+        stats = {"templates": templates_count}
+
+        if _is_super_admin(admin):
+            envs = await db.envelopes.find(
+                {"owner_id": user_id},
+                {"_id": 0, "status": 1}).to_list(2000)
+            status_counts = {s: 0 for s in STATUSES}
+            for e in envs:
+                status_counts[e.get("status", "draft")] = status_counts.get(e.get("status", "draft"), 0) + 1
+            stats.update({
+                "total": len(envs),
+                "completed": status_counts.get("completed", 0),
+                "sent": status_counts.get("sent", 0),
+                "viewed": status_counts.get("viewed", 0),
+                "draft": status_counts.get("draft", 0),
+                "declined": status_counts.get("declined", 0),
+                "expired": status_counts.get("expired", 0),
+                "templates": templates_count,
+            })
+
+        from organizations import resolve_usage_quota, get_org_for_user
+
+        raw_user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        usage = await resolve_usage_quota(raw_user or target)
+        org = await get_org_for_user(raw_user or target)
 
         email_ok = email_service.is_configured()
         diagnostics = {
@@ -438,25 +595,30 @@ async def user_detail(request: Request, user_id: str, admin: dict = Depends(requ
             "auth_provider": target.get("auth_provider", "password"),
             "can_send_email": email_ok,
             "email_note": (
-                "SendGrid is configured — invites & notifications are emailed."
+                "Resend is configured — invites & notifications are emailed."
                 if email_ok else
-                "SendGrid is NOT configured (skip-mode). Recipients get shareable links instead of emails; "
-                "set SENDGRID_API_KEY and SENDER_EMAIL to enable real delivery."),
+                "Resend is NOT configured. Recipients get shareable links instead of emails; "
+                "set RESEND_API_KEY and SENDER_EMAIL to enable real delivery."),
         }
 
         return {
             "user": target,
-            "stats": {
-                "total": len(envs),
-                "completed": stats.get("completed", 0),
-                "sent": stats.get("sent", 0),
-                "viewed": stats.get("viewed", 0),
-                "draft": stats.get("draft", 0),
-                "declined": stats.get("declined", 0),
-                "expired": stats.get("expired", 0),
-                "templates": templates_count,
+            "usage": {
+                "month": usage["month"],
+                "used": usage["used"],
+                "personal_used": usage.get("personal_used"),
+                "limit": usage["limit"],
+                "unlimited": usage["unlimited"],
+                "fair_use": usage["fair_use"],
+                "enterprise_unlimited": usage["enterprise_unlimited"],
+                "contract_limit": usage.get("contract_limit"),
+                "quota_note": usage["quota_note"],
+                "scope": usage.get("scope", "user"),
+                "organization": usage.get("organization"),
+                "monthly_envelope_limit": raw_user.get("monthly_envelope_limit") if raw_user else None,
             },
-            "recent_envelopes": envs[:10],
+            "organization": org,
+            "stats": stats,
             "diagnostics": diagnostics,
         }
     except HTTPException:
@@ -469,8 +631,7 @@ async def user_detail(request: Request, user_id: str, admin: dict = Depends(requ
 @admin_router.post("/users/{user_id}/send-reset")
 @limiter.limit("5/minute")
 async def send_password_reset_link(request: Request, user_id: str, body: SendReset, admin: dict = Depends(require_admin)):
-    """Generate a password-reset link for a user. Emails it when SendGrid is
-    configured; otherwise returns the link so the admin can share it."""
+    """Generate a password-reset link for a user. Emails it via Resend when configured."""
     try:
         if not isinstance(user_id, str) or len(user_id) > 50:
             raise HTTPException(status_code=400, detail="Invalid user ID")
@@ -482,7 +643,7 @@ async def send_password_reset_link(request: Request, user_id: str, body: SendRes
             raise HTTPException(status_code=400, detail="This account signs in with Google and has no password to reset.")
 
         token = await create_password_reset(user_id)
-        base = (body.base_url or "").rstrip("/")
+        base = validate_redirect_base(body.base_url or "", fallback=request.headers.get("origin", ""))
         reset_link = f"{base}/reset-password?token={token}"
         status = email_service.send_password_reset(target["email"], target.get("name"), reset_link)
         
@@ -497,8 +658,15 @@ async def send_password_reset_link(request: Request, user_id: str, body: SendRes
         })
         logger.info(f"[admin] Password reset sent for {target['email']} by {admin['email']}")
         
-        return {"reset_link": reset_link, "emailed": status == "sent",
-                "email_status": status, "email": target["email"]}
+        payload = {
+            "emailed": status == "sent",
+            "email_status": status,
+            "email": target["email"],
+        }
+        if is_dev_mode():
+            payload["reset_link"] = reset_link
+            payload["dev_mode"] = True
+        return payload
     except HTTPException:
         raise
     except Exception as e:
@@ -549,13 +717,15 @@ async def impersonate_request(request: Request, user_id: str,
         # SECURITY: the OTP is emailed to the USER (consent gate) — staff must
         # ask the user for the code. It is never emailed or shown to staff
         # unless email delivery is unconfigured (local dev fallback).
-        dev_mode = not email_service.is_configured()
+        dev_mode = is_dev_mode()
         if not dev_mode:
             email_service.send_impersonation_otp(
                 target["email"], target.get("name"), otp, admin["email"])
+        elif not email_service.is_configured():
+            logger.warning("[admin] DEV_MODE on but email not configured — OTP shown in API response")
         return {
             "request_id": request_id,
-            "otp": otp if dev_mode else None,  # ONLY return in dev mode
+            "otp": otp if dev_mode else None,
             "dev_mode": dev_mode,
             "expires_in": 300,
             "target_email": target["email"],
@@ -591,6 +761,12 @@ async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVe
                 f"invalid or already-used code by {admin['email']}"
             )
             raise HTTPException(status_code=400, detail="Invalid or already-used verification code")
+
+        if int(rec.get("failed_attempts") or 0) >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many failed attempts. Request a new verification code.",
+            )
         
         try:
             expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
@@ -617,7 +793,12 @@ async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVe
         if not target:
             raise HTTPException(status_code=404, detail="User not found")
 
-        token = create_access_token(target["user_id"], target["email"])
+        token = create_access_token(
+            target["user_id"],
+            target["email"],
+            token_version=int(target.get("token_version") or 0),
+            impersonating=True,
+        )
         
         await db.admin_audit.insert_one({
             "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
@@ -645,56 +826,10 @@ async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVe
 @limiter.limit("20/minute")
 async def list_all_envelopes(
     request: Request,
-    q: str = Query(""),
-    status: str = Query("all"),
-    admin: dict = Depends(require_permission("envelopes")),
+    admin: dict = Depends(require_admin),
 ):
-    """List all envelopes (with safe filtering)."""
-    try:
-        query = {}
-        
-        # Validate status parameter
-        if status != "all":
-            if status not in STATUSES:
-                raise HTTPException(status_code=400, detail="Invalid status filter")
-            query["status"] = status
-        
-        # SECURITY: Sanitize search query
-        q = _sanitize_string(q, max_length=100)
-        if q:
-            try:
-                escaped_q = re.escape(q)
-                query["title"] = {"$regex": escaped_q, "$options": "i"}
-            except Exception as e:
-                logger.warning(f"[admin] envelope search error: {e}")
-                raise HTTPException(status_code=400, detail="Invalid search query")
-        
-        items = await db.envelopes.find(
-            query,
-            {"_id": 0, "audit_events": 0, "fields": 0},
-        ).sort("created_at", -1).to_list(500)
-
-        # Trim recipients to a light summary
-        for it in items:
-            it["recipient_count"] = len(it.get("recipients", []) or [])
-            it.pop("recipients", None)
-            # PRIVACY: document contents belong to the user only. Expose bare
-            # metadata (name/pages), never file ids or page renders.
-            doc = it.pop("document", None) or {}
-            it["document"] = {
-                "original_filename": doc.get("original_filename"),
-                "page_count": doc.get("page_count"),
-            }
-            it.pop("completed_file_id", None)
-            it.pop("doc_hash", None)
-        
-        logger.info(f"[admin] list_all_envelopes by {admin['email']} - returned {len(items)} results")
-        return items
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[admin] list_all_envelopes error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list envelopes")
+    """Envelope browsing disabled — document titles and metadata are private to account owners."""
+    raise HTTPException(status_code=404, detail="Envelope browsing is disabled for privacy")
 
 
 @admin_router.get("/contact-messages")

@@ -1,0 +1,13 @@
+{
+  "name": "civicsign",
+  "private": true,
+  "scripts": {
+    "smoke": "python3 scripts/smoke_test.py",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}

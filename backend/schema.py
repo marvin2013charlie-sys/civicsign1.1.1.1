@@ -41,6 +41,7 @@ COLLECTIONS = {
             ([("email", 1)], {"unique": True}),
             ([("user_id", 1)], {"unique": True}),
             ([("role", 1)], {}),
+            ([("org_id", 1)], {"sparse": True}),
         ],
         "validator": _obj(
             ["user_id", "email"],
@@ -71,7 +72,12 @@ COLLECTIONS = {
                 "envelope_id": _STR,
                 "owner_id": _STR,
                 "title": _STR,
-                "status": {"enum": ["draft", "sent", "viewed", "completed", "declined", "expired", "voided"]},
+                "status": {
+                    "enum": [
+                        "draft", "sent", "viewed", "completing", "completed",
+                        "declined", "voided", "expired",
+                    ]
+                },
                 "signing_order": {"enum": ["sequential", "parallel"]},
                 "recipients": {"bsonType": "array"},
                 "fields": {"bsonType": "array"},
@@ -83,10 +89,94 @@ COLLECTIONS = {
         "indexes": [
             ([("template_id", 1)], {"unique": True}),
             ([("owner_id", 1)], {}),
+            ([("team_id", 1)], {"sparse": True}),
+            ([("shared_with_team", 1)], {}),
         ],
         "validator": _obj(
             ["template_id"],
-            {"template_id": _STR, "owner_id": _STR, "name": _STR},
+            {
+                "template_id": _STR,
+                "owner_id": _STR,
+                "name": _STR,
+                "team_id": _STR_OR_NULL,
+                "shared_with_team": _BOOL,
+            },
+        ),
+    },
+    "contacts": {
+        "indexes": [
+            ([("contact_id", 1)], {"unique": True}),
+            ([("owner_id", 1)], {}),
+            ([("owner_id", 1), ("email", 1)], {"unique": True}),
+        ],
+        "validator": _obj(
+            ["contact_id", "owner_id", "email"],
+            {"contact_id": _STR, "owner_id": _STR, "email": _STR, "name": _STR},
+        ),
+    },
+    "signer_signatures": {
+        "indexes": [
+            ([("email", 1)], {"unique": True}),
+        ],
+        "validator": _obj(
+            ["email", "signature_data"],
+            {"email": _STR, "signature_data": _STR},
+        ),
+    },
+    "organizations": {
+        "indexes": [
+            ([("org_id", 1)], {"unique": True}),
+            ([("name", 1)], {}),
+        ],
+        "validator": _obj(
+            ["org_id", "name"],
+            {
+                "org_id": _STR,
+                "name": _STR,
+                "monthly_envelope_limit": {"bsonType": ["int", "long", "double", "null"]},
+                "enterprise_unlimited": _BOOL,
+            },
+        ),
+    },
+    "teams": {
+        "indexes": [
+            ([("team_id", 1)], {"unique": True}),
+            ([("owner_id", 1)], {}),
+            ([("members.user_id", 1)], {}),
+        ],
+        "validator": _obj(
+            ["team_id", "name", "owner_id"],
+            {"team_id": _STR, "name": _STR, "owner_id": _STR, "members": {"bsonType": "array"}},
+        ),
+    },
+    "comments": {
+        "indexes": [
+            ([("comment_id", 1)], {"unique": True}),
+            ([("envelope_id", 1)], {}),
+            ([("created_at", 1)], {}),
+        ],
+        "validator": _obj(
+            ["comment_id", "envelope_id", "author_id", "body"],
+            {
+                "comment_id": _STR,
+                "envelope_id": _STR,
+                "author_id": _STR,
+                "author_name": _STR,
+                "body": _STR,
+                "page": {"bsonType": ["int", "long", "double"]},
+                "parent_id": _STR_OR_NULL,
+            },
+        ),
+    },
+    "team_invites": {
+        "indexes": [
+            ([("invite_id", 1)], {"unique": True}),
+            ([("team_id", 1)], {}),
+            ([("email", 1)], {}),
+        ],
+        "validator": _obj(
+            ["invite_id", "team_id", "email"],
+            {"invite_id": _STR, "team_id": _STR, "email": _STR},
         ),
     },
     "payment_transactions": {
@@ -157,6 +247,27 @@ COLLECTIONS = {
             {"contact_id": _STR, "email": _STR, "handled": _BOOL},
         ),
     },
+    "usage_ledger": {
+        "indexes": [
+            ([("owner_id", 1), ("month", 1)], {"unique": True}),
+            ([("month", 1)], {}),
+            ([("org_id", 1)], {"sparse": True}),
+        ],
+        "validator": _obj(
+            ["owner_id", "month"],
+            {"owner_id": _STR, "month": _STR, "count": _NUM, "org_id": _STR_OR_NULL},
+        ),
+    },
+    "org_usage_ledger": {
+        "indexes": [
+            ([("org_id", 1), ("month", 1)], {"unique": True}),
+            ([("month", 1)], {}),
+        ],
+        "validator": _obj(
+            ["org_id", "month"],
+            {"org_id": _STR, "month": _STR, "count": _NUM},
+        ),
+    },
     # --- Ephemeral collections: TTL auto-purge on `expire_at` (BSON date) ---
     "impersonation_otps": {
         "indexes": [
@@ -179,6 +290,30 @@ COLLECTIONS = {
             ([("expire_at", 1)], {"expireAfterSeconds": 0}),
         ],
         "validator": _obj(["token", "user_id"], {"token": _STR, "user_id": _STR, "used": _BOOL}),
+    },
+    "login_attempts": {
+        "indexes": [
+            ([("email", 1)], {"unique": True}),
+            ([("expire_at", 1)], {"expireAfterSeconds": 0}),
+        ],
+        "validator": _obj(["email"], {"email": _STR}),
+    },
+    "pdf_workspaces": {
+        "indexes": [
+            ([("workspace_id", 1)], {"unique": True}),
+            ([("owner_id", 1)], {}),
+        ],
+        "validator": _obj(
+            ["workspace_id", "owner_id", "file_id"],
+            {
+                "workspace_id": _STR,
+                "owner_id": _STR,
+                "file_id": _STR,
+                "filename": _STR,
+                "page_count": {"bsonType": ["int", "long", "double"]},
+                "pages": {"bsonType": "array"},
+            },
+        ),
     },
 }
 

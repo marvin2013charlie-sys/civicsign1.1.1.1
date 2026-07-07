@@ -1,10 +1,13 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
+
 import { FloatingAssistant } from "@/components/FloatingAssistant";
+import { BrandAccent, RichTextWithContactEmail } from "@/components/BrandText";
+
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -15,14 +18,34 @@ import {
   CheckCircle2, Layers, Fingerprint, Mail, Globe, Zap, Star,
   Briefcase, Users, Scale, Home, Building2, Handshake, Check,
 } from "lucide-react";
+import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
+import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
+import { getPlanPriceDisplay } from "@/lib/pricing";
+
+const FEATURES = [
+  { icon: PenLine, title: "Prepare Studio", body: "Drag signature, date, text & checkbox fields onto any PDF or Word doc. Assign each field to a recipient with color coding." },
+  { icon: Workflow, title: "Smart routing", body: "Send to multiple signers in sequential or parallel order. Each gets a secure link, no account required." },
+  { icon: ShieldCheck, title: "Tamper-evident audit", body: "Every view, consent and signature is timestamped with IP, sealed with a SHA-256 hash and a Certificate of Completion." },
+  { icon: Layers, title: "PDF & Word", body: "Upload .pdf or .docx, we convert and normalize automatically, preserving your layout." },
+  { icon: PenLine, title: "Draw, type or upload", body: "Signers choose how to sign: draw on canvas, type with handwriting fonts, or upload an image." },
+  { icon: Mail, title: "Email delivery", body: "Recipients receive a branded email with a secure signing link, plus the completed PDF when done." },
+];
 
 const Feature = ({ icon: Icon, title, children }) => (
-  <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-    <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+  <div
+    data-testid={`feature-card-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+    className={`${greenHoverLg} bg-[var(--card)] p-6`}
+  >
+    <div
+      className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl ${greenHoverIcon}`}
+      style={{ background: "var(--status-sent-bg)" }}
+    >
       <Icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
     </div>
-    <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">{title}</h3>
-    <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted-foreground)]">{children}</p>
+    <h3 className={`font-heading text-lg font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>
+      {title}
+    </h3>
+    <p className="mt-1.5 text-sm leading-relaxed text-[var(--c-muted-fg)]">{children}</p>
   </div>
 );
 
@@ -35,7 +58,7 @@ const METRICS = [
 
 const USE_CASES = [
   { icon: Briefcase, title: "Sales", body: "Close deals faster with quotes, order forms, and NDAs signed in minutes." },
-  { icon: Users, title: "HR & People", body: "Offer letters, onboarding, and policy acknowledgements — all tracked." },
+  { icon: Users, title: "HR & People", body: "Offer letters, onboarding, and policy acknowledgements, all tracked." },
   { icon: Scale, title: "Legal", body: "Contracts and agreements with a court-ready, tamper-evident audit trail." },
   { icon: Home, title: "Real estate", body: "Leases, disclosures, and listing agreements signed on any device." },
   { icon: Building2, title: "Finance", body: "Approvals and statements of work with attribution and timestamps." },
@@ -43,19 +66,27 @@ const USE_CASES = [
 ];
 
 const PLANS = [
-  { name: "Free", price: "£0", note: "forever", cta: "Start free", to: "/register", highlight: false,
-    features: ["5 documents / month", "1 sender", "Draw, type & upload signatures", "Audit trail + Certificate of Completion", "PDF & Word support"] },
-  { name: "Pro", price: "£15", note: "per user / month", cta: "Start free", to: "/register", highlight: true,
+  { name: "Free", cta: "Start free", to: "/register", highlight: false,
+    features: ["5 documents / billing period (resets on signup date)", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
+  { name: "Pro", cta: "Start free", to: "/register", highlight: true,
     features: [
       "All Free features, plus:",
-      "Up to 500 documents per user / month",
-      "Simple Electronic Signatures (SES) from your recipients",
+      "Up to 500 documents per user / billing period",
+      "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
+      "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
       "Shared team templates for standardised agreements",
       "Real-time commenting & collaboration",
       "Custom branding (logo & colours) to build trust",
     ] },
-  { name: "Business", price: "Custom", note: "tailored to your team", cta: "Talk to our team", to: "/contact", highlight: false,
-    features: ["Everything in Pro, unlimited documents", "Recipient authentication (SMS / KBA)", "Bulk send", "API & webhooks", "Priority support"] },
+  { name: "Business", cta: "Talk to our team", to: "/contact", highlight: false,
+    features: [
+      "Everything in Pro, unlimited documents",
+      "AES as default, strengthened with SMS / KBA recipient authentication",
+      "Qualified Electronic Signatures (QES) available on request via QTSP partner",
+      "Bulk send",
+      "API & webhooks",
+      "Priority support",
+    ] },
 ];
 
 const TESTIMONIALS = [
@@ -65,17 +96,22 @@ const TESTIMONIALS = [
 ];
 
 const FAQS = [
-  ["Are signatures from CivicSign legally binding?", "Yes. CivicSign is built around UK law — the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents — capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
+  ["Are signatures from CivicSign legally binding?", "Yes. CivicSign is built around UK law, the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents, capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
   ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with strict access controls, encryption in transit, and a clear data-subject rights process you can exercise at any time."],
-  ["Do my signers need an account?", "No. Recipients sign through a secure, tokenized link on any device — no account or download required."],
+  ["Do my signers need an account?", "No. Recipients sign through a secure, tokenized link on any device, no account or download required."],
   ["What file types can I upload?", "PDF and Word (.docx) documents. Word files are automatically converted to PDF while preserving your layout."],
   ["How do you keep documents secure?", "We use encryption in transit, hashed passwords, tokenized links, and seal every finalized document with a SHA-256 hash so any change is detectable."],
   ["Can multiple people sign the same document?", "Yes. Add as many recipients as you need and choose sequential or parallel signing order, with color-coded fields per signer."],
   ["What happens when everyone signs?", "CivicSign finalizes a sealed PDF and appends a Certificate of Completion containing the full audit trail, then delivers it to all parties."],
+  ["When does my document limit reset?", "Your allowance refreshes on the monthly anniversary of the day you registered, not on the 1st of the calendar month. For example, if you signed up on 12 April, your counter resets on the 12th of each month."],
+  ["What is your refund policy?", "Subscriptions and pay-as-you-go purchases are covered by our Refund Policy. Consumers may have a 14-day cooling-off right where applicable; see /legal/refunds for full details including how to contact info@civicbot.co.uk."],
 ];
 
 export default function Landing() {
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  const [billingInterval, setBillingInterval] = useState("monthly");
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo(0, 0);
+  }, []);
   return (
     <div className="min-h-screen bg-[var(--c-paper)]">
       <SiteHeader />
@@ -84,14 +120,11 @@ export default function Landing() {
       <section className="noise-overlay">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-              <span aria-hidden="true">&#127468;&#127463;</span> The UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform
-            </span>
-            <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight text-[var(--c-ink)] sm:text-5xl lg:text-6xl">
-              Sign documents.<br /><span style={{ color: "var(--c-primary)" }}>Close deals.</span> Done.
+            <h1 className="font-heading text-4xl font-bold leading-[1.05] tracking-tight text-[var(--c-ink)] sm:text-5xl lg:text-6xl">
+              Sign documents.<br /><BrandAccent>Close deals.</BrandAccent> Done.
             </h1>
-            <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CivicSign is Britain&rsquo;s own e-signature platform &mdash; built in the UK, UK GDPR compliant, and aligned with the UK eIDAS Regulation and the Electronic Communications Act 2000. Upload, drag fields, send &mdash; get legally binding signatures with a tamper-evident audit trail.
+            <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--c-muted-fg)]">
+              CivicSign is Britain&rsquo;s own e-signature platform, built in the UK, UK GDPR compliant, and aligned with the UK eIDAS Regulation and the Electronic Communications Act 2000. Upload, drag fields, send, get legally binding signatures with a tamper-evident audit trail.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/register">
@@ -101,7 +134,7 @@ export default function Landing() {
               </Link>
               <a href="#how"><Button size="lg" variant="outline">See how it works</Button></a>
             </div>
-            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--muted-foreground)]">
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--c-muted-fg)]">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK GDPR compliant</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK-built &amp; UK-owned</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Audit trail included</span>
@@ -126,7 +159,7 @@ export default function Landing() {
                 <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--c-primary)" }}>Signature</span>
                 <p className="sig-dancing mt-1 text-3xl" style={{ color: "#14213d" }}>Jordan Rivera</p>
               </div>
-              <div className="mt-4 flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+              <div className="mt-4 flex items-center justify-between text-xs text-[var(--c-muted-fg)]">
                 <span className="flex items-center gap-1.5"><Fingerprint className="h-3.5 w-3.5" /> SHA-256 sealed</span>
                 <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Completed in 3 min</span>
               </div>
@@ -142,25 +175,24 @@ export default function Landing() {
             <div key={m.label} className="text-center">
               <m.icon className="mx-auto h-6 w-6" style={{ color: "var(--c-primary)" }} />
               <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{m.value}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">{m.label}</p>
+              <p className="text-sm text-[var(--c-muted-fg)]">{m.label}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <section id="features" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-16 sm:px-6">
         <div className="max-w-2xl">
           <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Everything you need to get signatures</h2>
-          <p className="mt-3 text-[var(--muted-foreground)]">A precise preparation studio, a frictionless signer experience, and audit-grade records — without the enterprise bloat.</p>
+          <p className="mt-3 text-[var(--c-muted-fg)]">A precise preparation studio, a frictionless signer experience, and audit-grade records, without the enterprise bloat.</p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
-          <Feature icon={PenLine} title="Prepare Studio">Drag signature, date, text & checkbox fields onto any PDF or Word doc. Assign each field to a recipient with color coding.</Feature>
-          <Feature icon={Workflow} title="Smart routing">Send to multiple signers in sequential or parallel order. Each gets a secure link — no account required.</Feature>
-          <Feature icon={ShieldCheck} title="Tamper-evident audit">Every view, consent and signature is timestamped with IP, sealed with a SHA-256 hash and a Certificate of Completion.</Feature>
-          <Feature icon={Layers} title="PDF & Word">Upload .pdf or .docx — we convert and normalize automatically, preserving your layout.</Feature>
-          <Feature icon={PenLine} title="Draw, type or upload">Signers choose how to sign: draw on canvas, type with handwriting fonts, or upload an image.</Feature>
-          <Feature icon={Mail} title="Email delivery">Recipients receive a branded email with a secure signing link, plus the completed PDF when done.</Feature>
+          {FEATURES.map((f) => (
+            <Feature key={f.title} icon={f.icon} title={f.title}>
+              {f.body}
+            </Feature>
+          ))}
         </div>
       </section>
 
@@ -168,16 +200,16 @@ export default function Landing() {
       <section className="border-y border-[var(--c-border)] bg-[var(--card)]">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Built for every team</h2>
-          <p className="mt-3 max-w-2xl text-[var(--muted-foreground)]">From the first sales contract to the hundredth offer letter, CivicSign fits the way you work.</p>
+          <p className="mt-3 max-w-2xl text-[var(--c-muted-fg)]">From the first sales contract to the hundredth offer letter, CivicSign fits the way you work.</p>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {USE_CASES.map((u) => (
-              <div key={u.title} className="flex gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] p-5">
-                <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+              <div key={u.title} className={`flex gap-3 bg-[var(--c-paper)] p-5 ${greenHoverLg}`}>
+                <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${greenHoverIcon}`} style={{ background: "var(--status-sent-bg)" }}>
                   <u.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
                 </div>
                 <div>
-                  <h3 className="font-heading font-semibold text-[var(--c-ink)]">{u.title}</h3>
-                  <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{u.body}</p>
+                  <h3 className={`font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{u.title}</h3>
+                  <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">{u.body}</p>
                 </div>
               </div>
             ))}
@@ -186,7 +218,7 @@ export default function Landing() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-16 sm:px-6">
         <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Three steps to signed</h2>
         <div className="mt-10 grid gap-8 md:grid-cols-3">
           {[
@@ -197,14 +229,14 @@ export default function Landing() {
             <div key={s.n}>
               <span className="font-heading text-5xl font-bold" style={{ color: "var(--c-primary)", opacity: 0.25 }}>{s.n}</span>
               <h3 className="mt-2 font-heading text-xl font-semibold text-[var(--c-ink)]">{s.t}</h3>
-              <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">{s.d}</p>
+              <p className="mt-1.5 text-sm text-[var(--c-muted-fg)]">{s.d}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Security */}
-      <section id="security" className="border-y border-[var(--c-border)] bg-[var(--card)]">
+      <section id="security" className="scroll-mt-24 border-y border-[var(--c-border)] bg-[var(--card)]">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
@@ -218,21 +250,21 @@ export default function Landing() {
                 ].map(([t, d]) => (
                   <li key={t} className="flex gap-3">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--c-primary)" }} />
-                    <div><p className="font-semibold text-[var(--c-ink)]">{t}</p><p className="text-sm text-[var(--muted-foreground)]">{d}</p></div>
+                    <div><p className="font-semibold text-[var(--c-ink)]">{t}</p><p className="text-sm text-[var(--c-muted-fg)]">{d}</p></div>
                   </li>
                 ))}
               </ul>
             </div>
             <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-6 text-white">
-              <div className="flex items-center gap-2 text-sm text-[#7fe9dd]"><Fingerprint className="h-4 w-4" /> Certificate of Completion</div>
+              <div className="flex items-center gap-2 text-sm" style={{ color: "var(--c-icon-on-dark)" }}><Fingerprint className="h-4 w-4" /> Certificate of Completion</div>
               <div className="mt-4 space-y-2 font-mono text-xs text-white/80">
                 <p>Envelope ID: ENV-7f3a91c0</p>
                 <p>Hash: 61f2687f94ae...c53b</p>
-                <p>— Created by jordan@acme.com</p>
-                <p>— Viewed by client@acme.com (IP 198.51.100.23)</p>
-                <p>— Consent accepted · 2026-06-01 08:24 UTC</p>
-                <p>— Signed (drawn) · 2026-06-01 08:25 UTC</p>
-                <p style={{ color: "#7fe9dd" }}>— Envelope completed</p>
+                <p>· Created by jordan@acme.com</p>
+                <p>· Viewed by client@acme.com (IP 198.51.100.23)</p>
+                <p>· Consent accepted · 2026-06-01 08:24 UTC</p>
+                <p>· Signed (drawn) · 2026-06-01 08:25 UTC</p>
+                <p style={{ color: "var(--c-icon-on-dark)" }}>· Envelope completed</p>
               </div>
             </div>
           </div>
@@ -240,23 +272,35 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <section id="pricing" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-16 sm:px-6">
         <div className="text-center">
           <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Simple, honest pricing</h2>
-          <p className="mt-3 text-[var(--muted-foreground)]">Start free. Upgrade when you grow. No envelope-metering games.</p>
+          <p className="mt-3 text-[var(--c-muted-fg)]">Start free. Upgrade when you grow. No envelope-metering games.</p>
+          <BillingIntervalToggle
+            className="mt-6"
+            value={billingInterval}
+            onChange={setBillingInterval}
+          />
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {PLANS.map((p) => (
-            <div key={p.name} className={`relative rounded-2xl border p-6 ${p.highlight ? "border-[var(--c-primary)] bg-[var(--card)] shadow-[0_18px_50px_rgba(20,184,166,0.18)]" : "border-[var(--c-border)] bg-[var(--card)]"}`}>
+          {PLANS.map((p) => {
+            const { price, note, savings } = getPlanPriceDisplay(p.name, billingInterval);
+            return (
+            <div key={p.name} className={`relative p-6 bg-[var(--card)] ${p.highlight ? "rounded-2xl border border-[var(--c-primary)] shadow-[0_18px_50px_rgba(20,184,166,0.18)]" : greenHoverLg}`}>
               {p.highlight && (
                 <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "var(--c-primary)" }}>
                   <Star className="h-3 w-3" /> Most popular
                 </span>
               )}
-              <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">{p.name}</h3>
-              <div className="mt-2 flex items-end gap-1">
-                <span className="font-heading text-4xl font-bold text-[var(--c-ink)]">{p.price}</span>
-                <span className="mb-1 text-sm text-[var(--muted-foreground)]">{p.note}</span>
+              {savings && (
+                <span className="absolute -top-3 right-6 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "#0d9488" }}>
+                  {savings}
+                </span>
+              )}
+              <h3 className={`font-heading text-lg font-semibold text-[var(--c-ink)] ${p.highlight ? "" : greenHoverTitle}`}>{p.name}</h3>
+              <div className="mt-2 flex flex-wrap items-end gap-x-1 gap-y-1">
+                <span className="font-heading text-4xl font-bold text-[var(--c-ink)]">{price}</span>
+                <span className="mb-1 text-sm text-[var(--c-muted-fg)]">{note}</span>
               </div>
               <ul className="mt-5 space-y-2.5">
                 {p.features.map((f) => (
@@ -272,8 +316,18 @@ export default function Landing() {
                 </Button>
               </Link>
             </div>
-          ))}
+          );
+          })}
         </div>
+        <p className="mt-6 text-center text-sm text-[var(--c-muted-fg)]">
+          {billingInterval === "yearly"
+            ? "Annual Pro is billed once per year at 10 months\u2019 price (2 months free). "
+            : null}
+          Document limits reset on your account anniversary each month.{" "}
+          <Link to="/legal/refunds" className="font-medium text-[var(--c-primary)] hover:underline">Refund Policy</Link>
+          {" · "}
+          <Link to="/legal/terms" className="font-medium text-[var(--c-primary)] hover:underline">Terms</Link>
+        </p>
       </section>
 
       {/* Testimonials */}
@@ -282,12 +336,12 @@ export default function Landing() {
           <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Loved by fast-moving teams</h2>
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {TESTIMONIALS.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] p-6">
+              <div key={t.name} className={`bg-[var(--c-paper)] p-6 ${greenHoverLg}`}>
                 <div className="flex gap-0.5">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className="h-4 w-4" fill="#FF7A5C" style={{ color: "#FF7A5C" }} />)}</div>
                 <p className="mt-3 text-sm leading-relaxed text-[var(--c-ink)]">“{t.quote}”</p>
                 <div className="mt-4">
                   <p className="text-sm font-semibold text-[var(--c-ink)]">{t.name}</p>
-                  <p className="text-xs text-[var(--muted-foreground)]">{t.role}</p>
+                  <p className="text-xs text-[var(--c-muted-fg)]">{t.role}</p>
                 </div>
               </div>
             ))}
@@ -296,13 +350,15 @@ export default function Landing() {
       </section>
 
       {/* FAQ */}
-      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+      <section id="faq" className="mx-auto max-w-3xl scroll-mt-24 px-4 py-16 sm:px-6">
         <h2 className="text-center font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Frequently asked questions</h2>
         <Accordion type="single" collapsible className="mt-8">
           {FAQS.map(([q, a], i) => (
             <AccordionItem key={i} value={`faq-${i}`} className="border-[var(--c-border)]">
               <AccordionTrigger className="text-left font-medium text-[var(--c-ink)]" data-testid={`faq-trigger-${i}`}>{q}</AccordionTrigger>
-              <AccordionContent className="text-sm leading-relaxed text-[var(--muted-foreground)]">{a}</AccordionContent>
+              <AccordionContent className="text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                <RichTextWithContactEmail text={a} />
+              </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>

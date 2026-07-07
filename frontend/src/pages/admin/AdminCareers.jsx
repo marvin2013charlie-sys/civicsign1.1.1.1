@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Briefcase, MapPin, Globe2, Plus, Pencil, Trash2, Eye, Mail, Phone, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { CAREERS_APP_STATUS } from "@/lib/semanticColors";
 
 const JOB_TYPES = [
   { value: "full-time", label: "Full-time" },
@@ -24,11 +25,11 @@ const WORKPLACES = [
   { value: "on-site", label: "On-site" },
 ];
 const STATUS_OPTIONS = [
-  { value: "new",         label: "New",        color: "bg-blue-100 text-blue-700" },
-  { value: "reviewing",   label: "Reviewing",  color: "bg-amber-100 text-amber-700" },
-  { value: "contacted",   label: "Contacted",  color: "bg-violet-100 text-violet-700" },
-  { value: "hired",       label: "Hired",      color: "bg-emerald-100 text-emerald-700" },
-  { value: "rejected",    label: "Rejected",   color: "bg-zinc-200 text-zinc-700" },
+  { value: "new",         label: "New",        badge: CAREERS_APP_STATUS.new },
+  { value: "reviewing",   label: "Reviewing",  badge: CAREERS_APP_STATUS.reviewing },
+  { value: "contacted",   label: "Contacted",  badge: CAREERS_APP_STATUS.contacted },
+  { value: "hired",       label: "Hired",      badge: CAREERS_APP_STATUS.hired },
+  { value: "rejected",    label: "Rejected",   badge: CAREERS_APP_STATUS.rejected },
 ];
 
 const EMPTY = { slug: "", title: "", department: "", location: "", job_type: "full-time", workplace: "hybrid", salary: "", summary: "", description: "", published: true };
@@ -40,7 +41,7 @@ export default function AdminCareers() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Careers</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Manage open positions and review applications.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Manage open positions and review applications.</p>
         </div>
       </div>
 
@@ -73,7 +74,7 @@ function JobsTab() {
       const { data } = await api.get("/admin/careers/jobs");
       setJobs(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -116,7 +117,7 @@ function JobsTab() {
       setOpen(false);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -129,14 +130,14 @@ function JobsTab() {
       setConfirmDel(null);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
           {loading ? "…" : `${jobs.length} ${jobs.length === 1 ? "position" : "positions"}`}
         </span>
         <Button onClick={startCreate} data-testid="admin-careers-new-job" style={{ background: "var(--c-primary)", color: "#fff" }}>
@@ -148,21 +149,21 @@ function JobsTab() {
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
         ) : jobs.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--muted-foreground)]">No positions yet — click <span className="font-semibold">New position</span> to publish your first opening.</div>
+          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No positions yet. Click <span className="font-semibold">New position</span> to publish your first opening.</div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             {jobs.map((j) => (
               <div key={j.slug} className="grid grid-cols-1 items-center gap-3 px-5 py-4 lg:grid-cols-12" data-testid="admin-careers-job-row">
                 <div className="lg:col-span-6">
                   <p className="font-semibold text-[var(--c-ink)]">{j.title}</p>
-                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{j.department} · {j.location}</p>
+                  <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">{j.department} · {j.location}</p>
                 </div>
                 <div className="lg:col-span-3 flex flex-wrap gap-1.5 text-[11px]">
                   <Pill icon={Briefcase}>{j.job_type}</Pill>
                   <Pill icon={Globe2}>{j.workplace}</Pill>
                 </div>
                 <div className="lg:col-span-1">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${j.published ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-700"}`}>
+                  <span className={j.published ? "cs-badge cs-badge-success" : "cs-badge cs-badge-neutral"}>
                     {j.published ? "Live" : "Hidden"}
                   </span>
                 </div>
@@ -222,11 +223,11 @@ function JobsTab() {
               <Input id="job-salary" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="£75k – £95k" data-testid="admin-careers-field-salary" />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="job-summary">Summary * <span className="text-xs text-[var(--muted-foreground)]">— 1-2 sentences shown on the listing</span></Label>
+              <Label htmlFor="job-summary">Summary * <span className="text-xs text-[var(--c-muted-fg)]">(1-2 sentences shown on the listing)</span></Label>
               <Textarea id="job-summary" rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} data-testid="admin-careers-field-summary" />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="job-description">Full description * <span className="text-xs text-[var(--muted-foreground)]">— supports bullet lists (lines starting with &quot;- &quot;)</span></Label>
+              <Label htmlFor="job-description">Full description * <span className="text-xs text-[var(--c-muted-fg)]">(supports bullet lists, lines starting with &quot;- &quot;)</span></Label>
               <Textarea id="job-description" rows={10} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="font-mono text-xs" data-testid="admin-careers-field-description" />
             </div>
             <div className="flex items-center gap-2 sm:col-span-2">
@@ -279,7 +280,7 @@ function ApplicationsTab() {
       const { data } = await api.get("/admin/careers/applications", { params });
       setApps(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -296,7 +297,7 @@ function ApplicationsTab() {
       toast.success(`Marked as ${statusOpt(status).label.toLowerCase()}`);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -312,7 +313,7 @@ function ApplicationsTab() {
             {STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
           {loading ? "…" : `${apps.length} ${apps.length === 1 ? "application" : "applications"}`}
         </span>
       </div>
@@ -321,7 +322,7 @@ function ApplicationsTab() {
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
         ) : apps.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--muted-foreground)]">No applications {filter === "all" ? "yet" : `with status "${filter}"`}.</div>
+          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No applications {filter === "all" ? "yet" : `with status "${filter}"`}.</div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             {apps.map((a) => (
@@ -334,13 +335,13 @@ function ApplicationsTab() {
               >
                 <div className="lg:col-span-4">
                   <p className="font-semibold text-[var(--c-ink)]">{a.name}</p>
-                  <p className="truncate text-xs text-[var(--muted-foreground)]">{a.email}</p>
+                  <p className="truncate text-xs text-[var(--c-muted-fg)]">{a.email}</p>
                 </div>
                 <div className="lg:col-span-3 text-sm text-[var(--c-ink)]">{a.job_title}</div>
                 <div className="lg:col-span-2">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusOpt(a.status).color}`}>{statusOpt(a.status).label}</span>
+                  <span className={statusOpt(a.status).badge}>{statusOpt(a.status).label}</span>
                 </div>
-                <div className="lg:col-span-3 text-right text-xs text-[var(--muted-foreground)]">{fmtDate(a.created_at)}</div>
+                <div className="lg:col-span-3 text-right text-xs text-[var(--c-muted-fg)]">{fmtDate(a.created_at)}</div>
               </button>
             ))}
           </div>
@@ -373,7 +374,7 @@ function ApplicationsTab() {
                       type="button"
                       onClick={() => setStatus(current.application_id, s.value)}
                       data-testid={`admin-careers-app-status-${s.value}`}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${current.status === s.value ? s.color + " ring-2 ring-offset-1 ring-[var(--c-primary)]" : "border border-[var(--c-border)] text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"}`}
+                      className={`${current.status === s.value ? s.badge + " ring-2 ring-offset-1 ring-[var(--c-primary)]" : "cs-badge border border-[var(--c-border)] bg-transparent text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"}`}
                     >
                       {s.label}
                     </button>
@@ -400,9 +401,9 @@ function Pill({ icon: Icon, children }) {
 function ContactRow({ icon: Icon, label, children }) {
   return (
     <div className="flex items-start gap-2">
-      <Icon className="mt-0.5 h-4 w-4 text-[var(--muted-foreground)]" />
+      <Icon className="mt-0.5 h-4 w-4 text-[var(--c-muted-fg)]" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</p>
         <div className="text-sm">{children}</div>
       </div>
     </div>

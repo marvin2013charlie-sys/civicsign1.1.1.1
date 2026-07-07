@@ -10,7 +10,10 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
-import { getPost, getRelatedPosts, fetchPost } from "@/lib/blogPosts";
+import { getPost, getRelatedPosts, fetchPost, fetchAllPosts } from "@/lib/blogPosts";
+import { buildBlogPostSeo } from "@/lib/seo";
+import { usePageSeo } from "@/hooks/usePageSeo";
+import { greenHoverLg, greenHoverTitle } from "@/lib/greenHover";
 
 const Block = ({ block }) => {
   if (block.type === "h2") {
@@ -25,12 +28,30 @@ const Block = ({ block }) => {
   if (block.type === "ul") {
     return (
       <ul className="mt-4 space-y-2 text-[17px] leading-relaxed text-[var(--c-ink)]/85">
-        {block.content.map((item, i) => (
-          <li key={i} className="flex gap-3 pl-1">
-            <span className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--c-primary)" }} />
-            <span>{item}</span>
-          </li>
-        ))}
+        {block.content.map((item, i) => {
+          const label = typeof item === "string" ? item : item?.text;
+          const href = typeof item === "object" && item?.href ? item.href : null;
+          return (
+            <li key={i} className="flex gap-3 pl-1">
+              <span className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--c-primary)" }} />
+              <span>
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium underline decoration-[var(--c-primary)]/40 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                    style={{ color: "var(--c-primary)" }}
+                  >
+                    {label}
+                  </a>
+                ) : (
+                  label
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     );
   }
@@ -56,26 +77,49 @@ const Block = ({ block }) => {
 
 export default function BlogPost() {
   const { slug } = useParams();
-  const [post, setPost] = React.useState(getPost(slug));
-  const [loaded, setLoaded] = React.useState(!!post);
+  const staticPost = getPost(slug);
+  const [post, setPost] = React.useState(staticPost ?? null);
+  const [allPosts, setAllPosts] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(!!staticPost);
 
   useEffect(() => {
     let cancelled = false;
-    setPost(getPost(slug));
-    setLoaded(false);
-    fetchPost(slug).then((p) => {
-      if (cancelled) return;
-      if (p) setPost(p);
-      setLoaded(true);
-      window.scrollTo({ top: 0, behavior: "instant" });
-    });
+    const local = getPost(slug);
+    if (local) setPost(local);
+
+    Promise.all([fetchPost(slug), fetchAllPosts()])
+      .then(([p, posts]) => {
+        if (cancelled) return;
+        setPost(p || local || null);
+        setAllPosts(posts);
+        setLoaded(true);
+        window.scrollTo(0, 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPost(local || null);
+        setLoaded(true);
+        window.scrollTo(0, 0);
+      });
+
     return () => { cancelled = true; };
   }, [slug]);
 
-  if (loaded && !post) return <Navigate to="/blog" replace />;
-  if (!post) return null;
+  usePageSeo(post ? buildBlogPostSeo(post) : null);
 
-  const related = getRelatedPosts(slug, 2);
+  if (loaded && !post) return <Navigate to="/blog" replace />;
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-[var(--c-paper)]">
+        <SiteHeader />
+        <div className="mx-auto max-w-3xl px-4 py-24 text-center text-sm text-[var(--c-muted-fg)]">
+          Loading article…
+        </div>
+      </div>
+    );
+  }
+
+  const related = getRelatedPosts(slug, 2, allPosts.length ? allPosts : undefined);
 
   return (
     <div className="min-h-screen bg-[var(--c-paper)] text-[var(--c-ink)]">
@@ -84,9 +128,9 @@ export default function BlogPost() {
       {/* Hero */}
       <article>
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 -z-10" style={{ background: "linear-gradient(180deg, #FFF7F0 0%, var(--c-paper) 65%)" }} />
+          <div className="absolute inset-0 -z-10" style={{ background: "linear-gradient(180deg, var(--c-paper-2) 0%, var(--c-paper) 65%)" }} />
           <div className="mx-auto max-w-3xl px-4 pt-10 sm:px-6">
-            <Link to="/blog" className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--c-ink)]" data-testid="blogpost-back-link">
+            <Link to="/blog" className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]" data-testid="blogpost-back-link">
               <ArrowLeft className="h-3.5 w-3.5" /> Back to all articles
             </Link>
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -96,8 +140,8 @@ export default function BlogPost() {
               <h1 className="mt-4 font-heading text-3xl font-bold leading-[1.1] tracking-tight text-[var(--c-ink)] sm:text-5xl" data-testid="blogpost-title">
                 {post.title}
               </h1>
-              <p className="mt-4 text-lg leading-relaxed text-[var(--muted-foreground)]">{post.excerpt}</p>
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[var(--muted-foreground)]">
+              <p className="mt-4 text-lg leading-relaxed text-[var(--c-muted-fg)]">{post.excerpt}</p>
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[var(--c-muted-fg)]">
                 <span className="flex items-center gap-1.5"><User className="h-4 w-4" /> {post.author}</span>
                 <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" /> {post.date}</span>
                 <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> {post.readTime}</span>
@@ -115,7 +159,7 @@ export default function BlogPost() {
 
         {/* Body */}
         <section className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:px-6" data-testid="blogpost-body">
-          {post.body.map((block, i) => <Block key={i} block={block} />)}
+          {(Array.isArray(post.body) ? post.body : []).map((block, i) => <Block key={i} block={block} />)}
         </section>
       </article>
 
@@ -124,7 +168,7 @@ export default function BlogPost() {
         <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-12">
           <h2 className="font-heading text-2xl font-bold sm:text-3xl">Ready to put this into practice?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">
-            Send your first document in minutes. Free for 5 documents a month — no card required, UK GDPR by default.
+            Send your first document in minutes. Free for 5 documents a month, no card required, UK GDPR by default.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link to="/register">
@@ -148,7 +192,7 @@ export default function BlogPost() {
                 key={p.slug}
                 to={`/blog/${p.slug}`}
                 data-testid="blogpost-related-card"
-                className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] transition-shadow hover:shadow-lg"
+                className={`flex flex-col overflow-hidden bg-[var(--c-paper)] ${greenHoverLg}`}
               >
                 <div className="overflow-hidden">
                   <img src={p.image} alt={p.title} loading="lazy"
@@ -158,8 +202,8 @@ export default function BlogPost() {
                   <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
                     {p.category}
                   </span>
-                  <h4 className="mt-3 font-heading text-lg font-bold leading-snug text-[var(--c-ink)]">{p.title}</h4>
-                  <p className="mt-2 line-clamp-2 flex-1 text-sm text-[var(--muted-foreground)]">{p.excerpt}</p>
+                  <h4 className={`mt-3 font-heading text-lg font-bold leading-snug text-[var(--c-ink)] ${greenHoverTitle}`}>{p.title}</h4>
+                  <p className="mt-2 line-clamp-2 flex-1 text-sm text-[var(--c-muted-fg)]">{p.excerpt}</p>
                   <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--c-primary)" }}>
                     Read article <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>

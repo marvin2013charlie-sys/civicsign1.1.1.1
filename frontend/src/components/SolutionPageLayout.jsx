@@ -7,26 +7,27 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
+import { greenHoverMd, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
 
 /**
  * Shared layout for industry solution landing pages.
  *
  * Props:
- *   industry     — e.g. "Solutions · Legal"
- *   IndustryIcon — lucide icon component for the badge
- *   headline     — JSX: main H1
- *   subhead      — string: hero subhead
- *   heroImage    — { src, alt }
- *   stats        — [{ value, label }, ...]
- *   why          — [{ icon, title, body }, ...]
- *   docs         — [{ icon, title, body }, ...]
- *   compliance   — { eyebrow: { icon, label }, headline, body }
- *   docsHeadline — string for the docs section heading
- *   docsSubhead  — string subtitle for the docs section
- *   whyHeadline  — string for the why section heading
- *   whySubhead   — string subtitle for the why section
- *   ctaHeadline, ctaSubhead, ctaButton — final banner
- *   testidSlug   — slug used as data-testid prefix (e.g. "legal")
+ *   industry    , e.g. "Solutions · Legal"
+ *   IndustryIcon, lucide icon component for the badge
+ *   headline    , JSX: main H1
+ *   subhead     , string: hero subhead
+ *   heroImage   , { src, alt }
+ *   stats       , [{ value, label }, ...]
+ *   why         , [{ icon, title, body }, ...]
+ *   docs        , [{ icon, title, body }, ...]
+ *   compliance  , { eyebrow: { icon, label }, headline, body }
+ *   docsHeadline, string for the docs section heading
+ *   docsSubhead , string subtitle for the docs section
+ *   whyHeadline , string for the why section heading
+ *   whySubhead  , string subtitle for the why section
+ *   ctaHeadline, ctaSubhead, ctaButton, final banner
+ *   testidSlug  , slug used as data-testid prefix (e.g. "legal")
  */
 export function SolutionPageLayout({
   industry, IndustryIcon,
@@ -52,7 +53,7 @@ export function SolutionPageLayout({
             <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               {headline}
             </h1>
-            <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">{subhead}</p>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--c-muted-fg)]">{subhead}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register">
                 <Button size="lg" data-testid={`${testidSlug}-cta-start`} style={{ background: "var(--c-primary)", color: "#fff" }}>
@@ -61,7 +62,7 @@ export function SolutionPageLayout({
               </Link>
               <Link to="/#pricing"><Button size="lg" variant="outline">See pricing</Button></Link>
             </div>
-            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--muted-foreground)]">
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--c-muted-fg)]">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Free 5 docs / month</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> No card required</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK GDPR compliant</span>
@@ -81,7 +82,7 @@ export function SolutionPageLayout({
           {stats.map((s) => (
             <div key={s.label} className="text-center" data-testid={`${testidSlug}-stat`}>
               <p className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">{s.value}</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{s.label}</p>
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">{s.label}</p>
             </div>
           ))}
         </div>
@@ -91,16 +92,16 @@ export function SolutionPageLayout({
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
           <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">{whyHeadline}</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">{whySubhead}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">{whySubhead}</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {why.map((w) => (
-            <div key={w.title} className="rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-5">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+            <div key={w.title} className={`bg-[var(--c-paper)] p-5 ${greenHoverMd}`}>
+              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-primary)22" }}>
                 <w.icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
               </span>
-              <h3 className="mt-3 font-heading font-semibold text-[var(--c-ink)]">{w.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{w.body}</p>
+              <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{w.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{w.body}</p>
             </div>
           ))}
         </div>
@@ -119,7 +120,7 @@ export function SolutionPageLayout({
                 {compliance.headline}
               </h2>
             </div>
-            <p className="text-lg leading-relaxed text-[var(--muted-foreground)]">{compliance.body}</p>
+            <p className="text-lg leading-relaxed text-[var(--c-muted-fg)]">{compliance.body}</p>
           </div>
         </section>
       )}
@@ -128,16 +129,16 @@ export function SolutionPageLayout({
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
           <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">{docsHeadline}</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">{docsSubhead}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">{docsSubhead}</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {docs.map((d) => (
-            <div key={d.title} className="rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-5" data-testid={`${testidSlug}-doc`}>
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--c-accent)22" }}>
+            <div key={d.title} className={`bg-[var(--c-paper)] p-5 ${greenHoverMd}`} data-testid={`${testidSlug}-doc`}>
+              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-accent)22" }}>
                 <d.icon className="h-4 w-4" style={{ color: "var(--c-accent)" }} />
               </span>
-              <h3 className="mt-3 font-heading font-semibold text-[var(--c-ink)]">{d.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{d.body}</p>
+              <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{d.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{d.body}</p>
             </div>
           ))}
         </div>

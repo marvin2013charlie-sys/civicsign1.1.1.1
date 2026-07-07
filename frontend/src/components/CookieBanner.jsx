@@ -20,7 +20,7 @@ export const CookieBanner = () => {
         <Cookie className="h-6 w-6 shrink-0" style={{ color: "#7fe9dd" }} />
         <p className="flex-1 text-sm text-white/85">
           We use cookies to keep you signed in and to improve CivicSign. See our{" "}
-          <Link to="/cookies" className="underline" style={{ color: "#7fe9dd" }}>Cookie Policy</Link>.
+          <Link to="/legal/cookies" className="underline" style={{ color: "#7fe9dd" }}>Cookie Policy</Link>.
         </p>
         <div className="flex gap-2">
           <Button variant="ghost" className="text-white hover:bg-white/10" onClick={() => accept("essential")} data-testid="cookie-essential-button">Essential only</Button>

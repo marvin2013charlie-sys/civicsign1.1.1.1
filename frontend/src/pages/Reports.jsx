@@ -14,7 +14,7 @@ import {
 const StatCard = ({ icon: Icon, label, value, accent }) => (
   <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`report-kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}>
     <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
         <Icon className="h-4 w-4" style={{ color: accent }} />
       </span>
@@ -41,7 +41,7 @@ export default function Reports() {
         const { data } = await api.get("/stats");
         setStats(data);
       } catch (err) {
-        toast.error(formatApiError(err.response?.data?.detail));
+        toast.error(formatApiError(err));
       } finally {
         setLoading(false);
       }
@@ -89,7 +89,7 @@ export default function Reports() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-[var(--muted-foreground)]">Send your first document to see trends.</p>
+              <p className="mt-6 text-sm text-[var(--c-muted-fg)]">Send your first document to see trends.</p>
             )}
           </div>
 
@@ -108,7 +108,7 @@ export default function Reports() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-[var(--muted-foreground)]">No envelopes yet. Send one to see the status mix.</p>
+              <p className="mt-6 text-sm text-[var(--c-muted-fg)]">No envelopes yet. Send one to see the status mix.</p>
             )}
           </div>
         </div>

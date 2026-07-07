@@ -29,6 +29,10 @@ class ForgotPassword(BaseModel):
     base_url: Optional[str] = None
 
 
+class EmailChangeRequest(BaseModel):
+    email: EmailStr
+
+
 # ---- Envelope building blocks ----
 class RecipientIn(BaseModel):
     recipient_id: Optional[str] = None
@@ -36,6 +40,9 @@ class RecipientIn(BaseModel):
     email: EmailStr
     order: int = 1
     color: Optional[str] = None
+    auth_method: Optional[str] = None   # None | sms | kba (Business plan)
+    auth_phone: Optional[str] = None      # required when auth_method=sms
+    auth_kba_postcode: Optional[str] = None  # required when auth_method=kba
 
 
 class FieldIn(BaseModel):
@@ -50,6 +57,7 @@ class FieldIn(BaseModel):
     h: float
     required: bool = True
     label: Optional[str] = None
+    options: Optional[List[str]] = None
     value: Optional[Any] = None
 
 
@@ -61,10 +69,21 @@ class EnvelopeUpdate(BaseModel):
     fields: Optional[List[FieldIn]] = None
 
 
+class BulkVerifyRequest(BaseModel):
+    envelope_ids: Optional[List[str]] = None
+    skip: int = Field(0, ge=0)
+    limit: int = Field(50, ge=1, le=100)
+    migrate_stale: bool = True
+
+
 class SendRequest(BaseModel):
     base_url: Optional[str] = None
     message: Optional[str] = None
     expires_in_days: Optional[int] = None
+    auto_remind_enabled: Optional[bool] = None
+    auto_remind_days: Optional[int] = Field(None, ge=1, le=30)
+    auto_remind_max: Optional[int] = Field(None, ge=1, le=10)
+    signature_level: Optional[str] = None  # basic | ses | aes | qes (plan-gated)
 
 
 class SignFieldValue(BaseModel):
@@ -113,7 +132,24 @@ class BulkRow(BaseModel):
 class BulkSend(BaseModel):
     base_url: Optional[str] = None
     message: Optional[str] = None
+    signature_level: Optional[str] = None
     rows: List[BulkRow]
+
+
+class SignerAuthVerify(BaseModel):
+    code: Optional[str] = None
+    postcode: Optional[str] = None
+
+
+class ApiKeyCreate(BaseModel):
+    label: Optional[str] = None
+
+
+class WebhookUpdate(BaseModel):
+    url: Optional[str] = None
+    enabled: Optional[bool] = None
+    events: Optional[List[str]] = None
+    regenerate_secret: Optional[bool] = None
 
 
 class RemindRequest(BaseModel):
@@ -153,10 +189,64 @@ class AdminUserUpdate(BaseModel):
     role: Optional[str] = None      # user | admin
     active: Optional[bool] = None
     plan: Optional[str] = None      # free | pro | business
+    monthly_envelope_limit: Optional[int] = None   # contract cap (Business); omit to clear
+    enterprise_unlimited: Optional[bool] = None    # signed enterprise — no monthly cap
+    org_id: Optional[str] = None                   # assign to org pool; "" to remove
+
+
+class OrganizationCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    monthly_envelope_limit: Optional[int] = None
+    enterprise_unlimited: Optional[bool] = False
+    owner_name: str = Field(min_length=1, max_length=100)
+    owner_email: EmailStr
+    owner_password: str = Field(min_length=8)
+
+
+class OrgMemberCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8)
+
+
+class OrgMemberPasswordReset(BaseModel):
+    password: str = Field(min_length=8)
+
+
+class OrgMemberStatusUpdate(BaseModel):
+    active: bool
+
+
+class OrgMemberQuotaUpdate(BaseModel):
+    """Organisation owner sets per-member monthly document allowance (≤ org per-seat cap)."""
+    monthly_seat_limit: Optional[int] = Field(None, ge=1, le=100000)
+
+
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    monthly_envelope_limit: Optional[int] = None
+    enterprise_unlimited: Optional[bool] = None
 
 
 class ContactHandle(BaseModel):
     handled: bool = True
+
+
+# ---- AI assistant ----
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1)
+    history: Optional[List[ChatMessage]] = None
+
+
+class AuthChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: Optional[List[ChatMessage]] = None
+    context: Optional[str] = Field(default="login", max_length=32)
 
 
 # ---- Account ----
@@ -168,6 +258,12 @@ class AccountDelete(BaseModel):
 class CheckoutRequest(BaseModel):
     plan_id: str            # pro | business
     origin_url: str
+    billing_interval: str = "monthly"  # monthly | yearly (yearly = 10 months paid)
+
+
+class DocumentCheckoutRequest(BaseModel):
+    origin_url: str
+    quantity: int = Field(1, ge=1, le=20)
 
 
 # ---- Admin: impersonation & password reset ----
@@ -191,4 +287,34 @@ class RefundRequest(BaseModel):
     amount: Optional[float] = None  # if None -> full refund
     reason: Optional[str] = None    # admin-supplied note
     downgrade_plan: Optional[bool] = True  # also downgrade user to free
+
+
+# ---- Teams & shared templates ----
+class TeamCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class TeamInviteCreate(BaseModel):
+    email: EmailStr
+
+
+class TemplateShareUpdate(BaseModel):
+    shared_with_team: Optional[bool] = None
+
+
+# ---- Comments / collaboration ----
+class CommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+    page: Optional[int] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    parent_id: Optional[str] = None
+
+
+# ---- Custom branding ----
+class BrandingUpdate(BaseModel):
+    primary_color: Optional[str] = None
+    accent_color: Optional[str] = None
+    banner_text: Optional[str] = None
+    # logo is uploaded via multipart, not this model
 

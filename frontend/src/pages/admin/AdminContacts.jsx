@@ -14,7 +14,7 @@ export default function AdminContacts() {
       const { data } = await api.get("/admin/contact-messages");
       setItems(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -27,7 +27,7 @@ export default function AdminContacts() {
       setItems((prev) => prev.map((c) => (c.contact_id === id ? { ...c, handled } : c)));
       toast.success(handled ? "Marked as handled" : "Reopened");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -38,7 +38,7 @@ export default function AdminContacts() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Contact inbox</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Messages submitted through the public contact form.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Messages submitted through the public contact form.</p>
         </div>
         <Button variant="outline" onClick={() => downloadCsv("/admin/export/contacts.csv", "civicsign_contacts.csv")} data-testid="admin-export-contacts">
           <Download className="mr-1.5 h-4 w-4" /> Export CSV
@@ -51,7 +51,7 @@ export default function AdminContacts() {
         <div className="mt-5 flex flex-col items-center justify-center rounded-xl border border-[var(--c-border)] bg-[var(--card)] px-6 py-20 text-center">
           <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--status-sent-bg)" }}><Inbox className="h-7 w-7" style={{ color: "var(--c-primary)" }} /></span>
           <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Inbox zero</h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">No contact messages yet.</p>
+          <p className="mt-1 text-sm text-[var(--c-muted-fg)]">No contact messages yet.</p>
         </div>
       ) : (
         <div className="mt-5 space-y-3">
@@ -67,10 +67,10 @@ export default function AdminContacts() {
                   </div>
                   <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 text-sm" style={{ color: "var(--c-primary)" }}><Mail className="h-3.5 w-3.5" /> {c.email}</a>
                 </div>
-                <span className="text-xs text-[var(--muted-foreground)]">{fmt(c.created_at)}</span>
+                <span className="text-xs text-[var(--c-muted-fg)]">{fmt(c.created_at)}</span>
               </div>
               <p className="mt-3 text-sm font-semibold text-[var(--c-ink)]">{c.subject}</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">{c.message}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--c-muted-fg)]">{c.message}</p>
               <div className="mt-4 flex justify-end">
                 {c.handled ? (
                   <Button variant="outline" size="sm" onClick={() => toggle(c.contact_id, false)} data-testid="admin-contact-reopen"><RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reopen</Button>

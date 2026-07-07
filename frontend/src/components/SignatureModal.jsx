@@ -6,7 +6,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { Upload, Trash2, RotateCcw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const TYPE_FONTS = [
   { key: "sig-allura", label: "Elegant", css: "'Allura', cursive" },
@@ -14,7 +16,7 @@ const TYPE_FONTS = [
   { key: "sig-caveat", label: "Casual", css: "'Caveat', cursive" },
 ];
 
-export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", title = "Add your signature" }) => {
+export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", title = "Add your signature", savedSignature = null }) => {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef(null);
@@ -23,6 +25,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
   const [font, setFont] = useState(TYPE_FONTS[0]);
   const [uploaded, setUploaded] = useState(null);
   const [tab, setTab] = useState("draw");
+  const [remember, setRemember] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -91,17 +94,24 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
   const apply = async () => {
     let dataUrl = null;
     if (tab === "draw") {
-      if (!hasDrawn) return;
+      if (!hasDrawn) { toast.error("Draw your signature first"); return; }
       dataUrl = canvasRef.current.toDataURL("image/png");
     } else if (tab === "type") {
-      if (!typed.trim()) return;
+      if (!typed.trim()) { toast.error("Enter your name to create a signature"); return; }
       dataUrl = await renderTypedToDataUrl();
     } else if (tab === "upload") {
-      if (!uploaded) return;
+      if (!uploaded) { toast.error("Upload a signature image first"); return; }
       dataUrl = uploaded;
     }
     if (dataUrl) {
-      onApply(dataUrl);
+      onApply(dataUrl, remember);
+      onOpenChange(false);
+    }
+  };
+
+  const useSaved = () => {
+    if (savedSignature) {
+      onApply(savedSignature, false);
       onOpenChange(false);
     }
   };
@@ -109,6 +119,8 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
   const handleFile = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { toast.error("Image must be under 5 MB"); return; }
+    if (!f.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
     const reader = new FileReader();
     reader.onload = () => setUploaded(reader.result);
     reader.readAsDataURL(f);
@@ -120,6 +132,13 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
         <DialogHeader>
           <DialogTitle className="font-heading">{title}</DialogTitle>
         </DialogHeader>
+        {savedSignature && (
+          <button type="button" onClick={useSaved} data-testid="use-saved-signature"
+            className="flex w-full items-center gap-3 rounded-lg border border-[var(--c-primary)]/40 bg-[var(--c-primary)]/5 p-3 text-left">
+            <img src={savedSignature} alt="Saved signature" className="h-10 max-w-[140px] object-contain" />
+            <span className="text-sm font-medium text-[var(--c-ink)]">Use saved signature</span>
+          </button>
+        )}
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="draw" data-testid="signature-tab-draw">Draw</TabsTrigger>
@@ -148,7 +167,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
           </TabsContent>
 
           <TabsContent value="type" className="mt-4">
-            <Label className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Your name</Label>
+            <Label className="text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">Your name</Label>
             <Input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
@@ -168,7 +187,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
                   <span style={{ fontFamily: f.css, fontSize: "26px", color: "#14213d" }}>
                     {(typed || "Signature").slice(0, 10)}
                   </span>
-                  <span className="mt-1 block text-[10px] text-[var(--muted-foreground)]">{f.label}</span>
+                  <span className="mt-1 block text-[10px] text-[var(--c-muted-fg)]">{f.label}</span>
                 </button>
               ))}
             </div>
@@ -182,7 +201,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
               <label className="flex h-[200px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--c-border)] bg-white text-center">
                 <Upload className="mb-2 h-6 w-6 text-[var(--c-primary)]" />
                 <span className="text-sm font-medium text-[var(--c-ink)]">Upload signature image</span>
-                <span className="text-xs text-[var(--muted-foreground)]">PNG with transparent background works best</span>
+                <span className="text-xs text-[var(--c-muted-fg)]">PNG with transparent background works best</span>
                 <input type="file" accept="image/*" className="hidden" onChange={handleFile} data-testid="signature-upload-input" />
               </label>
             ) : (
@@ -195,6 +214,10 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
             )}
           </TabsContent>
         </Tabs>
+        <label className="mt-2 flex items-center gap-2 text-xs text-[var(--c-muted-fg)]">
+          <Checkbox checked={remember} onCheckedChange={(v) => setRemember(!!v)} />
+          Remember my signature for next time
+        </label>
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={apply} data-testid="signature-apply-button"

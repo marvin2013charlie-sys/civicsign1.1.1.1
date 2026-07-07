@@ -7,11 +7,11 @@ const sections = [
     "By using the Services, you agree to the collection and use of information in accordance with this policy.",
   ] },
   { heading: "Information we collect", paragraphs: ["We collect the following categories of information:"], list: [
-    "Account information — your name, email address, password (stored hashed), and profile photo if you sign in with Google.",
-    "Document data — the documents you upload, the fields you place, and the recipients you add. Documents are processed to enable signing.",
-    "Signature data — drawn, typed, or uploaded signature images and the values entered into fields.",
-    "Audit data — timestamps, IP addresses, and browser/user-agent information captured to build a tamper-evident audit trail.",
-    "Usage data — how you interact with the Services, used to improve performance and reliability.",
+    "Account information, your name, email address, password (stored hashed), and profile photo if you sign in with Google.",
+    "Document data, the documents you upload, the fields you place, and the recipients you add. Documents are processed to enable signing.",
+    "Signature data, drawn, typed, or uploaded signature images and the values entered into fields.",
+    "Audit data, timestamps, IP addresses, and browser/user-agent information captured to build a tamper-evident audit trail.",
+    "Usage data, how you interact with the Services, used to improve performance and reliability.",
   ] },
   { heading: "How we use your information", list: [
     "To provide, operate, and maintain the Services.",
@@ -39,7 +39,7 @@ const sections = [
     "We use industry-standard safeguards including encryption in transit, hashed passwords, tokenized signing links, and SHA-256 sealing of finalized documents. No method of transmission or storage is 100% secure, but we work continuously to protect your information.",
   ] },
   { heading: "Your rights", paragraphs: [
-    "Depending on your location, you may have the right to access, correct, delete, or port your personal data, and to object to or restrict certain processing. To exercise these rights, contact us at privacy@civicsign.com.",
+    "Depending on your location, you may have the right to access, correct, delete, or port your personal data, and to object to or restrict certain processing. To exercise these rights, contact us at info@civicbot.co.uk.",
   ] },
   { heading: "International transfers", paragraphs: [
     "Your information may be processed in countries other than your own. Where required, we rely on appropriate safeguards such as standard contractual clauses for cross-border transfers.",
@@ -51,7 +51,7 @@ const sections = [
     "We may update this Privacy Policy from time to time. We will post the updated version with a new “Last updated” date and, where appropriate, notify you.",
   ] },
   { heading: "Contact us", paragraphs: [
-    "If you have questions about this Privacy Policy or our data practices, contact us at privacy@civicsign.com or via our Contact page.",
+    "If you have questions about this Privacy Policy or our data practices, contact us at info@civicbot.co.uk or via our Contact page.",
   ] },
 ];
 

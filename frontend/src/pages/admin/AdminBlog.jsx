@@ -55,7 +55,7 @@ export default function AdminBlog() {
       const { data } = await api.get("/admin/blog/posts");
       setPosts(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,7 @@ export default function AdminBlog() {
       });
       setEditorOpen(true);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -124,7 +124,7 @@ export default function AdminBlog() {
       setEditorOpen(false);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -137,7 +137,7 @@ export default function AdminBlog() {
       setConfirmDelete(null);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -154,7 +154,7 @@ export default function AdminBlog() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Blog</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Write, edit and publish posts that appear on the public /blog page.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Write, edit and publish posts that appear on the public /blog page.</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
@@ -168,10 +168,10 @@ export default function AdminBlog() {
 
       <div className="mt-5 flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search posts…" className="pl-9" data-testid="admin-blog-search" />
         </div>
-        <p className="text-sm text-[var(--muted-foreground)]">{loading ? "…" : `${filtered.length} post${filtered.length === 1 ? "" : "s"}`}</p>
+        <p className="text-sm text-[var(--c-muted-fg)]">{loading ? "…" : `${filtered.length} post${filtered.length === 1 ? "" : "s"}`}</p>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-blog-table">
@@ -183,7 +183,7 @@ export default function AdminBlog() {
               <FilePlus2 className="h-7 w-7" style={{ color: "var(--c-primary)" }} />
             </span>
             <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">No posts yet</h3>
-            <p className="mt-1 max-w-sm text-sm text-[var(--muted-foreground)]">
+            <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">
               Create your first post. It will appear on the public /blog page immediately if published.
             </p>
             <Button onClick={openCreate} className="mt-5" data-testid="admin-blog-empty-create" style={{ background: "var(--c-primary)", color: "#fff" }}>
@@ -192,7 +192,7 @@ export default function AdminBlog() {
           </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
-            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] sm:grid">
+            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] sm:grid">
               <div className="col-span-5">Title</div>
               <div className="col-span-2">Category</div>
               <div className="col-span-2">Status</div>
@@ -204,9 +204,9 @@ export default function AdminBlog() {
                 className="grid grid-cols-1 items-center gap-3 px-5 py-4 sm:grid-cols-12">
                 <div className="col-span-5 min-w-0">
                   <p className="truncate font-semibold text-[var(--c-ink)]">{p.title}</p>
-                  <p className="truncate text-xs text-[var(--muted-foreground)]">/{p.slug}</p>
+                  <p className="truncate text-xs text-[var(--c-muted-fg)]">/{p.slug}</p>
                 </div>
-                <div className="col-span-2 text-sm text-[var(--muted-foreground)]">{p.category}</div>
+                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{p.category}</div>
                 <div className="col-span-2">
                   {p.published ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
@@ -218,7 +218,7 @@ export default function AdminBlog() {
                     </span>
                   )}
                 </div>
-                <div className="col-span-2 text-sm text-[var(--muted-foreground)]">{p.date}</div>
+                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{p.date}</div>
                 <div className="col-span-1 flex justify-end gap-1">
                   <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" data-testid="admin-blog-preview">
                     <Button variant="ghost" size="icon" title="Preview"><ExternalLink className="h-4 w-4" /></Button>
@@ -276,7 +276,7 @@ export default function AdminBlog() {
             <div className="flex items-center justify-between rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-[var(--c-ink)]">Publish immediately</p>
-                <p className="text-xs text-[var(--muted-foreground)]">Off = save as draft (not visible on the public site)</p>
+                <p className="text-xs text-[var(--c-muted-fg)]">Off = save as draft (not visible on the public site)</p>
               </div>
               <Switch checked={form.published} onCheckedChange={(v) => setForm({ ...form, published: v })} data-testid="admin-blog-published-toggle" />
             </div>
@@ -300,8 +300,8 @@ export default function AdminBlog() {
                   return (
                     <div key={idx} className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-2.5">
                       <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{meta?.label || b.type}</span>
-                        <button type="button" onClick={() => removeBlock(idx)} className="rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--c-paper)] hover:text-red-600" data-testid="admin-blog-block-remove">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">{meta?.label || b.type}</span>
+                        <button type="button" onClick={() => removeBlock(idx)} className="rounded p-1 text-[var(--c-muted-fg)] hover:bg-[var(--c-paper)] hover:text-red-600" data-testid="admin-blog-block-remove">
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>

@@ -1,13 +1,33 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { AuthLayout } from "@/components/AuthLayout";
+import { BrandAccent } from "@/components/BrandText";
+import {
+  AuthFormCard,
+  AuthField,
+  AuthPasswordInput,
+  PasswordStrengthMeter,
+} from "@/components/auth/AuthFormPrimitives";
 import api, { formatApiError } from "@/lib/api";
 import { validatePassword } from "@/lib/password";
-import { Loader2, KeyRound, ShieldCheck, CircleCheck, CircleAlert } from "lucide-react";
+import {
+  Loader2,
+  KeyRound,
+  Lock,
+  CircleCheck,
+  CircleAlert,
+  ArrowRight,
+  Clock,
+} from "lucide-react";
+
+const PWD_RULES = [
+  { label: "At least 8 characters", test: (p) => p.length >= 8 },
+  { label: "1 capital letter", test: (p) => /[A-Z]/.test(p) },
+  { label: "1 number", test: (p) => /\d/.test(p) },
+  { label: "1 special character", test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -15,125 +35,213 @@ export default function ResetPassword() {
   const token = params.get("token") || "";
 
   const [checking, setChecking] = useState(true);
-  const [info, setInfo] = useState(null);     // { email, name }
-  const [invalid, setInvalid] = useState(null); // error message string
+  const [info, setInfo] = useState(null);
+  const [invalid, setInvalid] = useState(null);
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
     let active = true;
     const check = async () => {
-      if (!token) { setInvalid("This reset link is missing its token."); setChecking(false); return; }
+      if (!token) {
+        setInvalid("This reset link is missing its token.");
+        setChecking(false);
+        return;
+      }
       try {
         const { data } = await api.get("/auth/reset-info", { params: { token } });
         if (active) setInfo(data);
       } catch (err) {
-        if (active) setInvalid(formatApiError(err.response?.data?.detail) || "This reset link is invalid.");
+        if (active) {
+          setInvalid(formatApiError(err) || "This reset link is invalid.");
+        }
       } finally {
         if (active) setChecking(false);
       }
     };
     check();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [token]);
 
   const submit = async (e) => {
     e.preventDefault();
     const pwdError = validatePassword(pwd);
-    if (pwdError) { toast.error(pwdError); return; }
-    if (pwd !== confirm) { toast.error("Passwords do not match"); return; }
+    if (pwdError) {
+      toast.error(pwdError);
+      return;
+    }
+    if (pwd !== confirm) {
+      toast.error("Passwords do not match");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/auth/reset-password", { token, new_password: pwd });
       setDone(true);
       toast.success("Password reset successfully");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
   };
 
+  const cardMeta = (() => {
+    if (checking) {
+      return {
+        icon: KeyRound,
+        title: "Verifying your link",
+        subtitle: "Hang tight, we're checking that your reset link is valid.",
+      };
+    }
+    if (invalid) {
+      return {
+        icon: CircleAlert,
+        iconDanger: true,
+        title: "Link not valid",
+        subtitle: invalid,
+      };
+    }
+    if (done) {
+      return {
+        icon: CircleCheck,
+        title: "Password updated",
+        subtitle: "Your password has been changed. You can now sign in with your new password.",
+      };
+    }
+    return {
+      icon: Lock,
+      title: "Set a new password",
+      subtitle: (
+        <>
+          Choose a strong password for{" "}
+          <span className="font-semibold text-[var(--c-ink)]" data-testid="reset-email">
+            {info?.email}
+          </span>
+        </>
+      ),
+    };
+  })();
+
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between bg-[var(--c-ink-solid)] p-10 text-white lg:flex">
-        <Logo dark />
-        <div>
-          <h2 className="font-heading text-4xl font-bold leading-tight">Set a new password</h2>
-          <p className="mt-4 max-w-sm text-white/70">Choose a strong password to secure your CivicSign account. Reset links expire one hour after they're issued.</p>
-          <div className="mt-8 space-y-4 text-white/80">
-            <p className="flex items-center gap-3"><ShieldCheck className="h-5 w-5" style={{ color: "#7fe9dd" }} /> Encrypted, tamper-evident workflows</p>
-            <p className="flex items-center gap-3"><KeyRound className="h-5 w-5" style={{ color: "#7fe9dd" }} /> One-time, single-use reset links</p>
+    <AuthLayout
+      showAssistant={false}
+      panelMarquee
+      panelReviews
+      backTo="/login"
+      backLabel="Back to sign in"
+      panelTitle={
+        <>
+          Set a new <BrandAccent>password</BrandAccent>.
+        </>
+      }
+      panelSubtitle="Choose a strong password to secure your CivicSign account. Reset links expire one hour after they're issued."
+      panelBullets={[
+        { icon: Lock, text: "Encrypted, tamper-evident workflows" },
+        { icon: KeyRound, text: "One-time, single-use reset links" },
+        { icon: Clock, text: "Links expire after 60 minutes for your security" },
+      ]}
+    >
+      <AuthFormCard
+        testId="reset-password-card"
+        icon={cardMeta.icon}
+        iconDanger={cardMeta.iconDanger}
+        title={cardMeta.title}
+        subtitle={cardMeta.subtitle}
+        footer="Single-use links · Encrypted in transit"
+      >
+        {checking ? (
+          <div
+            className="flex items-center justify-center gap-2 py-10 text-[var(--c-muted-fg)]"
+            data-testid="reset-checking"
+          >
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm font-medium">Verifying your link…</span>
           </div>
-        </div>
-        <p className="text-xs text-white/50">© {new Date().getFullYear()} CivicSign</p>
-      </div>
-
-      {/* Form */}
-      <div className="flex items-center justify-center bg-[var(--c-paper)] p-6">
-        <div className="w-full max-w-sm" data-testid="reset-password-card">
-          <div className="mb-8 lg:hidden"><Logo /></div>
-
-          {checking ? (
-            <div className="flex items-center justify-center py-16 text-[var(--muted-foreground)]" data-testid="reset-checking">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Verifying your link…
-            </div>
-          ) : invalid ? (
-            <div data-testid="reset-invalid">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "#FEF2F2" }}>
-                <CircleAlert className="h-6 w-6" style={{ color: "#DC2626" }} />
-              </span>
-              <h1 className="mt-4 font-heading text-2xl font-bold text-[var(--c-ink)]">Link not valid</h1>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{invalid}</p>
-              <p className="mt-4 text-sm text-[var(--muted-foreground)]">Please ask your administrator to generate a fresh reset link.</p>
-              <Link to="/login">
-                <Button className="mt-6 w-full" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="reset-back-to-login">Back to sign in</Button>
-              </Link>
-            </div>
-          ) : done ? (
-            <div data-testid="reset-success">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
-                <CircleCheck className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-              </span>
-              <h1 className="mt-4 font-heading text-2xl font-bold text-[var(--c-ink)]">Password updated</h1>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Your password has been changed. You can now sign in with your new password.</p>
-              <Button className="mt-6 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}
-                onClick={() => navigate("/login")} data-testid="reset-go-login">
-                Go to sign in
+        ) : invalid ? (
+          <div className="mt-7 space-y-4" data-testid="reset-invalid">
+            <p className="text-sm text-[var(--c-muted-fg)]">
+              Request a new reset link and we'll send fresh instructions to your email.
+            </p>
+            <Link to="/forgot-password">
+              <Button className="cs-auth-submit group" data-testid="reset-request-new">
+                <span className="inline-flex items-center gap-2">
+                  Request new reset link
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
               </Button>
+            </Link>
+          </div>
+        ) : done ? (
+          <div className="mt-7" data-testid="reset-success">
+            <div className="cs-auth-success-banner">
+              You're all set, sign in with your new password.
             </div>
-          ) : (
-            <>
-              <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Reset your password</h1>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                For <span className="font-semibold text-[var(--c-ink)]" data-testid="reset-email">{info?.email}</span>
-              </p>
-              <form onSubmit={submit} className="mt-6 space-y-4">
-                <div>
-                  <Label htmlFor="new-pwd">New password</Label>
-                  <Input id="new-pwd" type="password" required autoComplete="new-password" value={pwd}
-                    onChange={(e) => setPwd(e.target.value)} placeholder="••••••••" className="mt-1" data-testid="reset-new-password" />
-                </div>
-                <div>
-                  <Label htmlFor="confirm-pwd">Confirm new password</Label>
-                  <Input id="confirm-pwd" type="password" required autoComplete="new-password" value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" className="mt-1" data-testid="reset-confirm-password" />
-                </div>
-                <Button type="submit" disabled={saving} className="w-full" data-testid="reset-submit"
-                  style={{ background: "var(--c-primary)", color: "#fff" }}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Reset password"}
-                </Button>
-              </form>
-              <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
-                Remembered it? <Link to="/login" className="font-semibold text-[var(--c-primary)]">Back to sign in</Link>
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            <Button
+              className="cs-auth-submit group mt-4"
+              onClick={() => navigate("/login")}
+              data-testid="reset-go-login"
+            >
+              <span className="inline-flex items-center gap-2">
+                Go to sign in
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="mt-7 space-y-5">
+            <AuthField id="new-pwd" label="New password">
+              <AuthPasswordInput
+                id="new-pwd"
+                value={pwd}
+                onChange={(e) => setPwd(e.target.value)}
+                show={showPwd}
+                onToggle={() => setShowPwd((s) => !s)}
+                placeholder="Create a strong password"
+                autoComplete="new-password"
+                testId="reset-new-password"
+                toggleTestId="reset-toggle-password"
+              />
+              <PasswordStrengthMeter password={pwd} rules={PWD_RULES} />
+            </AuthField>
+
+            <AuthField id="confirm-pwd" label="Confirm new password">
+              <AuthPasswordInput
+                id="confirm-pwd"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                show={showPwd}
+                onToggle={() => setShowPwd((s) => !s)}
+                placeholder="Repeat your new password"
+                autoComplete="new-password"
+                testId="reset-confirm-password"
+                toggleTestId="reset-toggle-confirm-password"
+              />
+            </AuthField>
+
+            <Button
+              type="submit"
+              disabled={saving}
+              className="cs-auth-submit group"
+              data-testid="reset-submit"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  Reset password
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              )}
+            </Button>
+          </form>
+        )}
+      </AuthFormCard>
+    </AuthLayout>
   );
 }

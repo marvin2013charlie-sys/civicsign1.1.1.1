@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
 import { toast } from "sonner";
-import { API_BASE, formatApiError } from "@/lib/api";
+import { publicApi, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Logo } from "@/components/Logo";
 import { ArrowLeft, MapPin, Globe2, Briefcase, CheckCircle2, Send } from "lucide-react";
+import { buildJobSeo } from "@/lib/seo";
+import { usePageSeo } from "@/hooks/usePageSeo";
 
 const TYPE_LABEL = { "full-time": "Full-time", "part-time": "Part-time", contract: "Contract", internship: "Internship" };
 const WP_LABEL = { remote: "Remote", hybrid: "Hybrid", "on-site": "On-site" };
@@ -27,13 +28,15 @@ export default function JobDetail() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get(`${API_BASE}/careers/jobs/${slug}`);
+        const { data } = await publicApi.get(`/careers/jobs/${slug}`);
         setJob(data);
       } catch {
         setNotFound(true);
       }
     })();
   }, [slug]);
+
+  usePageSeo(job ? buildJobSeo(job) : null);
 
   const submit = async (e) => {
     e?.preventDefault?.();
@@ -43,11 +46,11 @@ export default function JobDetail() {
     }
     setSubmitting(true);
     try {
-      await axios.post(`${API_BASE}/careers/apply`, { job_slug: slug, ...form });
+      await publicApi.post("/careers/apply", { job_slug: slug, ...form });
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSubmitting(false);
     }
@@ -59,7 +62,7 @@ export default function JobDetail() {
         <NavBar />
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Position not found</h1>
-          <p className="mt-2 text-sm text-[var(--muted-foreground)]">This role may have been filled or unpublished. Browse all open roles instead.</p>
+          <p className="mt-2 text-sm text-[var(--c-muted-fg)]">This role may have been filled or unpublished. Browse all open roles instead.</p>
           <Button className="mt-5" onClick={() => navigate("/careers")} style={{ background: "var(--c-primary)", color: "#fff" }}>
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to careers
           </Button>
@@ -73,7 +76,7 @@ export default function JobDetail() {
       <NavBar />
 
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <Link to="/careers" className="inline-flex items-center gap-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--c-primary)]">
+        <Link to="/careers" className="inline-flex items-center gap-1 text-sm text-[var(--c-muted-fg)] hover:text-[var(--c-primary)]">
           <ArrowLeft className="h-3.5 w-3.5" /> All positions
         </Link>
 
@@ -117,7 +120,7 @@ export default function JobDetail() {
                 <div className="py-6 text-center" data-testid="job-apply-success">
                   <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
                   <h2 className="mt-3 font-heading text-xl font-bold text-[var(--c-ink)]">Application received</h2>
-                  <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
+                  <p className="mt-1.5 text-sm text-[var(--c-muted-fg)]">
                     Thank you for applying to <span className="font-semibold">{job.title}</span>. We&rsquo;ll review your application and get back to you within a week.
                   </p>
                   <Button className="mt-5" onClick={() => navigate("/careers")} variant="outline">Browse other roles</Button>
@@ -126,7 +129,7 @@ export default function JobDetail() {
                 <form onSubmit={submit} className="space-y-4">
                   <div>
                     <h2 className="font-heading text-xl font-bold text-[var(--c-ink)]">Apply for this role</h2>
-                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">No portal account needed. We read every application.</p>
+                    <p className="mt-1 text-sm text-[var(--c-muted-fg)]">No portal account needed. We read every application.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Full name *" id="apply-name">
@@ -157,8 +160,8 @@ export default function JobDetail() {
                     />
                   </Field>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-[var(--muted-foreground)]">
-                      By applying you agree to our <Link to="/privacy" className="underline">Privacy Policy</Link>.
+                    <p className="text-xs text-[var(--c-muted-fg)]">
+                      By applying you agree to our <Link to="/legal/privacy" className="underline">Privacy Policy</Link>.
                     </p>
                     <Button type="submit" disabled={submitting} data-testid="apply-submit" style={{ background: "var(--c-primary)", color: "#fff" }}>
                       <Send className="mr-1.5 h-4 w-4" /> {submitting ? "Submitting…" : "Submit application"}

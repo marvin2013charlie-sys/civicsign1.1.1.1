@@ -22,17 +22,19 @@ from datetime import datetime, timezone, timedelta
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File
+from pymongo import ReturnDocument
+from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Query
 from fastapi.responses import Response as FastResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from rate_limits import limiter, auth_limit
 
 import email_service
 from db import db, delete_file, upload_file, download_file
+from security_utils import is_dev_mode, validate_redirect_base, cookie_secure, sniff_image_type
+from plan_features import plan_features
 from models import (
     RegisterRequest, LoginRequest,
     ProfileUpdate, PasswordChange, SubscriptionUpdate, AccountDelete,
-    ResetPassword, VerifyEmail, ResendVerification, ForgotPassword,
+    ResetPassword, VerifyEmail, ResendVerification, ForgotPassword, EmailChangeRequest,
 )
 
 logger = logging.getLogger("civicsign.auth")
@@ -41,9 +43,6 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TTL_MIN = 60 * 24       # 1 day access
 REFRESH_TTL_DAYS = 7
 PLANS = {"free", "pro", "business"}
-
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
 
 # Password validation constants: minimum 8 chars with at least one capital
 # letter, one digit and one special character (mandatory).
@@ -56,10 +55,7 @@ PASSWORD_HELP_TEXT = (
     "1 capital letter, 1 number and 1 special character"
 )
 
-# Brute force protection
-FAILED_LOGIN_ATTEMPTS = {}  # user_email -> {count: int, locked_until: datetime}
-MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_DURATION_MIN = 15
+MAX_VERIFY_ATTEMPTS = 5
 
 
 def get_jwt_secret() -> str:
@@ -85,42 +81,6 @@ def _validate_password_strength(password: str) -> tuple[bool, str]:
     return True, ""
 
 
-def _is_account_locked(email: str) -> bool:
-    """Check if account is locked due to failed login attempts."""
-    if email not in FAILED_LOGIN_ATTEMPTS:
-        return False
-    
-    data = FAILED_LOGIN_ATTEMPTS[email]
-    if datetime.now(timezone.utc) > data.get("locked_until", datetime.now(timezone.utc)):
-        # Lock has expired
-        del FAILED_LOGIN_ATTEMPTS[email]
-        return False
-    
-    return True
-
-
-def _record_failed_login(email: str):
-    """Record failed login attempt and lock account if necessary."""
-    if email not in FAILED_LOGIN_ATTEMPTS:
-        FAILED_LOGIN_ATTEMPTS[email] = {"count": 0, "locked_until": None}
-    
-    FAILED_LOGIN_ATTEMPTS[email]["count"] += 1
-    
-    if FAILED_LOGIN_ATTEMPTS[email]["count"] >= MAX_FAILED_ATTEMPTS:
-        FAILED_LOGIN_ATTEMPTS[email]["locked_until"] = (
-            datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MIN)
-        )
-        logger.warning(
-            f"[auth] Account {email} locked after {MAX_FAILED_ATTEMPTS} failed login attempts"
-        )
-
-
-def _reset_failed_login(email: str):
-    """Reset failed login counter on successful login."""
-    if email in FAILED_LOGIN_ATTEMPTS:
-        del FAILED_LOGIN_ATTEMPTS[email]
-
-
 def hash_password(password: str) -> str:
     """Hash password using bcrypt with strong settings."""
     # Use bcrypt with cost 12 (more secure than default 10)
@@ -135,29 +95,39 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(
+    user_id: str,
+    email: str,
+    *,
+    token_version: int = 0,
+    impersonating: bool = False,
+) -> str:
     """Create JWT access token with strict validation."""
     if not user_id or not email:
         raise ValueError("user_id and email are required")
-    
+
     payload = {
         "sub": user_id,
         "email": email,
         "type": "access",
+        "tv": int(token_version or 0),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TTL_MIN),
         "iat": datetime.now(timezone.utc),
     }
+    if impersonating:
+        payload["imp"] = True
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, *, token_version: int = 0) -> str:
     """Create JWT refresh token."""
     if not user_id:
         raise ValueError("user_id is required")
-    
+
     payload = {
         "sub": user_id,
         "type": "refresh",
+        "tv": int(token_version or 0),
         "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TTL_DAYS),
         "iat": datetime.now(timezone.utc),
     }
@@ -166,12 +136,13 @@ def create_refresh_token(user_id: str) -> str:
 
 def set_auth_cookies(response: Response, access: str, refresh: str):
     """Set authentication cookies with security flags."""
+    secure = cookie_secure()
     response.set_cookie(
         "access_token",
         access,
-        httponly=True,  # Prevent JavaScript access
-        secure=True,    # HTTPS only
-        samesite="strict",  # CSRF protection (strict)
+        httponly=True,
+        secure=secure,
+        samesite="strict",
         max_age=ACCESS_TTL_MIN * 60,
         path="/",
     )
@@ -179,7 +150,7 @@ def set_auth_cookies(response: Response, access: str, refresh: str):
         "refresh_token",
         refresh,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="strict",
         max_age=REFRESH_TTL_DAYS * 86400,
         path="/",
@@ -188,13 +159,14 @@ def set_auth_cookies(response: Response, access: str, refresh: str):
 
 def clear_auth_cookies(response: Response):
     """Clear authentication cookies securely."""
-    # Cookie deletion must match the attributes used when setting the cookie
-    response.delete_cookie("access_token", path="/", samesite="strict", secure=True)
-    response.delete_cookie("refresh_token", path="/", samesite="strict", secure=True)
+    secure = cookie_secure()
+    response.delete_cookie("access_token", path="/", samesite="strict", secure=secure)
+    response.delete_cookie("refresh_token", path="/", samesite="strict", secure=secure)
 
 
 def _public_user(doc: dict) -> dict:
     """Return safe user object for API responses (no secrets)."""
+    from billing import get_effective_plan
     return {
         "user_id": doc["user_id"],
         "email": doc["email"],
@@ -204,7 +176,7 @@ def _public_user(doc: dict) -> dict:
         "auth_provider": doc.get("auth_provider", "password"),
         "role": doc.get("role", "user"),
         "permissions": doc.get("permissions", []),
-        "plan": doc.get("plan", "free"),
+        "plan": get_effective_plan(doc),
         "active": doc.get("active", True),
         "email_verified": doc.get("email_verified", True),
         "created_at": doc.get("created_at"),
@@ -220,10 +192,40 @@ def _public_user(doc: dict) -> dict:
         "industry": doc.get("industry", ""),
         "timezone": doc.get("timezone", "Europe/London"),
         "marketing_opt_in": doc.get("marketing_opt_in", False),
+        "org_id": doc.get("org_id"),
+        "org_role": doc.get("org_role"),
+        "extra_document_credits": max(0, int(doc.get("extra_document_credits") or 0)),
+        "plan_features": plan_features(doc),
     }
 
 
 VERIFY_TTL_MIN = 15
+
+
+async def _fulfill_team_invites(email: str, user_id: str, name: str) -> None:
+    """Add the user to any teams that invited them before signup."""
+    invites = await db.team_invites.find(
+        {"email": email.lower()}, {"_id": 0}).to_list(50)
+    for inv in invites:
+        team_id = inv.get("team_id")
+        if not team_id:
+            continue
+        team = await db.teams.find_one({"team_id": team_id}, {"_id": 0, "members": 1})
+        if not team:
+            await db.team_invites.delete_many({"team_id": team_id, "email": email.lower()})
+            continue
+        if any(m.get("user_id") == user_id for m in team.get("members", [])):
+            await db.team_invites.delete_many({"team_id": team_id, "email": email.lower()})
+            continue
+        member = {
+            "user_id": user_id,
+            "email": email.lower(),
+            "name": name or email,
+            "role": "member",
+            "added_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.teams.update_one({"team_id": team_id}, {"$push": {"members": member}})
+        await db.team_invites.delete_many({"team_id": team_id, "email": email.lower()})
 
 
 async def _issue_verification_code(user_id: str, email: str, name: str = "") -> str:
@@ -250,39 +252,43 @@ async def _issue_verification_code(user_id: str, email: str, name: str = "") -> 
 
 
 def _verification_response(email: str, code: str) -> dict:
-    """In skip-mode (no SendGrid) surface the code so the user can complete signup."""
-    dev = not email_service.is_configured()
+    """In explicit DEV_MODE only, surface the code for local testing."""
+    dev = is_dev_mode()
     return {
         "verification_required": True,
         "email": email,
         "dev_mode": dev,
         "dev_code": code if dev else None,
-        "message": "We sent a 6-digit verification code to your email.",
+        "message": (
+            "Your verification code is shown on screen (dev mode)."
+            if dev
+            else "We sent a 6-digit verification code to your email."
+        ),
     }
 
 
-async def get_current_user(request: Request) -> dict:
-    """Extract and validate current user from JWT."""
-    # The Authorization: Bearer header takes precedence over the session cookie
-    token = None
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
+def _access_token_from_request(request: Request, query_token: str | None = None) -> str | None:
+    """Bearer header → query param (SSE) → HttpOnly cookie."""
+    token = (query_token or "").strip() or None
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
     if not token:
         token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Validate token length (prevent DoS)
+    return token or None
+
+
+async def user_from_access_token(token: str) -> dict:
+    """Validate a JWT access token and return the user document."""
     if len(token) > 2048:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
-        
-        # Validate required claims
+
         user_id = payload.get("sub")
         email = payload.get("email")
         if not user_id or not email:
@@ -292,13 +298,39 @@ async def get_current_user(request: Request) -> dict:
     except jwt.InvalidTokenError as e:
         logger.warning(f"[auth] Invalid token: {str(e)[:50]}")
         raise HTTPException(status_code=401, detail="Invalid token")
-    
+
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    token_tv = int(payload.get("tv") or 0)
+    user_tv = int(user.get("token_version") or 0)
+    if token_tv != user_tv:
+        raise HTTPException(status_code=401, detail="Session expired — please sign in again")
     if user.get("active") is False:
         raise HTTPException(status_code=403, detail="Your account has been deactivated")
+    if user.get("email_verified", True) is False and user.get("role", "user") == "user":
+        raise HTTPException(status_code=403, detail="Please verify your email address to continue")
+    user["_impersonating"] = bool(payload.get("imp"))
     return user
+
+
+async def get_current_user(request: Request) -> dict:
+    """Extract and validate current user from JWT."""
+    token = _access_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return await user_from_access_token(token)
+
+
+async def get_current_user_sse(
+    request: Request,
+    access_token: str | None = Query(None),
+) -> dict:
+    """Auth for EventSource streams — accepts ?access_token= when Bearer is unavailable."""
+    token = _access_token_from_request(request, query_token=access_token)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return await user_from_access_token(token)
 
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
@@ -417,6 +449,13 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
         
         if expired:
             raise HTTPException(status_code=400, detail="This code has expired. Request a new one.")
+
+        if rec.get("attempts", 0) >= MAX_VERIFY_ATTEMPTS:
+            await db.email_verifications.delete_one({"email": email})
+            raise HTTPException(
+                status_code=429,
+                detail="Too many incorrect attempts. Request a new verification code.",
+            )
         
         # Use constant-time comparison to prevent timing attacks
         provided_code = (body.code or "").strip()
@@ -425,7 +464,17 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
             raise HTTPException(status_code=400, detail="Incorrect verification code")
         
         if not hmac.compare_digest(provided_code, rec["code"]):
-            await db.email_verifications.update_one({"email": email}, {"$inc": {"attempts": 1}})
+            updated = await db.email_verifications.find_one_and_update(
+                {"email": email},
+                {"$inc": {"attempts": 1}},
+                return_document=ReturnDocument.AFTER,
+            )
+            if (updated or {}).get("attempts", 0) >= MAX_VERIFY_ATTEMPTS:
+                await db.email_verifications.delete_one({"email": email})
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many incorrect attempts. Request a new verification code.",
+                )
             raise HTTPException(status_code=400, detail="Incorrect verification code")
 
         user = await db.users.find_one({"email": email})
@@ -437,6 +486,7 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
             {"$set": {"email_verified": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
         await db.email_verifications.delete_one({"email": email})
+        await _fulfill_team_invites(email, user["user_id"], user.get("name", ""))
 
         # Welcome email (best-effort; skip-mode logs only)
         try:
@@ -445,8 +495,9 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
             logger.warning(f"[auth] welcome email failed: {e}")
 
         user["email_verified"] = True
-        access = create_access_token(user["user_id"], email)
-        refresh = create_refresh_token(user["user_id"])
+        tv = int(user.get("token_version") or 0)
+        access = create_access_token(user["user_id"], email, token_version=tv)
+        refresh = create_refresh_token(user["user_id"], token_version=tv)
         set_auth_cookies(response, access, refresh)
         logger.info(f"[auth] Email verified: {email}")
         return {"user": _public_user(user), "access_token": access}
@@ -479,23 +530,14 @@ async def resend_verification(request: Request, body: ResendVerification):
 
 
 @auth_router.post("/login")
-@limiter.limit("10/hour")
+@limiter.limit(auth_limit("10/hour"))
 async def login(request: Request, body: LoginRequest, response: Response):
     """Authenticate user with email and password."""
     try:
         email = body.email.lower().strip()
-        
-        # Check if account is locked
-        if _is_account_locked(email):
-            logger.warning(f"[auth] Login attempt to locked account: {email}")
-            raise HTTPException(
-                status_code=429,
-                detail=f"Too many failed login attempts. Try again in {LOCKOUT_DURATION_MIN} minutes."
-            )
-        
+
         user = await db.users.find_one({"email": email})
         if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
-            _record_failed_login(email)
             logger.warning(f"[auth] Failed login attempt: {email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
@@ -504,9 +546,9 @@ async def login(request: Request, body: LoginRequest, response: Response):
         if user.get("email_verified", True) is False:
             raise HTTPException(status_code=403, detail="Please verify your email address to continue. We can send you a new code.")
         
-        _reset_failed_login(email)
-        access = create_access_token(user["user_id"], email)
-        refresh = create_refresh_token(user["user_id"])
+        tv = int(user.get("token_version") or 0)
+        access = create_access_token(user["user_id"], email, token_version=tv)
+        refresh = create_refresh_token(user["user_id"], token_version=tv)
         set_auth_cookies(response, access, refresh)
         logger.info(f"[auth] Login successful: {email}")
         return {"user": _public_user(user), "access_token": access}
@@ -515,6 +557,74 @@ async def login(request: Request, body: LoginRequest, response: Response):
     except Exception as e:
         logger.error(f"[auth] login error: {str(e)[:100]}")
         raise HTTPException(status_code=500, detail="Login failed")
+
+
+@auth_router.post("/request-email-change")
+@limiter.limit("3/hour")
+async def request_email_change(request: Request, body: EmailChangeRequest,
+                               user: dict = Depends(get_current_user)):
+    """Start a verified email change — code is sent to the new address."""
+    new_email = body.email.lower().strip()
+    if new_email == user["email"]:
+        raise HTTPException(status_code=400, detail="That is already your email address")
+    existing = await db.users.find_one({"email": new_email})
+    if existing:
+        raise HTTPException(status_code=400, detail="That email is already in use by another account")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"pending_email": new_email, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await _issue_verification_code(user["user_id"], new_email, user.get("name", ""))
+    return {"ok": True, "message": f"We sent a verification code to {new_email}"}
+
+
+@auth_router.post("/confirm-email-change")
+@limiter.limit("10/hour")
+async def confirm_email_change(request: Request, body: VerifyEmail,
+                               user: dict = Depends(get_current_user)):
+    """Complete a pending email change after verifying the new address."""
+    new_email = body.email.lower().strip()
+    if user.get("pending_email") != new_email:
+        raise HTTPException(status_code=400, detail="No pending email change for this address")
+    rec = await db.email_verifications.find_one({"email": new_email})
+    if not rec:
+        raise HTTPException(status_code=400, detail="No verification code found. Request a new one.")
+    try:
+        expired = datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=400, detail="This code has expired. Request a new one.")
+    if rec.get("attempts", 0) >= MAX_VERIFY_ATTEMPTS:
+        await db.email_verifications.delete_one({"email": new_email})
+        raise HTTPException(status_code=429, detail="Too many incorrect attempts. Request a new code.")
+    provided_code = (body.code or "").strip()
+    if len(provided_code) != 6 or not provided_code.isdigit():
+        await db.email_verifications.update_one({"email": new_email}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Incorrect verification code")
+    if not hmac.compare_digest(provided_code, rec["code"]):
+        updated = await db.email_verifications.find_one_and_update(
+            {"email": new_email},
+            {"$inc": {"attempts": 1}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if (updated or {}).get("attempts", 0) >= MAX_VERIFY_ATTEMPTS:
+            await db.email_verifications.delete_one({"email": new_email})
+            raise HTTPException(status_code=429, detail="Too many incorrect attempts. Request a new code.")
+        raise HTTPException(status_code=400, detail="Incorrect verification code")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "email": new_email,
+            "pending_email": None,
+            "email_verified": True,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    await db.email_verifications.delete_one({"email": new_email})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    logger.info(f"[auth] Email changed for user {user['user_id']} -> {new_email}")
+    return _public_user(fresh)
 
 
 @auth_router.post("/refresh")
@@ -540,17 +650,16 @@ async def refresh_token(request: Request, response: Response):
         user = await db.users.find_one({"user_id": payload["sub"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
-        
-        access = create_access_token(user["user_id"], user["email"])
-        response.set_cookie(
-            "access_token",
-            access,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=ACCESS_TTL_MIN * 60,
-            path="/"
+        token_tv = int(payload.get("tv") or 0)
+        user_tv = int(user.get("token_version") or 0)
+        if token_tv != user_tv:
+            raise HTTPException(status_code=401, detail="Session expired — please sign in again")
+
+        access = create_access_token(
+            user["user_id"], user["email"], token_version=user_tv,
         )
+        new_refresh = create_refresh_token(user["user_id"], token_version=user_tv)
+        set_auth_cookies(response, access, new_refresh)
         return {"access_token": access}
     except HTTPException:
         raise
@@ -570,7 +679,17 @@ async def logout(response: Response):
 @auth_router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
     """Get current user profile."""
-    return _public_user(user)
+    out = _public_user(user)
+    if not out.get("org_role") and out.get("org_id"):
+        org = await db.organizations.find_one(
+            {"org_id": out["org_id"]}, {"owner_user_id": 1, "_id": 0},
+        )
+        if org and org.get("owner_user_id") == out["user_id"]:
+            out["org_role"] = "owner"
+    if user.get("_impersonating"):
+        out["impersonating_session"] = True
+        out["document_access_restricted"] = True
+    return out
 
 
 @auth_router.put("/profile")
@@ -596,15 +715,11 @@ async def update_profile(request: Request, body: ProfileUpdate, user: dict = Dep
         
         if body.email is not None:
             new_email = body.email.lower().strip()
-            if not new_email or "@" not in new_email:
-                raise HTTPException(status_code=400, detail="Invalid email address")
-            if len(new_email) > 255:
-                raise HTTPException(status_code=400, detail="Email too long")
             if new_email != user["email"]:
-                existing = await db.users.find_one({"email": new_email})
-                if existing:
-                    raise HTTPException(status_code=400, detail="That email is already in use by another account")
-                updates["email"] = new_email
+                raise HTTPException(
+                    status_code=400,
+                    detail="Email changes require verification. Use POST /api/auth/request-email-change.",
+                )
         
         # Extended business profile fields
         for fld in ("company", "job_title", "phone", "country", "city", "postcode",
@@ -659,11 +774,15 @@ async def change_password(request: Request, body: PasswordChange, user: dict = D
             {"user_id": user["user_id"]},
             {"$set": {
                 "password_hash": hash_password(body.new_password),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }}
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }, "$inc": {"token_version": 1}},
+        )
+        await db.password_resets.update_many(
+            {"user_id": user["user_id"], "used": False},
+            {"$set": {"used": True}},
         )
         logger.info(f"[auth] Password changed: {user['email']}")
-        return {"ok": True, "message": "Password updated"}
+        return {"ok": True, "message": "Password updated. Other sessions have been signed out."}
     except HTTPException:
         raise
     except Exception as e:
@@ -692,10 +811,16 @@ async def update_subscription(request: Request, body: SubscriptionUpdate, user: 
                 detail="Use the billing system to upgrade your plan"
             )
         
-        await db.users.update_one(
-            {"user_id": user["user_id"]},
-            {"$set": {"plan": plan, "plan_updated_at": datetime.now(timezone.utc).isoformat()}}
-        )
+        patch = {
+            "plan": plan,
+            "plan_updated_at": datetime.now(timezone.utc).isoformat(),
+            "plan_signature": None,
+            "plan_upgraded_via_payment": False,
+        }
+        if plan == "free":
+            patch["monthly_envelope_limit"] = None
+            patch["enterprise_unlimited"] = False
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": patch})
         fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
         logger.info(f"[auth] Plan downgraded: {user['email']} from {current_plan} to {plan}")
         return _public_user(fresh)
@@ -767,7 +892,7 @@ async def forgot_password(request: Request, body: ForgotPassword):
         # Generic response to avoid email enumeration
         generic = {
             "ok": True,
-            "dev_mode": not email_service.is_configured(),
+            "dev_mode": is_dev_mode(),
             "dev_link": None,
             "message": "If an account exists for that email, a reset link is on its way."
         }
@@ -777,10 +902,10 @@ async def forgot_password(request: Request, body: ForgotPassword):
             return generic
 
         token = await create_password_reset(user["user_id"])
-        base = (body.base_url or "").rstrip("/")
+        base = validate_redirect_base(body.base_url or "")
         reset_link = f"{base}/reset-password?token={token}"
         status = email_service.send_password_reset(email, user.get("name"), reset_link)
-        dev = not email_service.is_configured()
+        dev = is_dev_mode()
         logger.info(f"[auth] Password reset requested: {email}")
         return {
             "ok": True,
@@ -864,12 +989,18 @@ async def reset_password(request: Request, body: ResetPassword):
             {"user_id": rec["user_id"]},
             {"$set": {
                 "password_hash": hash_password(body.new_password),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }}
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }, "$inc": {"token_version": 1}},
         )
-        await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
+        await db.password_resets.update_many(
+            {"user_id": rec["user_id"], "used": False},
+            {"$set": {"used": True}},
+        )
         logger.info(f"[auth] Password reset completed for user {rec['user_id']}")
-        return {"ok": True, "message": "Your password has been reset. You can now sign in."}
+        return {
+            "ok": True,
+            "message": "Your password has been reset. Previous sessions have been signed out.",
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -895,8 +1026,11 @@ async def upload_avatar(request: Request, file: UploadFile = File(...), user: di
             raise HTTPException(status_code=400, detail="Image too large — keep it under 2 MB")
         if len(data) < 64:
             raise HTTPException(status_code=400, detail="File looks empty or corrupt")
+        detected = sniff_image_type(data)
+        if not detected or detected not in ALLOWED_AVATAR_TYPES:
+            raise HTTPException(status_code=400, detail="File content does not match a supported image format")
         
-        file_id = await upload_file(data, f"avatar_{user['user_id']}", content_type=file.content_type)
+        file_id = await upload_file(data, f"avatar_{user['user_id']}", content_type=detected)
         picture_url = f"/api/auth/avatar/{file_id}"
         
         # Clean up previous internally-hosted avatar (best effort)
@@ -955,17 +1089,20 @@ async def delete_avatar(request: Request, user: dict = Depends(get_current_user)
 
 @auth_router.get("/avatar/{file_id}")
 async def get_avatar(file_id: str):
-    """Public avatar fetch — embedded in <img> tags so it does not require a session."""
+    """Public avatar fetch — only serves files registered as a user's profile picture."""
     try:
-        # Validate file_id format
         if not file_id or len(file_id) > 100:
             raise HTTPException(status_code=400, detail="Invalid file ID")
-        
+
+        user = await db.users.find_one(
+            {"picture": f"/api/auth/avatar/{file_id}"},
+            {"_id": 0, "avatar_content_type": 1},
+        )
+        if not user:
+            raise HTTPException(status_code=404, detail="Avatar not found")
+
         data = await download_file(file_id)
-        # Look up the matching user to get the original content-type
-        user = await db.users.find_one({"picture": f"/api/auth/avatar/{file_id}"},
-                                       {"_id": 0, "avatar_content_type": 1})
-        ctype = (user or {}).get("avatar_content_type") or "image/jpeg"
+        ctype = user.get("avatar_content_type") or "image/jpeg"
         return FastResponse(
             content=data,
             media_type=ctype,
@@ -976,8 +1113,80 @@ async def get_avatar(file_id: str):
         raise HTTPException(status_code=404, detail="Avatar not found")
 
 
+def _parse_internal_admin_accounts():
+    """Collect internal admin credentials from env (legacy pair + extra accounts)."""
+    accounts = []
+    seen = set()
+
+    def add(email, password, name="CivicSign Admin"):
+        email = (email or "").lower().strip()
+        password = (password or "").strip()
+        if not email or not password or email in seen:
+            return
+        seen.add(email)
+        accounts.append((email, password, name))
+
+    add(
+        os.environ.get("INTERNAL_ADMIN_EMAIL", ""),
+        os.environ.get("INTERNAL_ADMIN_PASSWORD", ""),
+    )
+
+    extra = os.environ.get("INTERNAL_ADMIN_ACCOUNTS", "").strip()
+    if extra:
+        for entry in extra.split(";"):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = [p.strip() for p in entry.split("|")]
+            if len(parts) >= 2:
+                add(parts[0], parts[1], parts[2] if len(parts) > 2 else "CivicSign Admin")
+
+    return accounts
+
+
+async def _seed_internal_admin_account(email, password, name, generate_plan_signature):
+    """Insert or refresh a single role=admin account."""
+    admin = await db.users.find_one({"email": email})
+    if not admin:
+        await db.users.insert_one({
+            "user_id": f"user_{uuid.uuid4().hex[:16]}",
+            "email": email,
+            "name": name,
+            "password_hash": hash_password(password),
+            "picture": None,
+            "mobile": None,
+            "auth_provider": "password",
+            "role": "admin",
+            "plan": "business",
+            "active": True,
+            "email_verified": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info(f"[auth] Seeded internal admin account {email}")
+    else:
+        updates = {"role": "admin", "active": True, "email_verified": True, "name": name}
+        if is_dev_mode():
+            updates["password_hash"] = hash_password(password)
+        await db.users.update_one({"email": email}, {"$set": updates})
+        logger.info(f"[auth] Ensured internal admin account {email}")
+
+    admin_ref = await db.users.find_one({"email": email})
+    if admin_ref and admin_ref.get("plan") == "business" and not admin_ref.get("plan_signature"):
+        ts = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "plan_updated_at": ts,
+                "plan_signature": generate_plan_signature(
+                    admin_ref["user_id"], "business", ts),
+                "plan_upgraded_via_payment": True,
+            }},
+        )
+
+
 async def seed_admin():
-    """Seed a demo sender + an internal admin account, and backfill account defaults."""
+    """Seed a demo sender + internal admin accounts, and backfill account defaults."""
+    from billing import _generate_plan_signature
     try:
         # Backfill defaults for any pre-existing users
         await db.users.update_many({"role": {"$exists": False}}, {"$set": {"role": "user"}})
@@ -987,64 +1196,66 @@ async def seed_admin():
         # Existing accounts predate email verification — grandfather them as verified.
         await db.users.update_many({"email_verified": {"$exists": False}}, {"$set": {"email_verified": True}})
 
-        # Demo sender account (regular user)
-        email = os.environ.get("ADMIN_EMAIL", "user@civicsign.app").lower()
-        password = os.environ.get("ADMIN_PASSWORD")
-        
-        if not password:
-            logger.warning("[auth] ADMIN_PASSWORD not set - using default (INSECURE!)")
-            password = "Welcome@2026!"
-        
-        existing = await db.users.find_one({"email": email})
-        if not existing:
-            await db.users.insert_one({
-                "user_id": f"user_{uuid.uuid4().hex[:16]}",
-                "email": email,
-                "name": "CivicSign Demo",
-                "password_hash": hash_password(password),
-                "picture": None,
-                "mobile": None,
-                "auth_provider": "password",
-                "role": "user",
-                "plan": "pro",
-                "active": True,
-                "email_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-            logger.info(f"[auth] Seeded demo account {email}")
-        elif not verify_password(password, existing.get("password_hash") or ""):
-            await db.users.update_one({"email": email},
-                                      {"$set": {"password_hash": hash_password(password)}})
+        # Demo sender account (regular user) — only seeded when credentials are explicitly set.
+        email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+        password = os.environ.get("ADMIN_PASSWORD", "").strip()
+        if email and password:
+            existing = await db.users.find_one({"email": email})
+            if not existing:
+                user_id = f"user_{uuid.uuid4().hex[:16]}"
+                ts = datetime.now(timezone.utc).isoformat()
+                await db.users.insert_one({
+                    "user_id": user_id,
+                    "email": email,
+                    "name": "CivicSign Demo",
+                    "password_hash": hash_password(password),
+                    "picture": None,
+                    "mobile": None,
+                    "auth_provider": "password",
+                    "role": "user",
+                    "plan": "pro",
+                    "plan_updated_at": ts,
+                    "plan_signature": _generate_plan_signature(user_id, "pro", ts),
+                    "plan_upgraded_via_payment": True,
+                    "active": True,
+                    "email_verified": True,
+                    "created_at": ts,
+                })
+                logger.info(f"[auth] Seeded demo account {email}")
+            else:
+                # Backfill verified Pro signature for dev demo accounts.
+                if existing.get("plan") == "pro" and not existing.get("plan_signature"):
+                    ts = datetime.now(timezone.utc).isoformat()
+                    await db.users.update_one(
+                        {"email": email},
+                        {"$set": {
+                            "plan_updated_at": ts,
+                            "plan_signature": _generate_plan_signature(
+                                existing["user_id"], "pro", ts),
+                            "plan_upgraded_via_payment": True,
+                        }},
+                    )
+        elif email or password:
+            logger.warning("[auth] ADMIN_EMAIL and ADMIN_PASSWORD must both be set to seed demo account")
 
-        # Internal admin account (role=admin)
-        admin_email = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicsign.app").lower()
-        admin_password = os.environ.get("INTERNAL_ADMIN_PASSWORD")
-        
-        if not admin_password:
-            logger.warning("[auth] INTERNAL_ADMIN_PASSWORD not set - using default (INSECURE!)")
-            admin_password = "Admin@2026!"
-        
-        admin = await db.users.find_one({"email": admin_email})
-        if not admin:
-            await db.users.insert_one({
-                "user_id": f"user_{uuid.uuid4().hex[:16]}",
-                "email": admin_email,
-                "name": "CivicSign Admin",
-                "password_hash": hash_password(admin_password),
-                "picture": None,
-                "mobile": None,
-                "auth_provider": "password",
-                "role": "admin",
-                "plan": "business",
-                "active": True,
-                "email_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-            logger.info(f"[auth] Seeded internal admin account {admin_email}")
-        else:
-            patch = {"role": "admin", "active": True, "email_verified": True}
-            if not verify_password(admin_password, admin.get("password_hash") or ""):
-                patch["password_hash"] = hash_password(admin_password)
-            await db.users.update_one({"email": admin_email}, {"$set": patch})
+        # Internal admin accounts (role=admin).
+        admin_accounts = _parse_internal_admin_accounts()
+        if admin_accounts:
+            for admin_email, admin_password, admin_name in admin_accounts:
+                await _seed_internal_admin_account(
+                    admin_email,
+                    admin_password,
+                    admin_name,
+                    _generate_plan_signature,
+                )
+        elif (
+            os.environ.get("INTERNAL_ADMIN_EMAIL", "").strip()
+            or os.environ.get("INTERNAL_ADMIN_PASSWORD", "").strip()
+            or os.environ.get("INTERNAL_ADMIN_ACCOUNTS", "").strip()
+        ):
+            logger.warning(
+                "[auth] Internal admin env vars are incomplete — "
+                "set INTERNAL_ADMIN_EMAIL + INTERNAL_ADMIN_PASSWORD and/or INTERNAL_ADMIN_ACCOUNTS"
+            )
     except Exception as e:
         logger.error(f"[auth] seed_admin error: {str(e)[:100]}")

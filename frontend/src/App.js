@@ -1,6 +1,7 @@
 import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
+import { sanitizeNextUrl } from "@/lib/authPortal";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -11,28 +12,34 @@ import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import NewEnvelope from "@/pages/NewEnvelope";
 import Documents from "@/pages/Documents";
+
 import Reports from "@/pages/Reports";
 import Usage from "@/pages/Usage";
+import OrganisationPortal from "@/pages/OrganisationPortal";
 import PrepareStudio from "@/pages/PrepareStudio";
 import SendReview from "@/pages/SendReview";
 import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
 import ManagePdf from "@/pages/ManagePdf";
+import Contacts from "@/pages/Contacts";
+import PublicForm from "@/pages/PublicForm";
 import Settings from "@/pages/Settings";
 import ResetPassword from "@/pages/ResetPassword";
+import ForgotPassword from "@/pages/ForgotPassword";
 import VerifyEmail from "@/pages/VerifyEmail";
 import { AdminShell } from "@/components/AdminShell";
 import AdminOverview from "@/pages/admin/AdminOverview";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
-import AdminEnvelopes from "@/pages/admin/AdminEnvelopes";
+
 import AdminContacts from "@/pages/admin/AdminContacts";
 import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 import AdminBlog from "@/pages/admin/AdminBlog";
 import AdminTeam from "@/pages/admin/AdminTeam";
+import AdminOrganizations from "@/pages/admin/AdminOrganizations";
 import AdminCareers from "@/pages/admin/AdminCareers";
 import StaffLanding from "@/pages/admin/StaffLanding";
 import RequirePerm from "@/components/RequirePerm";
@@ -52,9 +59,15 @@ import Construction from "@/pages/solutions/Construction";
 import Education from "@/pages/solutions/Education";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
+import Resources from "@/pages/Resources";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
 import CookiePolicy from "@/pages/CookiePolicy";
+import RefundPolicy from "@/pages/RefundPolicy";
+import NotFound from "@/pages/NotFound";
+import { ScrollToTop } from "@/components/ScrollToTop";
+import { SeoManager } from "@/components/SeoManager";
+
 
 const FullLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-[var(--c-paper)]">
@@ -64,15 +77,23 @@ const FullLoader = () => (
 
 function Protected({ children }) {
   const { user } = useAuth();
+  const location = useLocation();
   if (user === null) return <FullLoader />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
+  }
   return children;
 }
 
 function PublicOnly({ children }) {
   const { user } = useAuth();
+  const [params] = useSearchParams();
   if (user === null) return <FullLoader />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) {
+    const dest = sanitizeNextUrl(params.get("next")) || "/dashboard";
+    return <Navigate to={dest} replace />;
+  }
   return children;
 }
 
@@ -80,7 +101,9 @@ function AdminProtected({ children }) {
   const { user } = useAuth();
   if (user === null) return <FullLoader />;
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (user.role !== "admin" && user.role !== "staff") return <Navigate to="/admin/login" replace />;
+  if (user.role !== "admin" && user.role !== "staff") {
+    return <Navigate to="/admin/login" replace state={{ reason: "internal_only" }} />;
+  }
   return children;
 }
 
@@ -103,6 +126,7 @@ function AppRoutes() {
       <IdleLogoutGuard />
     <Routes>
       <Route path="/" element={<Landing />} />
+
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/solutions/real-estate" element={<RealEstate />} />
@@ -116,23 +140,34 @@ function AppRoutes() {
       <Route path="/solutions/education" element={<Education />} />
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
+      <Route path="/resources" element={<Resources />} />
       <Route path="/careers" element={<Careers />} />
       <Route path="/careers/:slug" element={<JobDetail />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/cookies" element={<CookiePolicy />} />
+      <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+      <Route path="/legal/terms" element={<Terms />} />
+      <Route path="/legal/cookies" element={<CookiePolicy />} />
+      <Route path="/legal/refunds" element={<RefundPolicy />} />
+      <Route path="/privacy" element={<Navigate to="/legal/privacy" replace />} />
+      <Route path="/terms" element={<Navigate to="/legal/terms" replace />} />
+      <Route path="/cookies" element={<Navigate to="/legal/cookies" replace />} />
+      <Route path="/refunds" element={<Navigate to="/legal/refunds" replace />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+      <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
       <Route path="/sign/:token" element={<SignerFlow />} />
+      <Route path="/form/:slug" element={<PublicForm />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/documents" element={<Protected><Documents /></Protected>} />
+      <Route path="/documents/verify" element={<Navigate to="/documents?tab=sealed" replace />} />
       <Route path="/templates" element={<Protected><Templates /></Protected>} />
+      <Route path="/contacts" element={<Protected><Contacts /></Protected>} />
       <Route path="/manage-pdf" element={<Protected><ManagePdf /></Protected>} />
       <Route path="/reports" element={<Protected><Reports /></Protected>} />
       <Route path="/usage" element={<Protected><Usage /></Protected>} />
+      <Route path="/organisation" element={<Protected><OrganisationPortal /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
       {/* Internal team sign-in lives on an unlisted path (not linked from the public UI). */}
       <Route path="/admin/login" element={<AdminLogin />} />
@@ -140,18 +175,19 @@ function AppRoutes() {
         <Route index element={<AdminIndex />} />
         <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
         <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
-        <Route path="envelopes" element={<RequirePerm perm="envelopes"><AdminEnvelopes /></RequirePerm>} />
+
         <Route path="billing" element={<RequirePerm perm="billing"><AdminBilling /></RequirePerm>} />
         <Route path="audit" element={<RequirePerm perm="audit"><AdminAuditLog /></RequirePerm>} />
         <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
         <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
         <Route path="careers" element={<RequirePerm perm="careers"><AdminCareers /></RequirePerm>} />
         <Route path="team" element={<RequirePerm perm="admin"><AdminTeam /></RequirePerm>} />
+        <Route path="organizations" element={<RequirePerm perm="admin"><AdminOrganizations /></RequirePerm>} />
       </Route>
       <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
       <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />
       <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
     </>
   );
@@ -161,6 +197,8 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
+        <SeoManager />
         <AppRoutes />
         <Toaster position="top-right" richColors closeButton />
       </BrowserRouter>

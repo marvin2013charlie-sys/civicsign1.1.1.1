@@ -9,12 +9,15 @@ import {
   ShieldCheck, Zap, Sparkles, Lock, ArrowRight, Globe, FileCheck, Heart,
   Target, Users, Rocket,
 } from "lucide-react";
+import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
+import { BrandAccent } from "@/components/BrandText";
+
 
 const VALUES = [
-  { icon: ShieldCheck, title: "Trust by default", body: "Every document ships with a tamper-evident audit trail and a sealed Certificate of Completion — not as an add-on, but as the default." },
+  { icon: ShieldCheck, title: "Trust by default", body: "Every document ships with a tamper-evident audit trail and a sealed Certificate of Completion, not as an add-on, but as the default." },
   { icon: Zap, title: "Ruthless speed", body: "From upload to signed in minutes. We obsess over removing every click between you and a closed agreement." },
   { icon: Sparkles, title: "Delightful simplicity", body: "Powerful doesn’t have to mean complicated. CivicSign is approachable for everyone, from solo founders to ops teams." },
-  { icon: Lock, title: "Privacy first", body: "Your documents are yours. We protect them with encryption, hashing, and strict access controls — and we never sell your data." },
+  { icon: Lock, title: "Privacy first", body: "Your documents are yours. We protect them with encryption, hashing, and strict access controls, and we never sell your data." },
 ];
 
 const STATS = [
@@ -33,14 +36,11 @@ export default function About() {
       {/* Hero */}
       <section className="noise-overlay border-b border-[var(--c-border)]">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:py-24">
-          <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-            <span aria-hidden="true">&#127468;&#127463;</span> British-built · UK GDPR approved
-          </motion.span>
-          <h1 className="mt-4 font-heading text-4xl font-bold leading-tight tracking-tight text-[var(--c-ink)] sm:text-5xl">
-            Britain&rsquo;s own way to <span style={{ color: "var(--c-primary)" }}>sign</span>
+          <h1 className="font-heading text-4xl font-bold leading-tight tracking-tight text-[var(--c-ink)] sm:text-5xl">
+            Britain&rsquo;s own way to <BrandAccent>sign</BrandAccent>
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-[var(--muted-foreground)]">
-            CivicSign started with a simple frustration: getting a signature shouldn&rsquo;t feel like enterprise software from a decade ago. We set out to build a fresh, fast, genuinely trustworthy way to sign &mdash; from the UK, for the UK and beyond. Today CivicSign is the UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform.
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-[var(--c-muted-fg)]">
+            CivicSign started with a simple frustration: getting a signature shouldn&rsquo;t feel like enterprise software from a decade ago. We set out to build a fresh, fast, genuinely trustworthy way to sign from the UK, for the UK and beyond. Today CivicSign is the UK&rsquo;s first homegrown, UK GDPR-approved e-signature platform.
           </p>
         </div>
       </section>
@@ -53,18 +53,18 @@ export default function About() {
               <Target className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
             </div>
             <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">Our mission</h2>
-            <p className="mt-3 text-[var(--muted-foreground)] leading-relaxed">
-              To give every team — from freelancers to fast-growing companies — a signing experience that is quick to use, legally sound, and a pleasure to look at. We believe trust should be built in, audit trails should be standard, and pricing should be honest.
+            <p className="mt-3 text-[var(--c-muted-fg)] leading-relaxed">
+              To give every team, from freelancers to fast-growing companies, a signing experience that is quick to use, legally sound, and a pleasure to look at. We believe trust should be built in, audit trails should be standard, and pricing should be honest.
             </p>
-            <p className="mt-3 text-[var(--muted-foreground)] leading-relaxed">
-              We&rsquo;re proudly UK-owned and UK-hosted, fully aligned with UK GDPR, the UK eIDAS Regulation and the Electronic Communications Act 2000 &mdash; so the documents you complete on CivicSign are designed to hold up in British courts when it matters.
+            <p className="mt-3 text-[var(--c-muted-fg)] leading-relaxed">
+              We&rsquo;re proudly UK-owned and UK-hosted, fully aligned with UK GDPR, the UK eIDAS Regulation and the Electronic Communications Act 2000, so the documents you complete on CivicSign are designed to hold up in British courts when it matters.
             </p>
           </div>
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-8 text-white">
             <Rocket className="h-8 w-8" style={{ color: "#7fe9dd" }} />
             <h3 className="mt-4 font-heading text-2xl font-bold">Built for the next generation of teams</h3>
             <p className="mt-3 text-white/80">
-              No envelope metering games. No bloated dashboards. Just upload, drag, send — and a sealed, court-ready record on the other side.
+              No envelope metering games. No bloated dashboards. Just upload, drag, send, and a sealed, court-ready record on the other side.
             </p>
             <div className="mt-6 flex gap-3">
               <Link to="/register"><Button style={{ background: "#fff", color: "var(--c-ink)" }}>Start free</Button></Link>
@@ -81,7 +81,7 @@ export default function About() {
             <div key={s.label} className="text-center">
               <s.icon className="mx-auto h-6 w-6" style={{ color: "var(--c-primary)" }} />
               <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{s.value}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">{s.label}</p>
+              <p className="text-sm text-[var(--c-muted-fg)]">{s.label}</p>
             </div>
           ))}
         </div>
@@ -92,12 +92,12 @@ export default function About() {
         <h2 className="font-heading text-3xl font-bold tracking-tight text-[var(--c-ink)]">What we stand for</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {VALUES.map((v) => (
-            <div key={v.title} className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+            <div key={v.title} className={`bg-[var(--card)] p-6 ${greenHoverLg}`}>
+              <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${greenHoverIcon}`} style={{ background: "var(--status-sent-bg)" }}>
                 <v.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
               </div>
-              <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">{v.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted-foreground)]">{v.body}</p>
+              <h3 className={`mt-3 font-heading text-lg font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{v.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--c-muted-fg)]">{v.body}</p>
             </div>
           ))}
         </div>

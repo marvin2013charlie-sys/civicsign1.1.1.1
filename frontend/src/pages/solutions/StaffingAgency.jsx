@@ -10,27 +10,29 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Button } from "@/components/ui/button";
+import { greenHoverMd, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
+import { BrandAccent } from "@/components/BrandText";
 
 const DOCS = [
-  { icon: Briefcase, title: "Permanent & temporary employment contracts", body: "Send IR35-aware contracts to candidates with pre-placed signature, initials and start-date fields. Tamper-evident audit trail on every page." },
+  { icon: Briefcase, title: "Permanent and temporary employment contracts", body: "Send IR35-aware contracts to candidates with pre-placed signature, initials and start-date fields. Tamper-evident audit trail on every page." },
   { icon: FileSignature, title: "Terms of business with clients", body: "Get hirers to sign your terms of business, fee schedules and PSL agreements before the first CV is sent across." },
-  { icon: ScrollText, title: "Right to Work & GDPR consent forms", body: "Capture Right to Work declarations and UK GDPR consent forms electronically &mdash; timestamped, with full audit log." },
-  { icon: UserPlus, title: "Candidate registration & assignment schedules", body: "Onboard contractors with assignment schedules, AWR opt-outs and timesheet authorisation in one signing flow." },
-  { icon: FileText, title: "Confidentiality & restrictive covenants", body: "Send NDAs, restrictive covenants and post-termination undertakings &mdash; signed before the placement, every time." },
-  { icon: Globe, title: "Umbrella & limited-company schedules", body: "Multi-party routing handles candidate → umbrella → end client in the correct order with one click." },
+  { icon: ScrollText, title: "Right to Work and GDPR consent forms", body: "Capture Right to Work declarations and UK GDPR consent forms electronically, timestamped, with full audit log." },
+  { icon: UserPlus, title: "Candidate registration and assignment schedules", body: "Onboard contractors with assignment schedules, AWR opt-outs and timesheet authorisation in one signing flow." },
+  { icon: FileText, title: "Confidentiality and restrictive covenants", body: "Send NDAs, restrictive covenants and post-termination undertakings, signed before the placement, every time." },
+  { icon: Globe, title: "Umbrella and limited-company schedules", body: "Multi-party routing handles candidate, umbrella and end client in the correct order with one click." },
 ];
 
 const WHY = [
-  { icon: Clock, title: "Place candidates faster", body: "Send a contract to a candidate and have it signed before they leave the desk &mdash; cutting time-to-place from days to hours." },
-  { icon: ShieldCheck, title: "UK GDPR & safer-recruitment ready", body: "All candidate and client data is processed under UK GDPR. Audit log captures every IP, timestamp and signing action for due diligence." },
-  { icon: CheckCircle2, title: "Built for UK employment law", body: "Aligned with the UK Electronic Communications Act 2000 and the UK eIDAS Regulation &mdash; signatures hold up in tribunals." },
+  { icon: Clock, title: "Place candidates faster", body: "Send a contract to a candidate and have it signed before they leave the desk, cutting time-to-place from days to hours." },
+  { icon: ShieldCheck, title: "UK GDPR and safer-recruitment ready", body: "Candidate and client data is processed under UK GDPR. Audit log captures every IP address, timestamp and signing action for due diligence." },
+  { icon: CheckCircle2, title: "Built for UK employment law", body: "Aligned with the Electronic Communications Act 2000 and UK eIDAS, signatures hold up in tribunals." },
   { icon: Sparkles, title: "Your agency, your branding", body: "Add your agency logo, colours and signing-page banner so every email and signing screen looks like yours, not ours." },
 ];
 
 const STATS = [
   { value: "< 2 hrs", label: "Average contract turnaround" },
   { value: "10x", label: "Faster placements vs. paper" },
-  { value: "100%", label: "UK-owned & UK-hosted" },
+  { value: "100%", label: "UK-owned and UK-hosted" },
 ];
 
 export default function StaffingAgency() {
@@ -47,10 +49,10 @@ export default function StaffingAgency() {
               <Users className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Solutions · Staffing Agencies
             </span>
             <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-              Place candidates. <span style={{ color: "var(--c-primary)" }}>Sign contracts.</span> Done.
+              Place candidates. <BrandAccent>Sign contracts.</BrandAccent> Done.
             </h1>
-            <p className="mt-5 max-w-md text-lg leading-relaxed text-[var(--muted-foreground)]">
-              CivicSign is the UK-built e-signature platform for recruitment agencies, staffing firms and umbrella companies. Get terms of business, employment contracts and Right to Work forms signed &mdash; legally binding, UK GDPR compliant, in minutes.
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--c-muted-fg)]">
+              CivicSign is the UK-built e-signature platform for recruitment agencies, staffing firms and umbrella companies. Get terms of business, employment contracts and Right to Work forms signed, legally binding, UK GDPR compliant, in minutes.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="staff-cta-start">
@@ -58,7 +60,7 @@ export default function StaffingAgency() {
               </Button></Link>
               <Link to="/#pricing"><Button size="lg" variant="outline">See pricing</Button></Link>
             </div>
-            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--muted-foreground)]">
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--c-muted-fg)]">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Free 5 docs / month</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> No card required</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK GDPR compliant</span>
@@ -82,7 +84,7 @@ export default function StaffingAgency() {
           {STATS.map((s) => (
             <div key={s.label} className="text-center">
               <p className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">{s.value}</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">{s.label}</p>
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">{s.label}</p>
             </div>
           ))}
         </div>
@@ -92,16 +94,16 @@ export default function StaffingAgency() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
           <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK recruiters choose CivicSign</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">Designed around the way British staffing agencies actually work &mdash; from perm contracts to umbrella schedules &mdash; not adapted from an American product.</p>
+          <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">Designed around the way British staffing agencies actually work, from perm contracts to umbrella schedules, not adapted from an American product.</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {WHY.map((w) => (
-            <div key={w.title} className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+            <div key={w.title} className={`bg-[var(--card)] p-5 ${greenHoverMd}`}>
+              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-primary)22" }}>
                 <w.icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
               </span>
-              <h3 className="mt-3 font-heading font-semibold text-[var(--c-ink)]">{w.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{w.body}</p>
+              <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{w.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{w.body}</p>
             </div>
           ))}
         </div>
@@ -112,16 +114,16 @@ export default function StaffingAgency() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="text-center">
             <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Every recruitment document, signed in minutes</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-[var(--muted-foreground)]">Pre-built workflows for the documents you send most. Save them once as templates &mdash; reuse them every placement, every renewal.</p>
+            <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">Pre-built workflows for the documents you send most. Save them once as templates, reuse them every placement, every renewal.</p>
           </div>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {DOCS.map((d) => (
-              <div key={d.title} className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--c-accent)22" }}>
+              <div key={d.title} className={`bg-[var(--card)] p-5 ${greenHoverMd}`}>
+                <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-accent)22" }}>
                   <d.icon className="h-4 w-4" style={{ color: "var(--c-accent)" }} />
                 </span>
-                <h3 className="mt-3 font-heading font-semibold text-[var(--c-ink)]">{d.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">{d.body}</p>
+                <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{d.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{d.body}</p>
               </div>
             ))}
           </div>
@@ -132,7 +134,7 @@ export default function StaffingAgency() {
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Ready to place faster?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first contract signed today. Free for 5 documents a month &mdash; no card required, UK GDPR compliant from day one.</p>
+          <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first contract signed today. Free for 5 documents a month, no card required, UK GDPR compliant from day one.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="staff-cta-bottom">
               Start free for recruiters <ArrowRight className="ml-1.5 h-4 w-4" />

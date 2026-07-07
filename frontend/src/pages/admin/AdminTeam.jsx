@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { copyToClipboard } from "@/lib/clipboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +20,8 @@ const PERMS = [
   { value: "blog",        label: "Manage blog posts",     desc: "Create, edit, publish and delete posts on /blog." },
   { value: "careers",     label: "Manage careers",        desc: "Publish job openings on /careers and review applications." },
   { value: "contacts",    label: "Read contact inbox",    desc: "View customer enquiries from /contact." },
-  { value: "users-read",  label: "Read user list",        desc: "Browse user accounts (read-only — no edits, no impersonation)." },
-  { value: "envelopes",   label: "View envelopes",        desc: "Browse and export all envelopes across the platform (read-only)." },
+  { value: "users-read",  label: "Read user list",        desc: "Browse user accounts (read-only, no edits, no impersonation)." },
+
   { value: "billing",     label: "View billing",          desc: "See transactions and billing metrics. Refunds stay super-admin only." },
   { value: "audit",       label: "View audit log",        desc: "Read the admin action history (impersonations, resets, refunds)." },
   { value: "impersonate", label: "Enter user accounts",   desc: "Support workflow gated by user consent: a one-time code is emailed to the user, who must share it before access is granted." },
@@ -49,7 +50,7 @@ export default function AdminTeam() {
       const { data } = await api.get("/admin/staff");
       setMembers(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,7 @@ export default function AdminTeam() {
       setCreateOpen(false);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -94,7 +95,7 @@ export default function AdminTeam() {
       setConfirmDelete(null);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     }
   };
 
@@ -122,7 +123,7 @@ export default function AdminTeam() {
       setResetSuccess({ email: resetTarget.email, password: resetPw });
       toast.success(`Password updated for ${resetTarget.email}`);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setResetSaving(false);
     }
@@ -137,12 +138,12 @@ export default function AdminTeam() {
   };
 
   const copyResetPw = async () => {
-    try {
-      await navigator.clipboard.writeText(resetSuccess.password);
+    const ok = await copyToClipboard(resetSuccess.password);
+    if (ok) {
       setResetCopied(true);
       setTimeout(() => setResetCopied(false), 1800);
-    } catch {
-      /* clipboard unavailable */
+    } else {
+      toast.error("Couldn't copy. Select and copy manually.");
     }
   };
 
@@ -156,7 +157,7 @@ export default function AdminTeam() {
       setHoldTarget(null);
       await load();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setHoldSaving(false);
     }
@@ -171,7 +172,7 @@ export default function AdminTeam() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Internal Team</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Super-admins and staff members with scoped permissions.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Super-admins and staff members with scoped permissions.</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
@@ -185,11 +186,11 @@ export default function AdminTeam() {
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Super admins</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Super admins</span>
           <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]" data-testid="admin-team-admin-count">{adminCount}</p>
         </div>
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Staff members</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Staff members</span>
           <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]" data-testid="admin-team-staff-count">{staffCount}</p>
         </div>
       </div>
@@ -199,12 +200,12 @@ export default function AdminTeam() {
           <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
         ) : members.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <UsersIcon className="mx-auto h-10 w-10 text-[var(--muted-foreground)]" />
-            <p className="mt-3 text-sm text-[var(--muted-foreground)]">No team members yet.</p>
+            <UsersIcon className="mx-auto h-10 w-10 text-[var(--c-muted-fg)]" />
+            <p className="mt-3 text-sm text-[var(--c-muted-fg)]">No team members yet.</p>
           </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
-            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] sm:grid">
+            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] sm:grid">
               <div className="col-span-4">Name</div>
               <div className="col-span-3">Email</div>
               <div className="col-span-2">Role</div>
@@ -221,13 +222,13 @@ export default function AdminTeam() {
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[var(--c-ink)]">{m.name || "Unnamed"}</p>
                     {m.permissions?.length > 0 && (
-                      <p className="truncate text-[11px] text-[var(--muted-foreground)]">
+                      <p className="truncate text-[11px] text-[var(--c-muted-fg)]">
                         {m.permissions.join(" · ")}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="col-span-3 truncate text-sm text-[var(--muted-foreground)]">{m.email}</div>
+                <div className="col-span-3 truncate text-sm text-[var(--c-muted-fg)]">{m.email}</div>
                 <div className="col-span-2">
                   {m.role === "admin" ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
@@ -243,7 +244,7 @@ export default function AdminTeam() {
                     </span>
                   )}
                 </div>
-                <div className="col-span-2 text-sm text-[var(--muted-foreground)]">{fmtDate(m.created_at)}</div>
+                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{fmtDate(m.created_at)}</div>
                 <div className="col-span-1 flex items-center justify-end gap-0.5">
                   {m.role !== "admin" && (
                     <>
@@ -313,11 +314,11 @@ export default function AdminTeam() {
                 <Input id="staff-password" type={showPw ? "text" : "password"}
                   value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="At least 8 characters" data-testid="admin-team-password-input" />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-2 p-1 text-[var(--muted-foreground)]">
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-2 p-1 text-[var(--c-muted-fg)]">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">Share this with the new staff member &mdash; they can change it from /settings after sign-in.</p>
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">Share this with the new staff member. They can change it from /settings after sign-in.</p>
             </div>
 
             <div>
@@ -328,12 +329,12 @@ export default function AdminTeam() {
                     <Checkbox checked={form.permissions.includes(p.value)} onCheckedChange={() => togglePerm(p.value)} />
                     <span className="-mt-0.5">
                       <span className="block text-sm font-semibold text-[var(--c-ink)]">{p.label}</span>
-                      <span className="block text-xs text-[var(--muted-foreground)]">{p.desc}</span>
+                      <span className="block text-xs text-[var(--c-muted-fg)]">{p.desc}</span>
                     </span>
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              <p className="mt-2 text-xs text-[var(--c-muted-fg)]">
                 Staff cannot access billing, refunds, audit logs, user impersonation or other staff accounts. Only super-admins can.
               </p>
             </div>
@@ -355,7 +356,7 @@ export default function AdminTeam() {
             <DialogTitle>Revoke access for this staff member?</DialogTitle>
             <DialogDescription>
               {confirmDelete?.name || confirmDelete?.email} will be permanently deleted and lose all access to /admin immediately.
-              This cannot be undone — if you only need a temporary pause, use <span className="font-semibold">Hold access</span> instead.
+              This cannot be undone. If you only need a temporary pause, use <span className="font-semibold">Hold access</span> instead.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -405,7 +406,7 @@ export default function AdminTeam() {
             <DialogTitle>Reset password for {resetTarget?.name || resetTarget?.email}</DialogTitle>
             <DialogDescription>
               {resetSuccess
-                ? "Password updated. Share these credentials with the staff member through a secure channel — this is the only time it will be shown."
+                ? "Password updated. Share these credentials with the staff member through a secure channel. This is the only time it will be shown."
                 : "Set a new password. The staff member will use it the next time they sign in. Share it through a secure channel."}
             </DialogDescription>
           </DialogHeader>
@@ -413,10 +414,10 @@ export default function AdminTeam() {
           {resetSuccess ? (
             <div className="space-y-3" data-testid="admin-team-reset-success">
               <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-3 py-2 text-sm">
-                <span className="text-[var(--muted-foreground)]">Email:</span> <span className="font-mono">{resetSuccess.email}</span>
+                <span className="text-[var(--c-muted-fg)]">Email:</span> <span className="font-mono">{resetSuccess.email}</span>
               </div>
               <div className="flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-3 py-2">
-                <span className="text-sm text-[var(--muted-foreground)]">Password:</span>
+                <span className="text-sm text-[var(--c-muted-fg)]">Password:</span>
                 <code className="flex-1 truncate font-mono text-sm">{resetSuccess.password}</code>
                 <Button size="sm" variant="outline" onClick={copyResetPw} data-testid="admin-team-reset-copy">
                   {resetCopied ? <><Check className="mr-1 h-3.5 w-3.5" /> Copied</> : <><Copy className="mr-1 h-3.5 w-3.5" /> Copy</>}
@@ -436,7 +437,7 @@ export default function AdminTeam() {
                     placeholder="At least 8 characters"
                     data-testid="admin-team-reset-pw-input"
                   />
-                  <button type="button" onClick={() => setResetShowPw((s) => !s)} className="absolute right-2 top-2 text-[var(--muted-foreground)]" aria-label="Toggle visibility">
+                  <button type="button" onClick={() => setResetShowPw((s) => !s)} className="absolute right-2 top-2 text-[var(--c-muted-fg)]" aria-label="Toggle visibility">
                     {resetShowPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>

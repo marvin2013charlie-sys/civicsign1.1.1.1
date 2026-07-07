@@ -12,7 +12,7 @@ import {
 const KPI = ({ icon: Icon, label, value, accent }) => (
   <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`kpi-${label.toLowerCase().replace(/\\s+/g, "-")}`}>
     <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
         <Icon className="h-4 w-4" style={{ color: accent }} />
       </span>
@@ -24,7 +24,7 @@ const KPI = ({ icon: Icon, label, value, accent }) => (
 const MiniStat = ({ label, value }) => (
   <div className="rounded-lg bg-[var(--c-paper-2)] p-3 text-center">
     <p className="font-heading text-xl font-bold text-[var(--c-ink)]">{value}</p>
-    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{label}</p>
+    <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">{label}</p>
   </div>
 );
 
@@ -43,7 +43,7 @@ export default function AdminOverview() {
         const { data } = await api.get("/admin/metrics");
         setM(data);
       } catch (err) {
-        toast.error(formatApiError(err.response?.data?.detail));
+        toast.error(formatApiError(err));
       } finally {
         setLoading(false);
       }
@@ -66,7 +66,7 @@ export default function AdminOverview() {
   return (
     <div data-testid="admin-overview">
       <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Platform overview</h1>
-      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">A live snapshot of CivicSign usage across all accounts.</p>
+      <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">A live snapshot of CivicSign usage across all accounts.</p>
 
       <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI icon={Users} label="Total Users" value={t.users} accent="#14B8A6" />
@@ -149,7 +149,7 @@ export default function AdminOverview() {
                 const pct = Math.round((f.count / max) * 100);
                 return (
                   <div key={f.stage}>
-                    <div className="flex justify-between text-xs text-[var(--muted-foreground)]"><span>{f.stage}</span><span>{f.count}</span></div>
+                    <div className="flex justify-between text-xs text-[var(--c-muted-fg)]"><span>{f.stage}</span><span>{f.count}</span></div>
                     <div className="mt-1 h-3 rounded-full bg-[var(--c-paper-2)]"><div className="h-3 rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--c-primary)" }} /></div>
                   </div>
                 );
@@ -165,11 +165,11 @@ export default function AdminOverview() {
             <p className="text-sm font-semibold text-[var(--c-ink)]">Most active users</p>
             <div className="mt-3 space-y-2.5">
               {m.analytics.top_users.length === 0 ? (
-                <p className="text-sm text-[var(--muted-foreground)]">No data yet.</p>
+                <p className="text-sm text-[var(--c-muted-fg)]">No data yet.</p>
               ) : m.analytics.top_users.map((u, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--c-paper-2)] text-xs font-bold text-[var(--c-ink)]">{i + 1}</span>
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p><p className="truncate text-xs text-[var(--muted-foreground)]">{u.email}</p></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p><p className="truncate text-xs text-[var(--c-muted-fg)]">{u.email}</p></div>
                   <span className="text-sm font-semibold" style={{ color: "var(--c-primary)" }}>{u.count}</span>
                 </div>
               ))}

@@ -1,7 +1,7 @@
 // Browser polyfills required before pdfjs-dist (react-pdf) or other modern
 // libraries load. Keep this file dependency-free and side-effect only.
 
-// Promise.withResolvers — required by pdfjs-dist v4+.
+// Promise.withResolvers, required by pdfjs-dist v4+.
 // Native: Chrome 119+, Safari 17.4+, Firefox 121+. Older Chromium/Edge/iOS
 // versions throw "Promise.withResolvers is not a function" without this.
 if (typeof Promise.withResolvers !== "function") {

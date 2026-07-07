@@ -12,11 +12,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Mail, MessageSquare, Clock, MapPin, Loader2, CheckCircle2, Send } from "lucide-react";
+import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
+import { CIVICSIGN_CONTACT_EMAIL } from "@/lib/contactEmail";
+import { ContactEmailLink } from "@/components/BrandText";
 
 const INFO = [
-  { icon: Mail, title: "Email us", body: "hello@civicsign.com", sub: "General & sales enquiries" },
-  { icon: MessageSquare, title: "Support", body: "support@civicsign.com", sub: "We reply within 1 business day" },
-  { icon: Clock, title: "Hours", body: "Mon – Fri, 9am – 6pm", sub: "London time (GMT/BST)" },
+  { icon: Mail, title: "Email us", body: CIVICSIGN_CONTACT_EMAIL, sub: "General, sales & support enquiries", mailto: true },
+  { icon: MessageSquare, title: "Support", body: CIVICSIGN_CONTACT_EMAIL, sub: "We reply within 1 business day", mailto: true },
+  { icon: Clock, title: "Hours", body: "Mon, Fri, 9am, 6pm", sub: "London time (GMT/BST)" },
   { icon: MapPin, title: "Registered office", body: "71-75 Shelton Street", sub: "Covent Garden, London WC2H 9JQ, United Kingdom" },
 ];
 
@@ -38,7 +41,7 @@ export default function Contact() {
       setSent(true);
       toast.success(data.message || "Message sent!");
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail) || "Could not send message");
+      toast.error(formatApiError(err) || "Could not send message");
     } finally {
       setLoading(false);
     }
@@ -59,13 +62,17 @@ export default function Contact() {
         {/* Info */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           {INFO.map((i) => (
-            <div key={i.title} className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+            <div key={i.title} className={`bg-[var(--card)] p-5 ${greenHoverLg}`}>
+              <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${greenHoverIcon}`} style={{ background: "var(--status-sent-bg)" }}>
                 <i.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
               </div>
-              <h3 className="mt-3 font-heading text-base font-semibold text-[var(--c-ink)]">{i.title}</h3>
-              <p className="mt-0.5 font-medium text-[var(--c-ink)]">{i.body}</p>
-              <p className="text-xs text-[var(--muted-foreground)]">{i.sub}</p>
+              <h3 className={`mt-3 font-heading text-base font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{i.title}</h3>
+              <p className="mt-0.5 font-medium text-[var(--c-ink)]">
+                {i.mailto ? (
+                  <ContactEmailLink />
+                ) : i.body}
+              </p>
+              <p className="text-xs text-[var(--c-muted-fg)]">{i.sub}</p>
             </div>
           ))}
         </div>
@@ -79,7 +86,7 @@ export default function Contact() {
                   <CheckCircle2 className="h-7 w-7" style={{ color: "#16A34A" }} />
                 </span>
                 <h2 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Message sent!</h2>
-                <p className="mt-1 max-w-sm text-sm text-[var(--muted-foreground)]">Thanks for reaching out. Our team will get back to you within one business day.</p>
+                <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">Thanks for reaching out. Our team will get back to you within one business day.</p>
                 <Button variant="outline" className="mt-5" onClick={() => { setSent(false); setForm({ name: "", email: "", subject: "General enquiry", message: "" }); }}>Send another</Button>
               </div>
             ) : (

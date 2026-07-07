@@ -24,13 +24,13 @@ import {
 const KPI = ({ icon: Icon, label, value, accent, sub }) => (
   <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`billing-kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}>
     <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
         <Icon className="h-4 w-4" style={{ color: accent }} />
       </span>
     </div>
     <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{value}</p>
-    {sub ? <p className="mt-1 text-xs text-[var(--muted-foreground)]">{sub}</p> : null}
+    {sub ? <p className="mt-1 text-xs text-[var(--c-muted-fg)]">{sub}</p> : null}
   </div>
 );
 
@@ -87,7 +87,7 @@ function RefundDialog({ tx, onClose, onRefunded }) {
       onRefunded?.(data.transaction);
       onClose?.();
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setBusy(false);
     }
@@ -105,11 +105,11 @@ function RefundDialog({ tx, onClose, onRefunded }) {
 
         <div className="space-y-4 py-2">
           <div className="rounded-lg bg-[var(--c-paper-2)] p-3 text-sm">
-            <div className="flex justify-between"><span className="text-[var(--muted-foreground)]">Customer</span><span className="font-medium">{tx.user_name}</span></div>
-            <div className="flex justify-between"><span className="text-[var(--muted-foreground)]">Email</span><span>{tx.user_email}</span></div>
-            <div className="flex justify-between"><span className="text-[var(--muted-foreground)]">Plan</span><span className="capitalize">{tx.plan_id}</span></div>
-            <div className="flex justify-between"><span className="text-[var(--muted-foreground)]">Paid</span><span>{fmtMoney(tx.amount, tx.currency)}</span></div>
-            <div className="flex justify-between"><span className="text-[var(--muted-foreground)]">Already refunded</span><span>{fmtMoney(tx.refund_amount, tx.currency)}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--c-muted-fg)]">Customer</span><span className="font-medium">{tx.user_name}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--c-muted-fg)]">Email</span><span>{tx.user_email}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--c-muted-fg)]">Plan</span><span className="capitalize">{tx.plan_id}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--c-muted-fg)]">Paid</span><span>{fmtMoney(tx.amount, tx.currency)}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--c-muted-fg)]">Already refunded</span><span>{fmtMoney(tx.refund_amount, tx.currency)}</span></div>
             <div className="flex justify-between font-semibold"><span>Refundable</span><span>{fmtMoney(remaining, tx.currency)}</span></div>
           </div>
 
@@ -168,7 +168,7 @@ export default function AdminBilling() {
       setMetrics(m.data);
       setItems(list.data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -182,7 +182,9 @@ export default function AdminBilling() {
   const onRefunded = (fresh) => {
     setItems((prev) => prev.map((t) => (t.tx_id === fresh.tx_id ? { ...t, ...fresh } : t)));
     // Reload metrics so KPIs reflect the refund.
-    api.get("/admin/billing/metrics").then(({ data }) => setMetrics(data)).catch(() => {});
+    api.get("/admin/billing/metrics")
+      .then(({ data }) => setMetrics(data))
+      .catch((err) => toast.error(formatApiError(err) || "Could not refresh billing metrics"));
   };
 
   const currency = metrics?.currency || "gbp";
@@ -192,7 +194,7 @@ export default function AdminBilling() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Billing &amp; Refunds</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Stripe transactions across the platform. Super-admins can issue refunds here.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Stripe transactions across the platform. Super-admins can issue refunds here.</p>
         </div>
         <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
           <ShieldCheck className="h-3.5 w-3.5" /> Super-admin only
@@ -217,8 +219,8 @@ export default function AdminBilling() {
       {metrics?.series?.length ? (
         <div className="mt-5 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-heading text-base font-semibold text-[var(--c-ink)]">Revenue — last 30 days</h2>
-            <span className="text-xs text-[var(--muted-foreground)]">Gross vs refunded</span>
+            <h2 className="font-heading text-base font-semibold text-[var(--c-ink)]">Revenue, last 30 days</h2>
+            <span className="text-xs text-[var(--c-muted-fg)]">Gross vs refunded</span>
           </div>
           <div className="mt-3 h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -250,9 +252,9 @@ export default function AdminBilling() {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {Object.entries(metrics.by_plan).map(([plan, p]) => (
             <div key={plan} className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{plan}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{plan}</p>
               <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]">{fmtMoney(p.net, currency)}</p>
-              <div className="mt-1 text-xs text-[var(--muted-foreground)]">
+              <div className="mt-1 text-xs text-[var(--c-muted-fg)]">
                 {p.count} paid · gross {fmtMoney(p.gross, currency)} · refunded {fmtMoney(p.refunded, currency)}
               </div>
             </div>
@@ -263,7 +265,7 @@ export default function AdminBilling() {
       {/* Filters */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by email or session ID…" className="pl-9" data-testid="billing-search" />
         </div>
         <Select value={status} onValueChange={setStatus}>
@@ -282,7 +284,7 @@ export default function AdminBilling() {
       <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--muted-foreground)]">
+            <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">
               <tr>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Plan</th>
@@ -300,7 +302,7 @@ export default function AdminBilling() {
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center">
-                    <div className="mx-auto flex flex-col items-center gap-2 text-[var(--muted-foreground)]">
+                    <div className="mx-auto flex flex-col items-center gap-2 text-[var(--c-muted-fg)]">
                       <AlertCircle className="h-6 w-6" />
                       <p className="text-sm">No transactions found.</p>
                       <p className="text-xs">When users upgrade via Stripe Checkout, the payments will appear here.</p>
@@ -314,7 +316,7 @@ export default function AdminBilling() {
                     <tr key={tx.tx_id} className="border-t border-[var(--c-border)]" data-testid={`tx-row-${tx.tx_id}`}>
                       <td className="px-4 py-3">
                         <div className="font-medium text-[var(--c-ink)]">{tx.user_name}</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{tx.user_email}</div>
+                        <div className="text-xs text-[var(--c-muted-fg)]">{tx.user_email}</div>
                       </td>
                       <td className="px-4 py-3 capitalize">{tx.plan_id}</td>
                       <td className="px-4 py-3">
@@ -324,7 +326,7 @@ export default function AdminBilling() {
                         ) : null}
                       </td>
                       <td className="px-4 py-3"><StatusPill tx={tx} /></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-[var(--muted-foreground)]">{fmtDate(tx.created_at)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--c-muted-fg)]">{fmtDate(tx.created_at)}</td>
                       <td className="px-4 py-3 text-right">
                         {refundable ? (
                           <Button size="sm" variant="outline" data-testid={`refund-button-${tx.tx_id}`} onClick={() => setPicked(tx)}>
@@ -333,7 +335,7 @@ export default function AdminBilling() {
                         ) : tx.refund_status === "refunded" ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Refunded</span>
                         ) : (
-                          <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                          <span className="text-xs text-[var(--c-muted-fg)]">—</span>
                         )}
                       </td>
                     </tr>

@@ -22,7 +22,7 @@ export default function AdminEnvelopes() {
       const { data } = await api.get("/admin/envelopes", { params: { q: query, status: st } });
       setItems(data);
     } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
+      toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -40,7 +40,7 @@ export default function AdminEnvelopes() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Envelopes</h1>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">Read-only oversight of all documents across the platform.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Read-only oversight of all documents across the platform.</p>
         </div>
         <Button variant="outline" onClick={() => downloadCsv("/admin/export/envelopes.csv", "civicsign_envelopes.csv")} data-testid="admin-export-envelopes">
           <Download className="mr-1.5 h-4 w-4" /> Export CSV
@@ -49,7 +49,7 @@ export default function AdminEnvelopes() {
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by document title…" className="pl-9" data-testid="admin-envelopes-search" />
         </div>
         <Select value={status} onValueChange={setStatus}>
@@ -70,10 +70,10 @@ export default function AdminEnvelopes() {
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
         ) : items.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--muted-foreground)]">No envelopes found.</div>
+          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No envelopes found.</div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
-            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] sm:grid">
+            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] sm:grid">
               <div className="col-span-5">Document</div>
               <div className="col-span-3">Owner</div>
               <div className="col-span-2">Status</div>
@@ -85,12 +85,12 @@ export default function AdminEnvelopes() {
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--c-paper-2)]"><FileText className="h-4 w-4" style={{ color: "var(--c-primary)" }} /></span>
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[var(--c-ink)]">{e.title}</p>
-                    <p className="truncate text-xs text-[var(--muted-foreground)]">{e.recipient_count} signer(s) · {e.document?.page_count} page(s)</p>
+                    <p className="truncate text-xs text-[var(--c-muted-fg)]">{e.recipient_count} signer(s) · {e.document?.page_count} page(s)</p>
                   </div>
                 </div>
-                <div className="col-span-3 truncate text-sm text-[var(--muted-foreground)]">{e.owner_name}</div>
+                <div className="col-span-3 truncate text-sm text-[var(--c-muted-fg)]">{e.owner_name}</div>
                 <div className="col-span-2"><StatusBadge status={e.status} /></div>
-                <div className="col-span-2 text-sm text-[var(--muted-foreground)]">{fmt(e.created_at)}</div>
+                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{fmt(e.created_at)}</div>
               </div>
             ))}
           </div>

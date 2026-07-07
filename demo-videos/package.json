@@ -1,0 +1,14 @@
+{
+  "name": "civicsign-demo-videos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "node record-demos.mjs",
+    "record:free": "node record-demos.mjs free",
+    "record:pro": "node record-demos.mjs pro",
+    "record:pro-premium": "node record-pro-premium.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}
