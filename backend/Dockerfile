@@ -9,7 +9,8 @@ WORKDIR /app
 
 # Install dependencies first for better layer caching.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && python -c "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; import httpx; print('startup deps OK')"
 
 # App code (includes assets/: email logo + PDF fonts).
 COPY . .
