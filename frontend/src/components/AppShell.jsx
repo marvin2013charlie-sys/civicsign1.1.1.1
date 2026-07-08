@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Logo } from "@/components/Logo";
 import { PortalHeaderActions } from "@/components/PortalHeaderActions";
+import { PortalSubscriptionActions } from "@/components/PortalSubscriptionActions";
 import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
 
@@ -167,6 +168,7 @@ export const AppShell = ({ children, title, actions }) => {
           <h1 className="min-w-0 flex-1 truncate font-heading text-lg font-semibold text-[var(--c-ink)]">{title}</h1>
           <div className="flex shrink-0 items-center gap-2">
             {actions}
+            <PortalSubscriptionActions user={user} />
             <PortalHeaderActions
               onLogout={handleLogout}
               onReplayTour={() => startTour(true)}
