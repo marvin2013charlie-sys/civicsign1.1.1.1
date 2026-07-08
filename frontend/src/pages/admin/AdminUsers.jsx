@@ -128,7 +128,7 @@ export default function AdminUsers() {
       .catch((err) => { if (active) toast.error(formatApiError(err)); })
       .finally(() => { if (active) setOrgsLoading(false); });
     return () => { active = false; };
-  }, [isOrgFilter]);
+  }, [isOrgFilter, api]);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +151,7 @@ export default function AdminUsers() {
       }
     }, q ? 350 : 0);
     return () => { active = false; clearTimeout(t); };
-  }, [q, queryParams.role, queryParams.plan, queryParams.org, queryParams.org_id, queryParams.org_role]);
+  }, [q, queryParams, api]);
 
   const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "\u2014");
 
@@ -246,7 +246,7 @@ export default function AdminUsers() {
 
       <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-users-table">
         {loading ? (
-          <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          <div className="space-y-2 p-4">{Array.from({ length: 5 }, (_, i) => <Skeleton key={`users-skel-${i}`} className="h-14 w-full" />)}</div>
         ) : users.length === 0 ? (
           <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No {heading.toLowerCase()} found.</div>
         ) : (

@@ -185,11 +185,11 @@ export default function AdminUserDetail() {
       try {
         const { data } = await api.get("/admin/organizations");
         setOrgs(data);
-      } catch {
-        /* non-fatal — org selector stays empty */
+      } catch (err) {
+        console.warn("AdminUserDetail: could not load organisations", err);
       }
     })();
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, api]);
 
   useEffect(() => {
     const lim = data?.usage?.monthly_envelope_limit ?? data?.usage?.contract_limit;

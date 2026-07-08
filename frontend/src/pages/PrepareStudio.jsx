@@ -533,7 +533,7 @@ export default function PrepareStudio() {
               <Document file={blobUrl} options={PDF_OPTIONS} loading={<Loader2 className="mt-10 h-8 w-8 animate-spin text-[var(--c-primary)]" />} error={<div className="mt-10 text-sm text-red-600">Failed to load document.</div>}>
                 {pages.map((_, i) => (
                   <PdfPageLayer
-                    key={i}
+                    key={`page-${i + 1}`}
                     ref={(node) => { pageRefs.current[i] = node; }}
                     pageNumber={i + 1}
                     width={renderWidth}

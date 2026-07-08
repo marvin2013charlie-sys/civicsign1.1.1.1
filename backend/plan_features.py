@@ -14,7 +14,7 @@ ENVELOPE_HOURLY_BURST_DEFAULT = 100
 
 
 def _effective_plan(user: dict) -> str:
-    from billing import get_effective_plan
+    from plan_signing import get_effective_plan
     return get_effective_plan(user)
 
 PLAN_MONTHLY_QUOTA = {"free": 5, "pro": 500, "business": -1}

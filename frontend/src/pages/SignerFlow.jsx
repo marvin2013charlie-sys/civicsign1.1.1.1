@@ -368,7 +368,7 @@ export default function SignerFlow() {
                 const pageFields = data.fields.filter((f) => f.page === i);
                 return (
                   <PdfPageLayer
-                    key={i}
+                    key={`page-${i + 1}`}
                     pageNumber={i + 1}
                     width={pageWidth}
                     loading={<div className="flex min-h-[480px] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--c-primary)]" /></div>}

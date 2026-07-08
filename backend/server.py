@@ -1,5 +1,6 @@
 """CivicSign backend — FastAPI app: auth, envelopes, signer flow, finalization."""
 import os
+import re
 import json
 import uuid
 import asyncio
@@ -1616,7 +1617,7 @@ async def signer_decline(request: Request, token: str, body: DeclineRequest):
 # ===========================================================================
 # CUSTOM BRANDING (Feature 4)
 # ===========================================================================
-HEX_RE = __import__("re").compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+HEX_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 def _valid_hex(color):

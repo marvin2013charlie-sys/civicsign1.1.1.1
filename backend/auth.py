@@ -28,6 +28,7 @@ from fastapi.responses import Response as FastResponse
 from rate_limits import limiter, auth_limit
 
 import email_service
+from plan_signing import get_effective_plan, generate_plan_signature
 from db import db, delete_file, upload_file, download_file
 from security_utils import is_dev_mode, validate_redirect_base, cookie_secure, sniff_image_type
 from plan_features import plan_features
@@ -166,7 +167,6 @@ def clear_auth_cookies(response: Response):
 
 def _public_user(doc: dict) -> dict:
     """Return safe user object for API responses (no secrets)."""
-    from billing import get_effective_plan
     return {
         "user_id": doc["user_id"],
         "email": doc["email"],
@@ -1186,7 +1186,6 @@ async def _seed_internal_admin_account(email, password, name, generate_plan_sign
 
 async def seed_admin():
     """Seed a demo sender + internal admin accounts, and backfill account defaults."""
-    from billing import _generate_plan_signature
     try:
         # Backfill defaults for any pre-existing users
         await db.users.update_many({"role": {"$exists": False}}, {"$set": {"role": "user"}})
@@ -1215,7 +1214,7 @@ async def seed_admin():
                     "role": "user",
                     "plan": "pro",
                     "plan_updated_at": ts,
-                    "plan_signature": _generate_plan_signature(user_id, "pro", ts),
+                    "plan_signature": generate_plan_signature(user_id, "pro", ts),
                     "plan_upgraded_via_payment": True,
                     "active": True,
                     "email_verified": True,
@@ -1230,7 +1229,7 @@ async def seed_admin():
                         {"email": email},
                         {"$set": {
                             "plan_updated_at": ts,
-                            "plan_signature": _generate_plan_signature(
+                            "plan_signature": generate_plan_signature(
                                 existing["user_id"], "pro", ts),
                             "plan_upgraded_via_payment": True,
                         }},
@@ -1246,7 +1245,7 @@ async def seed_admin():
                     admin_email,
                     admin_password,
                     admin_name,
-                    _generate_plan_signature,
+                    generate_plan_signature,
                 )
         elif (
             os.environ.get("INTERNAL_ADMIN_EMAIL", "").strip()

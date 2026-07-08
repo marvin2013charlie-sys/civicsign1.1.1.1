@@ -81,12 +81,13 @@ def get_webhook_secret() -> str:
         raise RuntimeError("STRIPE_WEBHOOK_SECRET environment variable is not set")
     return secret
 
-# Plan secret for HMAC verification
-def get_plan_secret() -> str:
-    secret = os.environ.get("PLAN_ENCRYPTION_SECRET")
-    if not secret:
-        raise RuntimeError("PLAN_ENCRYPTION_SECRET environment variable is not set")
-    return secret
+from plan_signing import (
+    generate_plan_signature as _generate_plan_signature,
+    verify_plan_signature as _verify_plan_signature,
+    get_effective_plan,
+    is_organisation_member,
+    get_plan_secret,
+)
 
 
 def _now():
@@ -99,46 +100,6 @@ def _require_stripe_key() -> str:
         raise HTTPException(status_code=500, detail="Billing is not configured")
     stripe.api_key = api_key
     return api_key
-
-
-def _generate_plan_signature(user_id: str, plan_id: str, timestamp: str) -> str:
-    """Generate HMAC signature for plan verification."""
-    message = f"{user_id}:{plan_id}:{timestamp}".encode('utf-8')
-    signature = hmac.new(
-        get_plan_secret().encode('utf-8'),
-        message,
-        hashlib.sha256
-    ).hexdigest()
-    return signature
-
-
-def _verify_plan_signature(user_id: str, plan_id: str, timestamp: str, signature: str) -> bool:
-    """Verify HMAC signature for plan validity."""
-    expected_signature = _generate_plan_signature(user_id, plan_id, timestamp)
-    return hmac.compare_digest(expected_signature, signature)
-
-
-def is_organisation_member(user: dict) -> bool:
-    """True when the user belongs to an enterprise organisation pool."""
-    org_id = user.get("org_id")
-    return bool(org_id and str(org_id).strip())
-
-
-def get_effective_plan(user: dict) -> str:
-    """Return the user's plan after verifying payment signature (anti-tamper)."""
-    # Organisation contract accounts include full Business-tier features.
-    if is_organisation_member(user):
-        return "business"
-    plan = user.get("plan", "free")
-    if plan == "free":
-        return "free"
-    sig = user.get("plan_signature")
-    ts = user.get("plan_updated_at")
-    if not sig or not ts:
-        return "free"
-    if not _verify_plan_signature(user["user_id"], plan, ts, sig):
-        return "free"
-    return plan
 
 
 async def _apply_document_credits(user_id: str, credits: int, session_id: str) -> bool:

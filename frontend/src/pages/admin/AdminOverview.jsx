@@ -167,7 +167,7 @@ export default function AdminOverview() {
               {m.analytics.top_users.length === 0 ? (
                 <p className="text-sm text-[var(--c-muted-fg)]">No data yet.</p>
               ) : m.analytics.top_users.map((u, i) => (
-                <div key={i} className="flex items-center gap-3">
+                <div key={u.email || u.user_id || `top-user-${i}`} className="flex items-center gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--c-paper-2)] text-xs font-bold text-[var(--c-ink)]">{i + 1}</span>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p><p className="truncate text-xs text-[var(--c-muted-fg)]">{u.email}</p></div>
                   <span className="text-sm font-semibold" style={{ color: "var(--c-primary)" }}>{u.count}</span>

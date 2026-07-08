@@ -241,7 +241,7 @@ function CreateOrgDialog({ open, onOpenChange, onCreated }) {
     } else if (!ownerPassword) {
       setOwnerPassword(generatePw());
     }
-  }, [open, ownerPassword]);
+  }, [open, ownerPassword, generatePw]);
 
   const submit = async () => {
     if (!name.trim()) {
@@ -490,8 +490,8 @@ export default function AdminOrganizations() {
           }
           : o
       )));
-    } catch {
-      /* keep last good snapshot */
+    } catch (err) {
+      console.warn("AdminOrganizations: poll detail failed", err);
     }
   }, POLL_FAST_MS, { enabled: pollDetail });
 
@@ -568,7 +568,7 @@ export default function AdminOrganizations() {
       <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
         {loading ? (
           <div className="space-y-2 p-4">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+            {Array.from({ length: 4 }, (_, i) => <Skeleton key={`orgs-skel-${i}`} className="h-16 w-full" />)}
           </div>
         ) : orgs.length === 0 ? (
           <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">

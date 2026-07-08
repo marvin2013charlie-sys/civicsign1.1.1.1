@@ -11,7 +11,7 @@ from rate_limits import limiter, poll_limit
 
 from db import db, upload_file, download_file, delete_file
 from auth import get_current_user, require_admin, hash_password, _validate_password_strength
-from billing import _generate_plan_signature
+from plan_signing import generate_plan_signature as _generate_plan_signature
 from models import (
     OrganizationCreate, OrganizationUpdate,
     OrgMemberCreate, OrgMemberPasswordReset, OrgMemberStatusUpdate,
