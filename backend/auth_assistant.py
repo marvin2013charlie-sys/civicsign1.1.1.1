@@ -144,8 +144,10 @@ def rule_based_reply(message: str, context: str = "login") -> Optional[str]:
     if any(k in m for k in ("free", "plan", "pricing", "cost", "trial")):
         return (
             "After you sign in:\n"
-            "• **Free** — £0, 5 documents/month, full signing features\n"
-            "• **Pro** — £15/month, 500 documents/month\n"
+            "• **Free** — £0, 2 documents/month, full signing features\n"
+            "• **Pro** — £15/month, 100 documents/month\n"
+            "• **Business** — £79/month, 500 documents/month (everything in Pro plus bulk send, API & priority support)\n"
+            "• **Organisation** — custom multi-seat contracts (contact us)\n"
             "• Upgrade anytime under **Settings → Subscription**\n\n"
             "No credit card needed to create a free account."
         )

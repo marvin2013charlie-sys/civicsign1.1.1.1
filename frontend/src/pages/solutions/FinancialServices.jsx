@@ -47,7 +47,7 @@ export default function FinancialServices() {
         { icon: Building2, title: "Disengagement and file-transfer letters", body: "Clean exits with disengagement letters and professional-clearance correspondence, signed and sealed." },
       ]}
       ctaHeadline="Ready to bill faster and file calmer?"
-      ctaSubhead="Send your first engagement letter today. Free for 5 documents a month, UK GDPR by default, AML-ready audit trail."
+      ctaSubhead="Send your first engagement letter today. Free for 2 documents a month, UK GDPR by default, AML-ready audit trail."
       ctaButton="Start free for practices"
     />
   );

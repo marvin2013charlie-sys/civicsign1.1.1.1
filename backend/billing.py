@@ -41,6 +41,7 @@ EXTRA_DOCUMENT_PRICE_GBP = 1.00
 
 # Server-side, fixed plan catalogue. The frontend NEVER sends amounts.
 PRO_MONTHLY_GBP = 15.00
+BUSINESS_MONTHLY_GBP = 79.00
 YEARLY_MONTHS_PAID = 10  # pay 10 months, get 12
 
 PLANS = {
@@ -51,8 +52,8 @@ PLANS = {
     },
     "business": {
         "name": "Business",
-        "amount_monthly": 49.00,
-        "amount_yearly": 49.00 * YEARLY_MONTHS_PAID,
+        "amount_monthly": BUSINESS_MONTHLY_GBP,
+        "amount_yearly": BUSINESS_MONTHLY_GBP * YEARLY_MONTHS_PAID,
     },
 }
 
@@ -220,10 +221,6 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     plan_id = (body.plan_id or "").lower().strip()
     if plan_id not in PLANS:
         raise HTTPException(status_code=400, detail="Choose a paid plan to upgrade.")
-    if plan_id == "business":
-        # Business is sales-led: no self-serve checkout — the team quotes custom pricing.
-        raise HTTPException(status_code=400,
-                            detail="The Business plan is tailored to your team. Please contact us via the Contact page.")
     if user.get("plan") == plan_id:
         raise HTTPException(status_code=400, detail=f"You are already on the {PLANS[plan_id]['name']} plan.")
 

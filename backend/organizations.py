@@ -30,8 +30,8 @@ admin_org_router = APIRouter(prefix="/api/admin", tags=["admin-organizations"])
 ORG_SEAT_MONTHLY_LIMIT = 500
 ORG_CONTRACT_MAX_BYTES = 25 * 1024 * 1024
 ORG_PRICING_NOTE = (
-    "Organisation plan: up to 500 documents per seat per month. "
-    "Contract pricing is agreed with your account manager — contact info@civicbot.co.uk to discuss rates."
+    "Organisation plan: custom document pools and pricing per contract. "
+    "Contact info@civicbot.co.uk to discuss your team."
 )
 
 

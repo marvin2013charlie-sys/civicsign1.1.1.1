@@ -47,7 +47,7 @@ export default function Legal() {
         { icon: ShieldCheck, title: "AML and KYC declarations", body: "Capture source-of-funds declarations and PEP checks with timestamped IP, defensible under MLR 2017." },
       ]}
       ctaHeadline="Ready to take the post run off your trainee's desk?"
-      ctaSubhead="Start sending engagement letters today. Free for 5 documents a month, no card required, UK GDPR compliant from day one."
+      ctaSubhead="Start sending engagement letters today. Free for 2 documents a month, no card required, UK GDPR compliant from day one."
       ctaButton="Start free for legal teams"
     />
   );

@@ -7,8 +7,8 @@ from fastapi import HTTPException
 
 logger = logging.getLogger("civicsign.plan_features")
 
-# Default fair-use included with self-serve Business (override per contract in admin).
-BUSINESS_FAIR_USE_DEFAULT = 10_000
+# Self-serve Business monthly document cap (override per contract in admin).
+BUSINESS_FAIR_USE_DEFAULT = 500
 BULK_SEND_MAX_ROWS_DEFAULT = 250
 ENVELOPE_HOURLY_BURST_DEFAULT = 100
 
@@ -17,10 +17,10 @@ def _effective_plan(user: dict) -> str:
     from plan_signing import get_effective_plan
     return get_effective_plan(user)
 
-PLAN_MONTHLY_QUOTA = {"free": 5, "pro": 500, "business": -1}
+PLAN_MONTHLY_QUOTA = {"free": 2, "pro": 100, "business": 500}
 
 _PRO_FLAGS = {
-    "monthly_quota": 500,
+    "monthly_quota": 100,
     "max_recipients": None,
     "ses_signatures": True,
     "aes_signatures": True,
@@ -39,7 +39,7 @@ _PRO_FLAGS = {
 
 _PLAN_FLAGS = {
     "free": {
-        "monthly_quota": 5,
+        "monthly_quota": 2,
         "max_recipients": 2,
         "ses_signatures": False,
         "aes_signatures": False,
@@ -58,7 +58,7 @@ _PLAN_FLAGS = {
     "pro": dict(_PRO_FLAGS),
     "business": {
         **_PRO_FLAGS,
-        "monthly_quota": -1,
+        "monthly_quota": 500,
         "recipient_auth": True,
         "bulk_send": True,
         "api_webhooks": True,
@@ -96,7 +96,7 @@ def get_monthly_envelope_limit(user: dict) -> int:
         return custom
     if plan == "business":
         return int(os.environ.get("BUSINESS_FAIR_USE_MONTHLY", str(BUSINESS_FAIR_USE_DEFAULT)))
-    return PLAN_MONTHLY_QUOTA.get(plan, 5)
+    return PLAN_MONTHLY_QUOTA.get(plan, 2)
 
 
 def get_bulk_send_max_rows() -> int:
@@ -122,8 +122,8 @@ def quota_context(user: dict) -> dict:
         note = f"Contract allocation: {custom:,} documents per month."
     elif plan == "business":
         note = (
-            f"Business fair use: {fair_use_default:,} documents/month included. "
-            "Contact us to raise your allocation for high-volume teams."
+            f"Business plan: {limit:,} documents per billing period "
+            "(resets on your signup anniversary)."
         )
     elif limit < 0:
         note = "Unlimited documents this month."

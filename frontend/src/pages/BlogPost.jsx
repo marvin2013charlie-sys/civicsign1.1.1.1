@@ -168,7 +168,7 @@ export default function BlogPost() {
         <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-12">
           <h2 className="font-heading text-2xl font-bold sm:text-3xl">Ready to put this into practice?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/80">
-            Send your first document in minutes. Free for 5 documents a month, no card required, UK GDPR by default.
+            Send your first document in minutes. Free for 2 documents a month, no card required, UK GDPR by default.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Link to="/register">

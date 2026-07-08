@@ -37,7 +37,7 @@ const PWD_RULES = [
 ];
 
 const FREE_PERKS = [
-  "5 documents per month (resets on your signup date)",
+  "2 documents per month (resets on your signup date)",
   "Unlimited signers",
   "Audit trail included",
 ];

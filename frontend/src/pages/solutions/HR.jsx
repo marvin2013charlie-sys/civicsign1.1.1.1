@@ -47,7 +47,7 @@ export default function HR() {
         { icon: ShieldCheck, title: "Confidentiality and restrictive covenants", body: "Capture post-termination undertakings, defensible if you ever need to enforce a non-compete." },
       ]}
       ctaHeadline="Ready to give every new starter the welcome they deserve?"
-      ctaSubhead="No more chasing the photocopier on a Monday morning. Get your contract pack signing itself, free for 5 documents a month."
+      ctaSubhead="No more chasing the photocopier on a Monday morning. Get your contract pack signing itself, free for 2 documents a month."
       ctaButton="Start free for HR teams"
     />
   );

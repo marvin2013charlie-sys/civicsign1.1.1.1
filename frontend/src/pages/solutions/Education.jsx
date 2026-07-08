@@ -47,7 +47,7 @@ export default function Education() {
         { icon: FileText, title: "Pupil premium and SEN consents", body: "Capture parental consent for EHC plans, pupil-premium assessments and outside-agency referrals." },
       ]}
       ctaHeadline="Ready to give your school office its Friday afternoon back?"
-      ctaSubhead="Stop the printer jams. Start collecting consent that arrives signed. Free for 5 documents a month, MAT discounts available."
+      ctaSubhead="Stop the printer jams. Start collecting consent that arrives signed. Free for 2 documents a month, MAT discounts available."
       ctaButton="Start free for schools"
     />
   );

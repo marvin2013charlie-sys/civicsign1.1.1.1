@@ -41,6 +41,7 @@
     "build": "craco build",
     "test": "craco test"
   },
+
   "jest": {
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",

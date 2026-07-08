@@ -67,22 +67,22 @@ const USE_CASES = [
 
 const PLANS = [
   { name: "Free", cta: "Start free", to: "/register", highlight: false,
-    features: ["5 documents / billing period (resets on signup date)", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
+    features: ["2 documents / billing period (resets on signup date)", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
   { name: "Pro", cta: "Start free", to: "/register", highlight: true,
     features: [
       "All Free features, plus:",
-      "Up to 500 documents per user / billing period",
+      "Up to 100 documents per user / billing period",
       "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
       "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
       "Shared team templates for standardised agreements",
       "Real-time commenting & collaboration",
       "Custom branding (logo & colours) to build trust",
     ] },
-  { name: "Business", cta: "Talk to our team", to: "/contact", highlight: false,
+  { name: "Business", cta: "Get Business", to: "/register", highlight: false,
     features: [
-      "Everything in Pro, unlimited documents",
+      "Everything in Pro, plus:",
+      "Up to 500 documents per user / billing period",
       "AES as default, strengthened with SMS / KBA recipient authentication",
-      "Qualified Electronic Signatures (QES) available on request via QTSP partner",
       "Bulk send",
       "API & webhooks",
       "Priority support",
@@ -320,8 +320,13 @@ export default function Landing() {
           })}
         </div>
         <p className="mt-6 text-center text-sm text-[var(--c-muted-fg)]">
+          <strong className="text-[var(--c-ink)]">Organisation plan</strong> — custom multi-seat contracts with tailored document pools.{" "}
+          <Link to="/contact" className="font-medium text-[var(--c-primary)] hover:underline">Contact us</Link>
+          {" to discuss your team."}
+        </p>
+        <p className="mt-3 text-center text-sm text-[var(--c-muted-fg)]">
           {billingInterval === "yearly"
-            ? "Annual Pro is billed once per year at 10 months\u2019 price (2 months free). "
+            ? "Annual Pro and Business are billed once per year at 10 months\u2019 price (2 months free). "
             : null}
           Document limits reset on your account anniversary each month.{" "}
           <Link to="/legal/refunds" className="font-medium text-[var(--c-primary)] hover:underline">Refund Policy</Link>

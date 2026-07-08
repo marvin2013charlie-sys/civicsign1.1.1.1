@@ -259,7 +259,7 @@ function buildSoftwareApplicationJsonLd() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "GBP",
-      description: "Free plan with 5 documents per billing period",
+      description: "Free plan with 2 documents per billing period",
     },
     description: STATIC_ROUTES["/"].description,
     url: SITE_URL,

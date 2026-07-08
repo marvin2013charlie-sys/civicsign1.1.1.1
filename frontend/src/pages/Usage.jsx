@@ -105,7 +105,7 @@ export default function Usage() {
                 Organisation plan · {usage.organization.name}
               </p>
               <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
-                <strong className="text-[var(--c-ink)]">500 documents per seat</strong> per month.
+                <strong className="text-[var(--c-ink)]">Custom seat allocation</strong> per your contract.
                 Your seat: <strong className="text-[var(--c-ink)]">{usage.seat_used?.toLocaleString() ?? usage.used.toLocaleString()}</strong>
                 {" / "}{usage.seat_limit?.toLocaleString() ?? usage.limit.toLocaleString()}.
                 {usage.org_used != null && (

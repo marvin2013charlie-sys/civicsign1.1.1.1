@@ -34,7 +34,7 @@ const PLAN_DEFS = [
     id: "free", name: "Free", icon: Sparkles,
     tagline: "For individuals getting started",
     features: [
-      "5 documents per billing period (resets on your signup anniversary; deleting does not restore quota)",
+      "2 documents per billing period (resets on your signup anniversary; deleting does not restore quota)",
       "£1 per extra document when at limit",
       "Up to 2 recipients",
       "Draw, type & upload signatures",
@@ -46,7 +46,7 @@ const PLAN_DEFS = [
     tagline: "For professionals & growing teams",
     features: [
       "All Free features, plus:",
-      "Up to 500 documents per user / month",
+      "Up to 100 documents per user / month",
       "£1 per extra document when at limit",
       "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
       "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
@@ -58,12 +58,12 @@ const PLAN_DEFS = [
   },
   {
     id: "business", name: "Business", icon: Building2,
-    tagline: "For organisations at scale",
+    tagline: "For teams that need volume & controls",
     features: [
-      "Everything in Pro, high-volume fair use (10k+/mo, custom contracts available)",
-      "£1 per extra document when at fair-use limit",
+      "Everything in Pro, plus:",
+      "Up to 500 documents per user / month",
+      "£1 per extra document when at limit",
       "AES as default, strengthened with SMS / KBA recipient authentication",
-      "Qualified Electronic Signatures (QES) on request via QTSP partner",
       "Bulk send",
       "API & webhooks",
       "Priority support",
@@ -655,9 +655,9 @@ function SubscriptionTab() {
                 Your account is on an organisation contract with the full organisation feature set.
               </p>
               <ul className="mt-4 space-y-2 text-sm text-[var(--c-ink)]">
-                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Up to <strong>500 documents per seat</strong> per month</li>
+                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> <strong>Custom document pools</strong> per seat — set in your organisation contract</li>
                 <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Bulk send, API, webhooks, branding &amp; team features included</li>
-                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> <strong>Contract pricing</strong> is agreed with your account manager — not billed via self-serve checkout</li>
+                <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> <strong>Custom pricing</strong> agreed with your account manager — not billed via self-serve checkout</li>
               </ul>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => window.location.assign("/organisation")}
@@ -696,7 +696,7 @@ function SubscriptionTab() {
         onChange={setBillingInterval}
       />
       <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {PLAN_DEFS.filter((p) => !(current === "pro" && p.id === "business")).map((p) => {
+        {PLAN_DEFS.map((p) => {
           const isCurrent = p.id === current;
           const Icon = p.icon;
           const { price, note, savings } = getPlanPriceDisplay(p.name, billingInterval);
@@ -728,21 +728,13 @@ function SubscriptionTab() {
                   </li>
                 ))}
               </ul>
-              {p.id === "business" && !isCurrent ? (
-                <Button className="mt-5" data-testid="plan-select-business"
-                  onClick={() => window.location.assign("/contact")}
-                  style={{ background: "var(--c-primary)", color: "#fff" }}>
-                  Talk to our team
-                </Button>
-              ) : (
-                <Button className="mt-5" disabled={isCurrent || switching === p.id || verifying} onClick={() => choose(p.id)}
-                  data-testid={`plan-select-${p.id}`}
-                  variant={isCurrent ? "outline" : "default"}
-                  style={isCurrent ? {} : { background: "var(--c-primary)", color: "#fff" }}>
-                  {switching === p.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                  {isCurrent ? "Current plan" : p.id === "free" ? "Switch to Free" : `Upgrade to ${p.name}`}
-                </Button>
-              )}
+              <Button className="mt-5" disabled={isCurrent || switching === p.id || verifying} onClick={() => choose(p.id)}
+                data-testid={`plan-select-${p.id}`}
+                variant={isCurrent ? "outline" : "default"}
+                style={isCurrent ? {} : { background: "var(--c-primary)", color: "#fff" }}>
+                {switching === p.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                {isCurrent ? "Current plan" : p.id === "free" ? "Switch to Free" : `Upgrade to ${p.name}`}
+              </Button>
             </div>
           );
         })}
@@ -750,7 +742,7 @@ function SubscriptionTab() {
       <p className="mt-4 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]">
         <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
         Payments are processed securely by Stripe. Upgrades are charged once and take effect immediately; downgrading to Free is always free.
-        {billingInterval === "yearly" ? " Annual Pro is billed at 10 months\u2019 price (2 months free)." : ""}
+        {billingInterval === "yearly" ? " Annual Pro and Business are billed at 10 months\u2019 price (2 months free)." : ""}
       </p>
       <p className="mt-2 text-xs text-[var(--c-muted-fg)]">
         Refunds and billing disputes are covered in our{" "}

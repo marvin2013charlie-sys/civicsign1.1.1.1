@@ -47,7 +47,7 @@ export default function Construction() {
         { icon: ShieldCheck, title: "Handover and sign-off certificates", body: "Final client sign-off on snagging, handover and retention, locks in payment, closes the job." },
       ]}
       ctaHeadline="Ready to send quotes from the van and get paid?"
-      ctaSubhead="Stop losing jobs to the company that emails first. Free for 5 documents a month, no card required."
+      ctaSubhead="Stop losing jobs to the company that emails first. Free for 2 documents a month, no card required."
       ctaButton="Start free for trades"
     />
   );

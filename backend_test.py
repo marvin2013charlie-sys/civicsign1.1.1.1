@@ -262,14 +262,14 @@ class APITester:
             current_plan = data.get("user", {}).get("plan", "free")
             self.log(f"   Current plan: {current_plan}", Colors.BLUE)
 
-        # Test 16: GET /api/billing/plans (should return currency 'gbp', Pro £15, Business £49)
+        # Test 16: GET /api/billing/plans (should return currency 'gbp', Pro £15, Business £79)
         self.test(
             "Get billing plans (GBP currency)",
             "GET", "billing/plans", 200,
             check_fn=lambda d: (
                 d.get("currency") == "gbp" and
                 any(p["id"] == "pro" and p["amount"] == 15.00 for p in d.get("plans", [])) and
-                any(p["id"] == "business" and p["amount"] == 49.00 for p in d.get("plans", []))
+                any(p["id"] == "business" and p["amount"] == 79.00 for p in d.get("plans", []))
             )
         )
 

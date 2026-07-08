@@ -20,7 +20,7 @@ export const FEATURE_MIN_PLAN = {
 
 const DEFAULT_FEATURES = {
   plan: "free",
-  monthly_quota: 5,
+  monthly_quota: 2,
   max_recipients: 2,
   ses_signatures: false,
   aes_signatures: false,
@@ -65,7 +65,7 @@ export function resolvePlanFeatures(user) {
       ...BUSINESS_FEATURES,
       organisation_plan: true,
       pricing_note:
-        "Organisation plan: 500 documents per seat per month. Contract rates agreed in your onboarding meeting.",
+        "Organisation plan: custom document pools and pricing agreed in your onboarding meeting.",
     };
   }
   return base;

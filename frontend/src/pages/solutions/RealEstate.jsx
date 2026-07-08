@@ -286,7 +286,7 @@ export default function RealEstate() {
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
           <h2 className="font-heading text-3xl font-bold sm:text-4xl">Ready to ditch the printer?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first tenancy or sale signed today. Free for 5 documents a month, no card required, UK GDPR compliant from day one.</p>
+          <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first tenancy or sale signed today. Free for 2 documents a month, no card required, UK GDPR compliant from day one.</p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="re-cta-bottom">
               Start free for estate agents <ArrowRight className="ml-1.5 h-4 w-4" />

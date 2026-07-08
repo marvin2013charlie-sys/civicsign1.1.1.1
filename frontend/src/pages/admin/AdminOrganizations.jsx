@@ -559,7 +559,7 @@ export default function AdminOrganizations() {
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" data-testid="org-explainer">
         <p className="font-semibold">How this protects you (bank example)</p>
         <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-          <li>Create one org with an owner email + temp password. Each seat gets 500 documents/month (pool = seats × 500 by default).</li>
+          <li>Create one org with an owner email + temp password. Set monthly limits per contract (custom pools for each organisation).</li>
           <li>The owner adds branch logins from Settings → Organisation team.</li>
           <li>All logins share one pool. No single account can consume &quot;unlimited&quot; alone.</li>
         </ul>

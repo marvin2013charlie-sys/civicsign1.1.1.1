@@ -1,13 +1,22 @@
-/** Shared pricing, Pro yearly = 10 months paid (2 months free). */
+/** Shared pricing — yearly = 10 months paid (2 months free). */
 export const PRO_MONTHLY_GBP = 15;
+export const BUSINESS_MONTHLY_GBP = 79;
 export const YEARLY_MONTHS_PAID = 10;
 
 export function proYearlyTotal() {
   return PRO_MONTHLY_GBP * YEARLY_MONTHS_PAID;
 }
 
+export function businessYearlyTotal() {
+  return BUSINESS_MONTHLY_GBP * YEARLY_MONTHS_PAID;
+}
+
 export function proYearlyMonthlyEquivalent() {
   return proYearlyTotal() / 12;
+}
+
+export function businessYearlyMonthlyEquivalent() {
+  return businessYearlyTotal() / 12;
 }
 
 export function formatGbp(amount, { decimals = amount % 1 !== 0 } = {}) {
@@ -21,12 +30,24 @@ export function getPlanPriceDisplay(planName, interval = "monthly") {
   if (planName === "Free") {
     return { price: "£0", note: "forever", savings: null };
   }
-  if (planName === "Business") {
+  if (planName === "Organisation") {
     return {
       price: "Custom",
-      note: interval === "yearly" ? "annual plans available" : "tailored to your team",
+      note: "tailored multi-seat contract",
       savings: null,
     };
+  }
+  if (planName === "Business") {
+    if (interval === "yearly") {
+      const yearly = businessYearlyTotal();
+      const equiv = businessYearlyMonthlyEquivalent();
+      return {
+        price: formatGbp(yearly),
+        note: `per user / year · ${formatGbp(equiv)}/mo`,
+        savings: "Save 2 months",
+      };
+    }
+    return { price: formatGbp(BUSINESS_MONTHLY_GBP), note: "per user / month", savings: null };
   }
   if (planName === "Pro") {
     if (interval === "yearly") {

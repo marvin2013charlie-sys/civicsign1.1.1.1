@@ -47,7 +47,7 @@ export default function Healthcare() {
         { icon: ShieldCheck, title: "Confidentiality undertakings", body: "Patient confidentiality acknowledgements for locums, students and visiting clinicians." },
       ]}
       ctaHeadline="Ready to stop chasing consent forms across reception?"
-      ctaSubhead="Send your first patient consent today. Free for 5 documents a month, UK GDPR strict, NHS DSPT aligned."
+      ctaSubhead="Send your first patient consent today. Free for 2 documents a month, UK GDPR strict, NHS DSPT aligned."
       ctaButton="Start free for care providers"
     />
   );
