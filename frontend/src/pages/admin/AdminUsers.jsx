@@ -128,7 +128,7 @@ export default function AdminUsers() {
       .catch((err) => { if (active) toast.error(formatApiError(err)); })
       .finally(() => { if (active) setOrgsLoading(false); });
     return () => { active = false; };
-  }, [isOrgFilter, api]);
+  }, [isOrgFilter]);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +151,7 @@ export default function AdminUsers() {
       }
     }, q ? 350 : 0);
     return () => { active = false; clearTimeout(t); };
-  }, [q, queryParams, api]);
+  }, [q, queryParams]);
 
   const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "\u2014");
 

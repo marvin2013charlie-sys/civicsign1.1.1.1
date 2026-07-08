@@ -1232,38 +1232,49 @@ async def bulk_send_template(template_id: str, body: BulkSend, request: Request,
             detail=f"Bulk send is limited to {max_rows} recipients per batch. "
                    "Split large jobs into multiple batches or contact us for enterprise throughput.",
         )
-    credits = await enforce_quota(user, count=len(body.rows))
+    batch_size = len(body.rows)
+    credits = await enforce_quota(user, count=batch_size)
     role_id = tpl["roles"][0]["role_id"]
     base = _resolve_redirect_base(request, body.base_url or "")
     created = []
-    for row in body.rows:
-        env_id = f"env_{uuid.uuid4().hex[:16]}"
-        new_file = await copy_document_file(
-            tpl["document"]["file_id"],
-            tpl["document"]["original_filename"],
-            "template", tpl["template_id"],
-            "envelope", env_id,
-        )
-        env = build_envelope_from_template(
-            tpl, user, new_file, {role_id: {"name": row.name, "email": row.email}},
-            envelope_id=env_id,
-        )
-        env["status"] = "sent"
-        env["sent_at"] = now_iso()
-        env["message"] = body.message or ""
-        env["signature_level"] = resolve_send_signature_level(user, body.signature_level)
-        rcp = env["recipients"][0]
-        env["audit_events"].append(
-            audit_event(user["email"], "Sent for signature", client_ip(request), "Bulk send"))
-        await db.envelopes.insert_one(dict(env))
-        link = f"{base}/sign/{rcp['access_token']}"
-        email_service.send_signing_invite(
-            rcp["email"], rcp["name"], env["owner_name"], env["title"], link, body.message)
-        created.append({"envelope_id": env["envelope_id"], "name": rcp["name"],
-                        "email": rcp["email"], "sign_url": link})
-    await db.templates.update_one({"template_id": template_id},
-                                  {"$inc": {"use_count": len(created)}})
-    return {"created": len(created), "envelopes": created}
+    try:
+        for row in body.rows:
+            env_id = f"env_{uuid.uuid4().hex[:16]}"
+            new_file = await copy_document_file(
+                tpl["document"]["file_id"],
+                tpl["document"]["original_filename"],
+                "template", tpl["template_id"],
+                "envelope", env_id,
+            )
+            env = build_envelope_from_template(
+                tpl, user, new_file, {role_id: {"name": row.name, "email": row.email}},
+                envelope_id=env_id,
+            )
+            env["status"] = "sent"
+            env["sent_at"] = now_iso()
+            env["message"] = body.message or ""
+            env["signature_level"] = resolve_send_signature_level(user, body.signature_level)
+            rcp = env["recipients"][0]
+            env["audit_events"].append(
+                audit_event(user["email"], "Sent for signature", client_ip(request), "Bulk send"))
+            await db.envelopes.insert_one(dict(env))
+            link = f"{base}/sign/{rcp['access_token']}"
+            email_service.send_signing_invite(
+                rcp["email"], rcp["name"], env["owner_name"], env["title"], link, body.message)
+            created.append({"envelope_id": env["envelope_id"], "name": rcp["name"],
+                            "email": rcp["email"], "sign_url": link})
+        await db.templates.update_one({"template_id": template_id},
+                                      {"$inc": {"use_count": len(created)}})
+        return {"created": len(created), "envelopes": created}
+    except Exception:
+        remaining = batch_size - len(created)
+        if remaining > 0:
+            await release_envelope_quota(
+                user,
+                count=remaining,
+                credits_consumed=credits if not created else 0,
+            )
+        raise
 
 
 # --------------------------------------------------------------------------

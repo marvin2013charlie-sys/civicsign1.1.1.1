@@ -1,3 +1,4 @@
+/* eslint-env jest */
 import { extractApiDetail, formatApiError } from "./apiErrors";
 
 describe("extractApiDetail", () => {

@@ -24,8 +24,9 @@ cryptography==44.0.2        # document encryption (AES-GCM via document_crypto.p
 # HTTP client (outbound webhooks in integrations.py)
 httpx==0.28.1
 
-# Config, rate limiting
+# Config, rate limiting (limits is a slowapi runtime dependency — pin explicitly)
 python-dotenv==1.2.2
+limits==5.8.0
 slowapi==0.1.9
 
 # Integrations

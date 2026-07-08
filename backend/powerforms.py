@@ -11,7 +11,7 @@ from db import db
 from auth import get_current_user
 from plan_features import require_feature, has_feature
 from rate_limits import limiter
-from organizations import enforce_quota
+from organizations import enforce_quota, release_envelope_quota
 
 logger = logging.getLogger("civicsign.powerforms")
 
@@ -113,56 +113,64 @@ async def start_public_form(request: Request, slug: str, body: PublicFormSubmit)
     import email_service
 
     if len(tpl.get("roles") or []) != 1:
+        await release_envelope_quota(owner, count=1, credits_consumed=credits)
         raise HTTPException(status_code=400, detail="Invalid form configuration")
 
     role_id = tpl["roles"][0]["role_id"]
     env_id = f"env_{uuid.uuid4().hex[:16]}"
-    new_file = await copy_gridfs(
-        tpl["document"]["file_id"],
-        tpl["document"]["original_filename"],
-        "template", tpl["template_id"],
-        "envelope", env_id,
-    )
-    env = build_envelope_from_template(
-        tpl, owner, new_file,
-        {role_id: {"name": body.name.strip(), "email": body.email.lower().strip()}},
-        envelope_id=env_id,
-    )
-    env["status"] = "sent"
-    env["sent_at"] = now_iso()
-    env["message"] = f"Please sign «{tpl.get('name', 'document')}»."
-    env["source"] = "public_form"
-    env["public_form_slug"] = slug
-    from signature_levels import resolve_send_signature_level
-    env["signature_level"] = resolve_send_signature_level(owner, None)
-    env["audit_events"].append({
-        "at": now_iso(),
-        "actor": body.email,
-        "action": "Started via public link",
-        "ip": request.client.host if request.client else None,
-        "detail": f"Form slug {slug}",
-    })
-    await db.envelopes.insert_one(dict(env))
+    envelope_created = False
+    try:
+        new_file = await copy_gridfs(
+            tpl["document"]["file_id"],
+            tpl["document"]["original_filename"],
+            "template", tpl["template_id"],
+            "envelope", env_id,
+        )
+        env = build_envelope_from_template(
+            tpl, owner, new_file,
+            {role_id: {"name": body.name.strip(), "email": body.email.lower().strip()}},
+            envelope_id=env_id,
+        )
+        env["status"] = "sent"
+        env["sent_at"] = now_iso()
+        env["message"] = f"Please sign «{tpl.get('name', 'document')}»."
+        env["source"] = "public_form"
+        env["public_form_slug"] = slug
+        from signature_levels import resolve_send_signature_level
+        env["signature_level"] = resolve_send_signature_level(owner, None)
+        env["audit_events"].append({
+            "at": now_iso(),
+            "actor": body.email,
+            "action": "Started via public link",
+            "ip": request.client.host if request.client else None,
+            "detail": f"Form slug {slug}",
+        })
+        await db.envelopes.insert_one(dict(env))
+        envelope_created = True
 
-    await db.templates.update_one(
-        {"template_id": tpl["template_id"]},
-        {"$inc": {"use_count": 1, "public_form.submissions": 1}},
-    )
+        await db.templates.update_one(
+            {"template_id": tpl["template_id"]},
+            {"$inc": {"use_count": 1, "public_form.submissions": 1}},
+        )
 
-    from security_utils import validate_redirect_base
-    origin_hdr = str(request.headers.get("origin", "")).strip()
-    if body.base_url or origin_hdr:
-        base = validate_redirect_base(body.base_url or "", fallback=origin_hdr)
-    else:
-        base = ""
-    rcp = env["recipients"][0]
-    sign_url = f"{base}/sign/{rcp['access_token']}" if base else f"/sign/{rcp['access_token']}"
-    if can_sign(env, rcp) and base:
-        email_service.send_signing_invite(
-            rcp["email"], rcp["name"], env["owner_name"], env["title"], sign_url, env.get("message"))
+        from security_utils import validate_redirect_base
+        origin_hdr = str(request.headers.get("origin", "")).strip()
+        if body.base_url or origin_hdr:
+            base = validate_redirect_base(body.base_url or "", fallback=origin_hdr)
+        else:
+            base = ""
+        rcp = env["recipients"][0]
+        sign_url = f"{base}/sign/{rcp['access_token']}" if base else f"/sign/{rcp['access_token']}"
+        if can_sign(env, rcp) and base:
+            email_service.send_signing_invite(
+                rcp["email"], rcp["name"], env["owner_name"], env["title"], sign_url, env.get("message"))
 
-    return {
-        "envelope_id": env["envelope_id"],
-        "sign_url": sign_url,
-        "message": "Redirecting you to sign…",
-    }
+        return {
+            "envelope_id": env["envelope_id"],
+            "sign_url": sign_url,
+            "message": "Redirecting you to sign…",
+        }
+    except Exception:
+        if not envelope_created:
+            await release_envelope_quota(owner, count=1, credits_consumed=credits)
+        raise

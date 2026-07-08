@@ -241,7 +241,7 @@ export default function SignerFlow() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--c-paper)] p-6 text-center">
         <Logo />
         <h1 className="font-heading text-xl font-bold text-[var(--c-ink)]">Waiting on other <BrandAccent>signers</BrandAccent></h1>
-        <p className="max-w-sm text-sm text-[var(--c-muted-fg)]">This document is being signed in order. We'll email you when it's your turn.</p>
+        <p className="max-w-sm text-sm text-[var(--c-muted-fg)]">This document is being signed in order. We&apos;ll email you when it&apos;s your turn.</p>
       </div>
     );
   }
@@ -474,7 +474,7 @@ export default function SignerFlow() {
       <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Decline to sign</DialogTitle></DialogHeader>
-          <p className="text-sm text-[var(--c-muted-fg)]">Let the sender know why you're declining (optional).</p>
+          <p className="text-sm text-[var(--c-muted-fg)]">Let the sender know why you&apos;re declining (optional).</p>
           <Textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason…" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeclineOpen(false)}>Cancel</Button>

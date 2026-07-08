@@ -189,7 +189,7 @@ export default function AdminUserDetail() {
         console.warn("AdminUserDetail: could not load organisations", err);
       }
     })();
-  }, [isSuperAdmin, api]);
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     const lim = data?.usage?.monthly_envelope_limit ?? data?.usage?.contract_limit;
@@ -290,7 +290,7 @@ export default function AdminUserDetail() {
         {isSuperAdmin && (
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Account management</h2>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Adjust plan and access. Roles can't be changed here.</p>
+          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Adjust plan and access. Roles can&apos;t be changed here.</p>
 
           <div className="mt-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -311,7 +311,7 @@ export default function AdminUserDetail() {
             <div className="flex items-center justify-between border-t border-[var(--c-border)] pt-4">
               <div>
                 <Label className="text-[var(--c-ink)]">Account active</Label>
-                <p className="text-xs text-[var(--c-muted-fg)]">Disabled users can't sign in</p>
+                <p className="text-xs text-[var(--c-muted-fg)]">Disabled users can&apos;t sign in</p>
               </div>
               <Switch
                 checked={user.active !== false}

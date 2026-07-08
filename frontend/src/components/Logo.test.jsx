@@ -1,3 +1,4 @@
+/* eslint-env jest */
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { Logo } from "./Logo";

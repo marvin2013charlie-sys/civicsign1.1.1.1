@@ -241,7 +241,7 @@ function CreateOrgDialog({ open, onOpenChange, onCreated }) {
     } else if (!ownerPassword) {
       setOwnerPassword(generatePw());
     }
-  }, [open, ownerPassword, generatePw]);
+  }, [open, ownerPassword]);
 
   const submit = async () => {
     if (!name.trim()) {
