@@ -7,13 +7,16 @@ import api from "@/lib/api";
 const GREETING = {
   role: "assistant",
   content:
-    "Hi! I'm your CivicSign copilot. I can help with preparing documents, placing fields, sending for signature, templates, and UK e-sign law.",
+    "Hi! I'm your CivicSign copilot. Ask me about sending documents, Prepare Studio, plans & pricing, templates, bulk send, or UK e-signature law.",
 };
 
 const SUGGESTIONS = [
+  "How do I send a document?",
+  "What are the plan prices?",
   "How do I place signature fields?",
-  "Suggest fields for my document",
   "Are e-signatures legal in the UK?",
+  "What happens when I hit my monthly limit?",
+  "How do templates work?",
 ];
 
 export const FloatingAssistant = () => {

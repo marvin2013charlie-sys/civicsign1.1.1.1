@@ -18,7 +18,8 @@ AUTH_SYSTEM_PROMPT = (
     "Rate limits in production protect accounts — suggest waiting a few minutes if they hit limits. "
     "Never ask for or store passwords. Never claim to reset accounts yourself — direct users to "
     "Forgot password or Resend verification buttons on the page. "
-    "CivicSign is UK GDPR-focused e-signature SaaS. Free plan: 5 docs/month. "
+    "CivicSign is UK GDPR-focused e-signature SaaS. Free plan: 2 docs/month; Pro £15/mo (100 docs); "
+    "Business £79/mo (500 docs). Extra documents available when at monthly limit. "
     "Do not discuss unrelated topics; steer back to account access."
 )
 
@@ -141,17 +142,25 @@ def rule_based_reply(message: str, context: str = "login") -> Optional[str]:
             "We never email your password in plain text."
         )
 
-    if any(k in m for k in ("free", "plan", "pricing", "cost", "trial")):
-        return (
-            "After you sign in:\n"
-            "• **Free** — £0, 2 documents/month, full signing features\n"
-            "• **Pro** — £15/month, 100 documents/month\n"
-            "• **Business** — £79/month, 500 documents/month (everything in Pro plus bulk send, API & priority support)\n"
-            "• **Organisation** — custom multi-seat contracts (contact us)\n"
-            "• **80p per extra document** on every plan when you're at your monthly limit\n"
-            "• Upgrade anytime under **Settings → Subscription**\n\n"
-            "No credit card needed to create a free account."
-        )
+    if any(k in m for k in ("free", "plan", "pricing", "cost", "trial", "how many doc", "extra doc", "80p", "limit")):
+        try:
+            from product_assistant import _pricing_reply, _extra_document_reply
+
+            if any(k in m for k in ("extra", "limit", "run out", "buy doc", "80p", "overage")):
+                return _extra_document_reply()
+            return (
+                _pricing_reply()
+                + "\n\nNo credit card needed to create a free account."
+            )
+        except ImportError:
+            return (
+                "After you sign in:\n"
+                "• **Free** — £0, 2 documents/month\n"
+                "• **Pro** — £15/month, 100 documents/month\n"
+                "• **Business** — £79/month, 500 documents/month\n"
+                "• Upgrade under **Settings → Subscription**\n\n"
+                "No credit card needed to create a free account."
+            )
 
     if any(k in m for k in ("register", "sign up", "create account", "new account")):
         return (

@@ -19,11 +19,13 @@ const SUGGESTIONS = {
     "I can't log in",
     "Too many attempts",
     "How do I verify my email?",
+    "What are the plan prices?",
     "Is my account secure?",
   ],
   register: [
     "What are the password rules?",
     "Is the free plan really free?",
+    "How many documents on Free?",
     "What happens after I register?",
   ],
   verify: [
