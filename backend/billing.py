@@ -37,7 +37,7 @@ logger = logging.getLogger("civicsign.billing")
 billing_router = APIRouter(prefix="/api", tags=["billing"])
 
 CURRENCY = "gbp"
-EXTRA_DOCUMENT_PRICE_GBP = 1.00
+EXTRA_DOCUMENT_PRICE_GBP = 0.80
 
 # Server-side, fixed plan catalogue. The frontend NEVER sends amounts.
 PRO_MONTHLY_GBP = 15.00
@@ -284,7 +284,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
 @billing_router.post("/billing/checkout-document")
 async def create_document_checkout(body: DocumentCheckoutRequest, request: Request,
                                  user: dict = Depends(get_current_user)):
-    """One-time Stripe checkout for extra document credits (£1 each)."""
+    """One-time Stripe checkout for extra document credits (80p each)."""
     quantity = int(body.quantity or 1)
     amount = round(EXTRA_DOCUMENT_PRICE_GBP * quantity, 2)
     origin = validate_redirect_base(body.origin_url or "")

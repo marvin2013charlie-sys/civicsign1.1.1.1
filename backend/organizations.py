@@ -391,7 +391,8 @@ def purchase_options_for_plan(plan: str, at_limit: bool, scope: str = "user") ->
         return {"contact_support": True}
     if scope != "user":
         return {}
-    options: dict = {"buy_single_document_gbp": 1.0}
+    from billing import EXTRA_DOCUMENT_PRICE_GBP
+    options: dict = {"buy_single_document_gbp": EXTRA_DOCUMENT_PRICE_GBP}
     if plan == "free":
         options["upgrade_pro"] = True
         options["upgrade_pro_amount_gbp"] = 15.0
@@ -674,13 +675,13 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
         msg = (
             f"You've used your included Business allocation of {limit:,} documents this billing period. "
             "Deleting documents does not restore your allowance. Upgrade your allocation, "
-            "buy an extra document for £1, or contact info@civicbot.co.uk."
+            "buy an extra document for 80p, or contact info@civicbot.co.uk."
         )
     else:
         msg = (
             f"You've reached your {plan.capitalize()} plan limit of {limit} documents for this billing period. "
             "Deleting documents does not restore your allowance. Upgrade to Pro or buy one "
-            "extra document for £1."
+            "extra document for 80p."
         )
     raise HTTPException(
         status_code=402,

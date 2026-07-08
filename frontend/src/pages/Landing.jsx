@@ -67,11 +67,12 @@ const USE_CASES = [
 
 const PLANS = [
   { name: "Free", cta: "Start free", to: "/register", highlight: false,
-    features: ["2 documents / billing period (resets on signup date)", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
+    features: ["2 documents / billing period (resets on signup date)", "80p per extra document when at limit", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
   { name: "Pro", cta: "Start free", to: "/register", highlight: true,
     features: [
       "All Free features, plus:",
       "Up to 100 documents per user / billing period",
+      "80p per extra document when at limit",
       "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
       "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
       "Shared team templates for standardised agreements",
@@ -82,6 +83,7 @@ const PLANS = [
     features: [
       "Everything in Pro, plus:",
       "Up to 500 documents per user / billing period",
+      "80p per extra document when at limit",
       "AES as default, strengthened with SMS / KBA recipient authentication",
       "Bulk send",
       "API & webhooks",

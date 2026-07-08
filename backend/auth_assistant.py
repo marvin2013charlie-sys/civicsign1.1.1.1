@@ -148,6 +148,7 @@ def rule_based_reply(message: str, context: str = "login") -> Optional[str]:
             "• **Pro** — £15/month, 100 documents/month\n"
             "• **Business** — £79/month, 500 documents/month (everything in Pro plus bulk send, API & priority support)\n"
             "• **Organisation** — custom multi-seat contracts (contact us)\n"
+            "• **80p per extra document** on every plan when you're at your monthly limit\n"
             "• Upgrade anytime under **Settings → Subscription**\n\n"
             "No credit card needed to create a free account."
         )

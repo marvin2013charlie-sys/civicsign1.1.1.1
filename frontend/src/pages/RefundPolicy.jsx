@@ -17,7 +17,7 @@ const sections = [
     ],
     list: [
       "Paid subscription plans (Pro and Business) purchased through our website.",
-      "One-off pay-as-you-go document credits (currently £1 per extra document).",
+      "One-off pay-as-you-go document credits (currently 80p per extra document).",
       "Enterprise and organisation contracts arranged directly with our sales team (separate contract terms may apply).",
     ],
   },
@@ -51,7 +51,7 @@ const sections = [
   {
     heading: "Pay-as-you-go document credits",
     paragraphs: [
-      "Extra document credits (£1 each) are consumed at the point of use when you create an envelope beyond your plan allowance. Once a credit has been used to send or prepare a document, that credit is non-refundable.",
+      "Extra document credits (80p each) are consumed at the point of use when you create an envelope beyond your plan allowance. Once a credit has been used to send or prepare a document, that credit is non-refundable.",
       "Unused extra document credits remain on your account and do not expire while your account is active. If you believe a credit was charged in error without a document being created, contact us within 14 days with your account email and the approximate time of the charge.",
     ],
   },

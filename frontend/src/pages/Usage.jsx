@@ -8,6 +8,7 @@ import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { purchaseOptionsForPlan } from "@/lib/quota";
+import { formatExtraDocumentPrice } from "@/lib/pricing";
 import { Link } from "react-router-dom";
 import { Crown, AlertTriangle, Calendar, TrendingUp, CheckCircle2, Building2, Users, FileText, ExternalLink } from "lucide-react";
 import { RichTextWithContactEmail } from "@/components/BrandText";
@@ -80,7 +81,7 @@ export default function Usage() {
           <div className="flex flex-wrap gap-2">
             {atLimit && !isOrg && (
               <Button variant="outline" onClick={buyDocument} disabled={buying} data-testid="usage-buy-document-button">
-                <FileText className="mr-1.5 h-4 w-4" /> Buy 1 doc (£1)
+                <FileText className="mr-1.5 h-4 w-4" /> Buy 1 doc ({formatExtraDocumentPrice()})
               </Button>
             )}
             <Button
@@ -207,7 +208,7 @@ export default function Usage() {
                         atLimit
                           ? isOrg
                             ? "You've reached your organisation seat limit (500/month) or the shared pool cap. Contact info@civicbot.co.uk to review your contract."
-                            : "You've reached your monthly document limit. Upgrade to Pro or buy one extra document for £1."
+                            : `You've reached your monthly document limit. Upgrade your plan or buy one extra document for ${formatExtraDocumentPrice()}.`
                           : isOrg
                             ? "You're nearing your seat or organisation pool limit. Contact info@civicbot.co.uk to discuss your contract."
                             : usage.fair_use
@@ -230,7 +231,7 @@ export default function Usage() {
                       </Button>
                     )}
                     <Button size="sm" variant="outline" onClick={buyDocument} disabled={buying}>
-                      Buy 1 document, £1
+                      Buy 1 document, {formatExtraDocumentPrice()}
                     </Button>
                   </div>
                 )}

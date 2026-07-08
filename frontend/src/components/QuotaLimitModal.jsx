@@ -28,7 +28,7 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
   const showUpgradeBusiness = Boolean(options.upgrade_business);
   const showContact = Boolean(options.contact_support);
   const showBuyOne = Boolean(options.buy_single_document_gbp);
-  const buyPrice = options.buy_single_document_gbp ?? 1;
+  const buyPrice = options.buy_single_document_gbp ?? 0.8;
 
   const buyDocument = async () => {
     setBuying(true);

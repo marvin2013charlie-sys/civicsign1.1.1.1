@@ -202,7 +202,7 @@ export default function Dashboard() {
                 <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-rose-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   {usage.at_limit
-                    ? "Monthly limit reached. Upgrade to Pro or buy one extra document for £1."
+                    ? "Monthly limit reached. Upgrade your plan or buy one extra document for 80p."
                     : "You're almost out of envelopes this month. Upgrade to keep sending."}
                 </p>
               )}

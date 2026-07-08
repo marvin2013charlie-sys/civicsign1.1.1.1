@@ -35,7 +35,7 @@ const PLAN_DEFS = [
     tagline: "For individuals getting started",
     features: [
       "2 documents per billing period (resets on your signup anniversary; deleting does not restore quota)",
-      "£1 per extra document when at limit",
+      "80p per extra document when at limit",
       "Up to 2 recipients",
       "Draw, type & upload signatures",
       "Electronic signatures with tamper-evident audit trail",
@@ -47,7 +47,7 @@ const PLAN_DEFS = [
     features: [
       "All Free features, plus:",
       "Up to 100 documents per user / month",
-      "£1 per extra document when at limit",
+      "80p per extra document when at limit",
       "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
       "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
       "Shared team templates for standardised agreements",
@@ -62,7 +62,7 @@ const PLAN_DEFS = [
     features: [
       "Everything in Pro, plus:",
       "Up to 500 documents per user / month",
-      "£1 per extra document when at limit",
+      "80p per extra document when at limit",
       "AES as default, strengthened with SMS / KBA recipient authentication",
       "Bulk send",
       "API & webhooks",

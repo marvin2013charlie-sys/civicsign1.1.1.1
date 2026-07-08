@@ -1,6 +1,12 @@
 /** Shared pricing — yearly = 10 months paid (2 months free). */
 export const PRO_MONTHLY_GBP = 15;
 export const BUSINESS_MONTHLY_GBP = 79;
+/** Pay-as-you-go when monthly plan allowance is used up (all self-serve plans). */
+export const EXTRA_DOCUMENT_PRICE_GBP = 0.8;
+
+export function formatExtraDocumentPrice() {
+  return EXTRA_DOCUMENT_PRICE_GBP < 1 ? "80p" : formatGbp(EXTRA_DOCUMENT_PRICE_GBP);
+}
 export const YEARLY_MONTHS_PAID = 10;
 
 export function proYearlyTotal() {

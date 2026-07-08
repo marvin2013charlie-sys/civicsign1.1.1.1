@@ -1,5 +1,6 @@
 /** Helpers for monthly document quota / rate-limit responses (HTTP 402). */
 import { extractApiDetail } from "@/lib/api";
+import { EXTRA_DOCUMENT_PRICE_GBP } from "@/lib/pricing";
 
 export function isQuotaExceeded(detail) {
   const d = extractApiDetail(detail) ?? detail;
@@ -15,7 +16,7 @@ export function isQuotaExceeded(detail) {
 /** Server-driven or client-built purchase options for every plan at limit. */
 export function purchaseOptionsForPlan(plan, atLimit = true, scope = "user") {
   if (!atLimit || scope === "organization") return {};
-  const options = { buy_single_document_gbp: 1 };
+  const options = { buy_single_document_gbp: EXTRA_DOCUMENT_PRICE_GBP };
   if (plan === "free") {
     options.upgrade_pro = true;
     options.upgrade_pro_amount_gbp = 15;
@@ -46,7 +47,7 @@ export function buildQuotaDetailFromUsage(usage, message) {
 }
 
 /**
- * On HTTP 402 / quota_exceeded: open modal with upgrade + £1 options.
+ * On HTTP 402 / quota_exceeded: open modal with upgrade + 80p pay-as-you-go options.
  * Returns true when handled (caller should not show a generic error toast).
  */
 export function handleQuotaApiError(err, { setDetail, setOpen }) {
