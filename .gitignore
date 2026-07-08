@@ -21,5 +21,9 @@ scripts/reports/
 playwright-report/
 scripts/smoke_test_results.json
 
+# Large local-only assets (Cloudflare Pages max 25 MiB per file)
+frontend/public/resources/*.mp4.bak
+frontend/public/resources/*-original.*
+
 # OS
 .DS_Store
