@@ -745,9 +745,10 @@ export default function ManagePdf() {
         onClick={onDownload}
         disabled={busy}
         data-testid="pdf-download-btn"
+        aria-label="Download"
       >
-        <Download className="mr-1.5 h-4 w-4" />
-        Download
+        <Download className="h-4 w-4 sm:mr-1.5" />
+        <span className="hidden sm:inline">Download</span>
       </Button>
       <Button
         type="button"
@@ -755,10 +756,12 @@ export default function ManagePdf() {
         onClick={onSaveToDocuments}
         disabled={busy}
         data-testid="pdf-save-documents-btn"
+        aria-label="Save to Documents"
         style={{ background: "var(--c-primary)", color: "#fff" }}
       >
-        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-        Save to Documents
+        {busy ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <Save className="h-4 w-4 sm:mr-1.5" />}
+        <span className="hidden sm:inline">Save to Documents</span>
+        <span className="sm:hidden">Save</span>
       </Button>
     </>
   ) : null;

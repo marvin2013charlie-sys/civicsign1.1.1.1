@@ -28,7 +28,7 @@ function AuthBrandPanel({
 }) {
   return (
     <div
-      className="cs-auth-panel relative flex flex-col overflow-hidden text-white"
+      className="cs-auth-panel relative hidden flex-col overflow-hidden text-white lg:flex"
       data-testid="auth-brand-panel"
     >
       {panelMarquee && <AuthPanelMarquee />}
@@ -157,7 +157,7 @@ export function AuthLayout({
         panelBullets={panelBullets}
       />
 
-      <div className="cs-auth-form-shell flex flex-1 justify-center px-5 py-8 sm:px-8 sm:py-10 lg:h-dvh lg:overflow-y-auto lg:py-12">
+      <div className="cs-auth-form-shell flex min-h-dvh flex-1 justify-center px-5 py-8 sm:px-8 sm:py-10 lg:min-h-0 lg:h-dvh lg:overflow-y-auto lg:py-12">
         <div className="cs-auth-form-glow cs-auth-form-glow-a" aria-hidden />
         <div className="cs-auth-form-glow cs-auth-form-glow-b" aria-hidden />
         <div className="w-full max-w-[440px] lg:my-auto">

@@ -196,6 +196,9 @@ def _public_user(doc: dict) -> dict:
         "org_role": doc.get("org_role"),
         "extra_document_credits": max(0, int(doc.get("extra_document_credits") or 0)),
         "billing_interval": doc.get("billing_interval") or "monthly",
+        "subscription_status": doc.get("subscription_status"),
+        "subscription_cancel_at_period_end": bool(doc.get("subscription_cancel_at_period_end")),
+        "subscription_current_period_end": doc.get("subscription_current_period_end"),
         "plan_features": plan_features(doc),
         "tours_completed": doc.get("tours_completed", []),
     }

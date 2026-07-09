@@ -620,12 +620,21 @@ function SubscriptionTab() {
   const choose = async (planId) => {
     if (planId === current) return;
     setSwitching(planId);
-    // Free is a downgrade, no payment required.
+    // Free is a downgrade — cancel the Stripe subscription (or downgrade locally
+    // if there is no live subscription). Access continues until the paid period ends.
     if (planId === "free") {
       try {
-        const { data } = await api.post("/auth/subscription", { plan: planId });
-        setUser(data);
-        toast.success("You're now on the Free plan");
+        const { data } = await api.post("/billing/cancel", {});
+        if (data.cancel_at_period_end) {
+          toast.success(data.message || "Your plan will revert to Free at the end of the billing period.");
+          try {
+            const { data: me } = await api.get("/auth/me");
+            setUser(me);
+          } catch { /* keep current user; next load will reflect it */ }
+        } else {
+          if (data.user) setUser(data.user);
+          toast.success(data.message || "You're now on the Free plan");
+        }
       } catch (err) {
         toast.error(formatApiError(err));
       } finally {

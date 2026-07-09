@@ -1,10 +1,15 @@
 """Stripe billing for CivicSign.
 
-One-time Checkout charges for plan upgrades (Pro / Business) using the official
-Stripe SDK. Prices are defined server-side ONLY and never trusted
-from the client. Every attempt is recorded in `payment_transactions`, and plan
-upgrades are applied idempotently (guarded by a `processed` flag) from either the
-status-polling endpoint or the webhook.
+Recurring subscription Checkout for plan upgrades (Pro / Business) plus one-time
+Checkout for extra document credits, using the official Stripe SDK. Prices are
+defined server-side ONLY and never trusted from the client. Every attempt is
+recorded in `payment_transactions`, and plan upgrades are applied idempotently
+(guarded by a `processed` flag) from either the status-polling endpoint or the
+webhook.
+
+Access is gated on live subscription status: only `active`/`trialing` grants the
+paid plan. A failed renewal or cancellation (past_due / unpaid / canceled) clears
+the plan signature, so get_effective_plan() returns 'free' and the service stops.
 
 SECURITY HARDENING:
 - Webhook signatures verified cryptographically (no spoofing)
@@ -95,6 +100,46 @@ def _stripe_line_items(product_name: str, unit_ex_vat: float, quantity: int = 1)
     return items
 
 
+def _stripe_interval(billing_interval: str) -> str:
+    """Map our interval to a Stripe recurring interval."""
+    return "year" if (billing_interval or "monthly").lower().strip() == "yearly" else "month"
+
+
+def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_interval: str) -> list:
+    """Recurring subscription line items: net price + separate VAT line, both
+    billed on the same interval so the whole subscription renews together."""
+    interval = _stripe_interval(billing_interval)
+    tax = tax_breakdown(float(unit_ex_vat))
+    items = [
+        {
+            "price_data": {
+                "currency": CURRENCY,
+                "product_data": {"name": product_name},
+                "unit_amount": int(round(unit_ex_vat * 100)),
+                "recurring": {"interval": interval},
+            },
+            "quantity": 1,
+        },
+    ]
+    if tax["vat_amount"] > 0:
+        items.append({
+            "price_data": {
+                "currency": CURRENCY,
+                "product_data": {"name": f"VAT ({UK_VAT_PERCENT}%)"},
+                "unit_amount": int(round(tax["vat_amount"] * 100)),
+                "recurring": {"interval": interval},
+            },
+            "quantity": 1,
+        })
+    return items
+
+
+# Only these Stripe subscription states grant paid access. Anything else
+# (past_due, unpaid, canceled, incomplete, incomplete_expired) revokes the
+# plan — so a failed renewal payment stops the service.
+ACTIVE_SUBSCRIPTION_STATES = frozenset({"active", "trialing"})
+
+
 def extra_document_price_label(*, include_tax: bool = True) -> str:
     """Human-readable extra-document price for API errors and assistants."""
     if EXTRA_DOCUMENT_PRICE_GBP < 1:
@@ -158,6 +203,142 @@ async def _apply_document_credits(user_id: str, credits: int, session_id: str) -
         f"[billing] added {credits} document credit(s) to user={user_id} (session {session_id})"
     )
     return True
+
+
+async def _get_or_create_customer(user: dict) -> str:
+    """Return the user's Stripe customer id, creating one if needed."""
+    cid = user.get("stripe_customer_id")
+    if cid:
+        return cid
+    customer = await asyncio.to_thread(
+        stripe.Customer.create,
+        email=user.get("email"),
+        name=user.get("name") or user.get("email"),
+        metadata={"user_id": user["user_id"]},
+    )
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"stripe_customer_id": customer.id, "updated_at": _now()}},
+    )
+    return customer.id
+
+
+def _sub_period_end_iso(subscription: dict) -> str | None:
+    ts = subscription.get("current_period_end") if isinstance(subscription, dict) else None
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+async def _activate_subscription(
+    user_id: str,
+    plan_id: str,
+    *,
+    subscription_id: str | None = None,
+    customer_id: str | None = None,
+    billing_interval: str = "monthly",
+    subscription_status: str = "active",
+    period_end_iso: str | None = None,
+) -> bool:
+    """Grant/renew a paid plan and record the live subscription state."""
+    if plan_id not in PLANS:
+        logger.error(f"[billing] refusing to activate unknown plan {plan_id} for {user_id}")
+        return False
+    now_ts = _now()
+    interval = (billing_interval or "monthly").lower().strip()
+    if interval not in ("monthly", "yearly"):
+        interval = "monthly"
+    patch = {
+        "plan": plan_id,
+        "plan_updated_at": now_ts,
+        "plan_signature": _generate_plan_signature(user_id, plan_id, now_ts),
+        "plan_upgraded_via_payment": True,
+        "billing_interval": interval,
+        "subscription_status": subscription_status,
+        "updated_at": now_ts,
+    }
+    if subscription_id:
+        patch["stripe_subscription_id"] = subscription_id
+    if customer_id:
+        patch["stripe_customer_id"] = customer_id
+    if period_end_iso:
+        patch["subscription_current_period_end"] = period_end_iso
+    result = await db.users.update_one({"user_id": user_id}, {"$set": patch})
+    if result.matched_count == 0:
+        logger.error(f"[billing] user {user_id} not found to activate subscription")
+        return False
+    logger.info(f"[billing] activated plan={plan_id} for user={user_id} (status={subscription_status})")
+    return True
+
+
+async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status: str = "canceled") -> None:
+    """Revoke paid access. Clearing plan_signature makes get_effective_plan()
+    return 'free' everywhere, so quotas and features immediately revert."""
+    now_ts = _now()
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "plan": "free",
+            "plan_updated_at": now_ts,
+            "plan_signature": None,
+            "plan_upgraded_via_payment": False,
+            "subscription_status": subscription_status,
+            "monthly_envelope_limit": None,
+            "enterprise_unlimited": False,
+            "updated_at": now_ts,
+        }},
+    )
+    logger.info(f"[billing] downgraded user={user_id} to free ({reason}, status={subscription_status})")
+
+
+async def _user_for_subscription_event(subscription: dict) -> dict | None:
+    """Resolve the owning user from a Stripe subscription object."""
+    user_id = (subscription.get("metadata") or {}).get("user_id")
+    if user_id:
+        u = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if u:
+            return u
+    sub_id = subscription.get("id")
+    if sub_id:
+        u = await db.users.find_one({"stripe_subscription_id": sub_id}, {"_id": 0})
+        if u:
+            return u
+    customer_id = subscription.get("customer")
+    if customer_id:
+        return await db.users.find_one({"stripe_customer_id": customer_id}, {"_id": 0})
+    return None
+
+
+async def _handle_subscription_state(subscription: dict) -> None:
+    """Central gate: sync a subscription's status onto the user. Active/trialing
+    keeps the plan; anything else stops the service by downgrading to free."""
+    user = await _user_for_subscription_event(subscription)
+    if not user:
+        logger.warning(f"[billing] no user for subscription {subscription.get('id')}")
+        return
+    status = (subscription.get("status") or "").lower()
+    meta = subscription.get("metadata") or {}
+    plan_id = (meta.get("plan_id") or user.get("plan") or "").lower().strip()
+    interval = (meta.get("billing_interval") or user.get("billing_interval") or "monthly").lower().strip()
+
+    if status in ACTIVE_SUBSCRIPTION_STATES and plan_id in PLANS:
+        await _activate_subscription(
+            user["user_id"], plan_id,
+            subscription_id=subscription.get("id"),
+            customer_id=subscription.get("customer"),
+            billing_interval=interval,
+            subscription_status=status,
+            period_end_iso=_sub_period_end_iso(subscription),
+        )
+    else:
+        await _downgrade_user_to_free(
+            user["user_id"],
+            reason=f"subscription {subscription.get('id')} status={status}",
+            subscription_status=status or "canceled",
+        )
 
 
 async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str):
@@ -297,13 +478,16 @@ async def create_checkout(body: CheckoutRequest, request: Request,
 
     _require_stripe_key()
     try:
+        customer_id = await _get_or_create_customer(user)
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
-            mode="payment",
-            line_items=_stripe_line_items(product_name, amount_ex_vat),
+            mode="subscription",
+            customer=customer_id,
+            line_items=_stripe_recurring_line_items(product_name, amount_ex_vat, billing_interval),
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
+            subscription_data={"metadata": metadata},
         )
     except Exception as e:
         logger.error(f"[billing] create_checkout_session failed: {e}")
@@ -443,6 +627,24 @@ async def checkout_status(session_id: str, request: Request,
     except Exception as _e:
         logger.warning(f"[billing] could not capture payment_intent for {session_id}: {_e}")
 
+    # For subscription checkouts, link the live subscription to the user so
+    # future renewal / failure events resolve back to this account.
+    try:
+        sub_id = getattr(session, "subscription", None)
+        cust_id = getattr(session, "customer", None)
+        if sub_id and getattr(session, "mode", None) == "subscription":
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {
+                    "stripe_subscription_id": sub_id,
+                    "stripe_customer_id": cust_id or user.get("stripe_customer_id"),
+                    "subscription_status": "active",
+                    "updated_at": _now(),
+                }},
+            )
+    except Exception as _e:
+        logger.warning(f"[billing] could not link subscription for {session_id}: {_e}")
+
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     fresh_tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     return {
@@ -482,35 +684,113 @@ async def stripe_webhook(request: Request):
         logger.error(f"[billing] webhook signature verification failed: {e}")
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
-    # We only care about completed checkout sessions; acknowledge everything else.
-    if event.get("type") not in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+    event_type = event.get("type")
+    obj = event.get("data", {}).get("object") or {}
+
+    # 1) Initial checkout completion (both one-time credits and first subscription payment).
+    if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+        session_id = obj.get("id")
+        payment_status = obj.get("payment_status")
+        if not session_id or not payment_status:
+            logger.warning("[billing] checkout webhook missing required fields")
+            raise HTTPException(status_code=400, detail="Invalid webhook event structure")
+        if not isinstance(session_id, str) or len(session_id) > 256:
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+        if payment_status not in ("paid", "unpaid", "no_payment_required"):
+            raise HTTPException(status_code=400, detail="Invalid payment status")
+        if payment_status in ("paid", "no_payment_required"):
+            await _apply_plan_upgrade(session_id, "paid", "complete")
+            # Link the subscription so renewals/failures resolve to this user.
+            sub_id, cust_id = obj.get("subscription"), obj.get("customer")
+            if sub_id and obj.get("mode") == "subscription":
+                await db.users.update_one(
+                    {"stripe_customer_id": cust_id} if cust_id else {"stripe_subscription_id": sub_id},
+                    {"$set": {
+                        "stripe_subscription_id": sub_id,
+                        "subscription_status": "active",
+                        "updated_at": _now(),
+                    }},
+                )
+            logger.info(f"[billing] webhook processed checkout {session_id}")
         return {"received": True}
 
-    session = event.get("data", {}).get("object") or {}
-    session_id = session.get("id")
-    payment_status = session.get("payment_status")
+    # 2) Subscription lifecycle — the gate that stops service when payment fails.
+    if event_type in (
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    ):
+        await _handle_subscription_state(obj)
+        return {"received": True}
 
-    # CRITICAL: Only process valid events
-    if not session_id or not payment_status:
-        logger.warning("[billing] webhook event missing required fields")
-        raise HTTPException(status_code=400, detail="Invalid webhook event structure")
+    # 3) Failed renewal — revoke immediately rather than waiting for the status sync.
+    if event_type == "invoice.payment_failed":
+        sub_id = obj.get("subscription")
+        if sub_id:
+            try:
+                subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+                await _handle_subscription_state(dict(subscription))
+            except Exception as e:
+                logger.error(f"[billing] could not process failed invoice for {sub_id}: {e}")
+        return {"received": True}
 
-    # Validate session_id and payment_status format
-    if not isinstance(session_id, str) or len(session_id) > 256:
-        logger.error(f"[billing] invalid session_id format in webhook: {session_id}")
-        raise HTTPException(status_code=400, detail="Invalid session ID")
-
-    valid_statuses = ["paid", "unpaid", "no_payment_required"]
-    if payment_status not in valid_statuses:
-        logger.error(f"[billing] invalid payment_status in webhook: {payment_status}")
-        raise HTTPException(status_code=400, detail="Invalid payment status")
-
-    # CRITICAL: Only process paid events
-    if payment_status == "paid":
-        await _apply_plan_upgrade(session_id, payment_status, "complete")
-        logger.info(f"[billing] webhook processed payment for session {session_id}")
-
+    # Acknowledge everything else.
     return {"received": True}
+
+
+@billing_router.post("/billing/cancel")
+@limiter.limit("10/hour")
+async def cancel_subscription(request: Request, user: dict = Depends(get_current_user)):
+    """Cancel the user's paid subscription.
+
+    If a live Stripe subscription exists, schedule cancellation at the end of the
+    paid period (access continues until then, then the webhook downgrades to free).
+    Otherwise downgrade locally right away.
+    """
+    if is_organisation_member(user):
+        raise HTTPException(
+            status_code=400,
+            detail="Organisation plans are managed by your account manager, not self-serve billing.",
+        )
+
+    sub_id = user.get("stripe_subscription_id")
+    status = (user.get("subscription_status") or "").lower()
+
+    if sub_id and status in ACTIVE_SUBSCRIPTION_STATES:
+        _require_stripe_key()
+        try:
+            subscription = await asyncio.to_thread(
+                stripe.Subscription.modify, sub_id, cancel_at_period_end=True,
+            )
+        except Exception as e:
+            logger.error(f"[billing] cancel_subscription failed for {sub_id}: {e}")
+            raise HTTPException(status_code=502, detail="Could not cancel your subscription. Please try again.")
+        period_end = _sub_period_end_iso(dict(subscription))
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {
+                "subscription_cancel_at_period_end": True,
+                "subscription_current_period_end": period_end,
+                "updated_at": _now(),
+            }},
+        )
+        logger.info(f"[billing] scheduled cancellation for user={user['user_id']} sub={sub_id}")
+        return {
+            "cancelled": True,
+            "cancel_at_period_end": True,
+            "current_period_end": period_end,
+            "message": "Your plan stays active until the end of the current billing period, then reverts to Free.",
+        }
+
+    # No live subscription — downgrade immediately.
+    await _downgrade_user_to_free(user["user_id"], reason="self-serve cancel (no active subscription)", subscription_status="canceled")
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {
+        "cancelled": True,
+        "cancel_at_period_end": False,
+        "message": "You're now on the Free plan.",
+        "user": _public_user(fresh) if fresh else None,
+    }
 
 
 @billing_router.get("/billing/user-plan-verify")

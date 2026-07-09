@@ -167,7 +167,9 @@ export const AppShell = ({ children, title, actions }) => {
             <Menu className="h-5 w-5" />
           </button>
           <h1 className="min-w-0 flex-1 truncate font-heading text-lg font-semibold text-[var(--c-ink)]">{title}</h1>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* Actions can scroll horizontally on very small screens so no control
+              is ever clipped off-screen and unreachable. */}
+          <div className="flex min-w-0 shrink items-center gap-2 overflow-x-auto cs-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {actions}
             <PortalSubscriptionActions user={user} />
             <PortalHeaderActions
