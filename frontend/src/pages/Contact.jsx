@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { isOrgStaff, ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
@@ -11,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Mail, MessageSquare, Clock, MapPin, Loader2, CheckCircle2, Send } from "lucide-react";
+import { Mail, MessageSquare, Clock, MapPin, Loader2, CheckCircle2, Send, Building2 } from "lucide-react";
 import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
 import { CIVICSIGN_CONTACT_EMAIL } from "@/lib/contactEmail";
 import { ContactEmailLink } from "@/components/BrandText";
@@ -24,6 +27,8 @@ const INFO = [
 ];
 
 export default function Contact() {
+  const { user } = useAuth();
+  const orgStaff = isOrgStaff(user);
   useEffect(() => { window.scrollTo(0, 0); }, []);
   const [form, setForm] = useState({ name: "", email: "", subject: "General enquiry", message: "" });
   const [loading, setLoading] = useState(false);
@@ -31,6 +36,10 @@ export default function Contact() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (orgStaff) {
+      toast.error("Contact your organisation admin first. They can escalate to CivicSign if needed.");
+      return;
+    }
     if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
       toast.error("Please fill in your name, email and message");
       return;
@@ -59,6 +68,19 @@ export default function Contact() {
       </section>
 
       <section className="mx-auto max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid lg:grid-cols-[1fr_1.2fr]">
+        {orgStaff ? (
+          <div className="mx-auto max-w-lg rounded-2xl border border-[var(--c-primary)]/30 bg-[var(--card)] p-8 text-center lg:col-span-2" data-testid="contact-org-staff-notice">
+            <Building2 className="mx-auto h-10 w-10" style={{ color: "var(--c-primary)" }} />
+            <h2 className="mt-4 font-heading text-xl font-bold text-[var(--c-ink)]">Contact your organisation admin</h2>
+            <p className="mt-2 text-sm text-[var(--c-muted-fg)]">
+              {ORG_STAFF_ESCALATION_NOTE} Billing, limits, contracts and account changes are managed by your organisation.
+            </p>
+            <Link to="/organisation" className="mt-5 inline-block">
+              <Button style={{ background: "var(--c-primary)", color: "#fff" }}>View your allowance</Button>
+            </Link>
+          </div>
+        ) : (
+        <>
         {/* Info */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           {INFO.map((i) => (
@@ -125,6 +147,8 @@ export default function Contact() {
             )}
           </div>
         </div>
+        </>
+        )}
       </section>
 
       <SiteFooter />

@@ -32,17 +32,22 @@ export function buildQuotaDetailFromUsage(usage, message) {
   if (!usage) return null;
   const atLimit = usage.at_limit || (!usage.unlimited && usage.used >= usage.limit);
   const plan = usage.plan || "free";
+  const scope = usage.scope || "user";
+  const isOrgStaff = scope === "organization" && usage.is_org_owner === false;
   return {
     message:
       message ||
-      "You've reached your monthly document limit. Deleting envelopes does not restore your allowance.",
+      (isOrgStaff
+        ? "You've reached your monthly allowance. Contact your organisation admin — they can escalate to CivicSign if required."
+        : "You've reached your monthly document limit. Deleting envelopes does not restore your allowance."),
     plan,
     used: usage.used,
     limit: usage.limit,
     at_limit: atLimit,
     rate_limited: atLimit,
-    scope: usage.scope || "user",
-    options: usage.purchase_options || purchaseOptionsForPlan(plan, atLimit, usage.scope),
+    scope,
+    is_org_owner: usage.is_org_owner,
+    options: usage.purchase_options || purchaseOptionsForPlan(plan, atLimit, scope),
   };
 }
 
@@ -56,7 +61,10 @@ export function handleQuotaApiError(err, { setDetail, setOpen }) {
 
   if (isQuotaExceeded(detail) || status === 402) {
     const normalized = (detail && typeof detail === "object")
-      ? detail
+      ? {
+          ...detail,
+          is_org_owner: detail.is_org_owner,
+        }
       : {
           message: typeof detail === "string"
             ? detail

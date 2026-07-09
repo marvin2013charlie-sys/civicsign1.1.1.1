@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, FilePlus2, FileText, Menu, X, LayoutTemplate, Eye, Loader2, BarChart3, Gauge, PenTool, Users, UserCog, Building2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+
 import { Button } from "@/components/ui/button";
-import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { Logo } from "@/components/Logo";
 import { PortalHeaderActions } from "@/components/PortalHeaderActions";
 import { PortalSubscriptionActions } from "@/components/PortalSubscriptionActions";
 import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
+import { hasPlanFeature } from "@/lib/planFeatures";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
@@ -28,7 +29,7 @@ function SidebarContent({ user, onNavigate }) {
         <Logo to="/dashboard" />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5 cs-scroll">
-        {NAV.map((n) => (
+        {NAV.filter((n) => n.to !== "/manage-pdf" || hasPlanFeature(user, "manage_pdf")).map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -177,7 +178,6 @@ export const AppShell = ({ children, title, actions }) => {
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
-      <FloatingAssistant />
     </div>
   );
 };

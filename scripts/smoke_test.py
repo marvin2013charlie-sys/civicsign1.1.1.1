@@ -12,7 +12,7 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
-PDF = ROOT / "demo-videos" / "assets" / "employment-contract.pdf"
+PDF = ROOT / "e2e" / "fixtures" / "employment-contract.pdf"
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:8001").rstrip("/")
 
 results: list[dict] = []
@@ -81,12 +81,14 @@ def main() -> int:
     except Exception as exc:
         record("4.1 Register→verify→login", False, str(exc))
 
+    # Must match scripts/reset_dev_data.py + DEV_TEST_LOGINS.txt
     accounts = {
-        "free": ("freetest@civicbot.co.uk", "FreePass123!"),
-        "pro": ("protest@civicbot.co.uk", "ProTest123!"),
-        "business": ("businesstest@civicbot.co.uk", "BusinessPass123!"),
-        "org_owner": ("orgowner-test@civicbot.co.uk", "OrgOwner123!"),
-        "admin": ("admin@example.com", "AdminPass123!"),
+        "free": ("free@civicbot.co.uk", "CivicSign2026!Free"),
+        "pro": ("pro@civicbot.co.uk", "CivicSign2026!Pro"),
+        "business": ("business@civicbot.co.uk", "CivicSign2026!Biz"),
+        "org_owner": ("org@civicbot.co.uk", "CivicSign2026!Org"),
+        "org_staff": ("staff@civicbot.co.uk", "CivicSign2026!Staff"),
+        "admin": ("admin@civicbot.co.uk", "CivicSign2026!Admin"),
     }
     tokens: dict[str, str] = {}
     for name, (email, pw) in accounts.items():
@@ -153,17 +155,20 @@ def main() -> int:
                 )
                 send = requests.post(
                     f"{BASE}/api/envelopes/{env_id}/send",
-                    headers=hdr(flow_tok),
-                    json={"base_url": "http://localhost:3000"},
+                    headers={**hdr(flow_tok), "Origin": "http://127.0.0.1:3000"},
+                    json={"base_url": "http://127.0.0.1:3000"},
                     timeout=30,
                 )
                 if send.status_code == 200:
                     links = send.json().get("links") or []
                     sign_token = links[0]["token"] if links else None
+                    origin_ok = bool(links and str(links[0].get("sign_url", "")).startswith("http://127.0.0.1:3000"))
+                else:
+                    origin_ok = False
                 record(
                     "4.2 Upload→prepare→send",
-                    upd.status_code == 200 and send.status_code == 200,
-                    f"env={env_id}",
+                    upd.status_code == 200 and send.status_code == 200 and origin_ok,
+                    f"env={env_id} origin=127.0.0.1",
                 )
             else:
                 record("4.2 Upload→prepare→send", False, r.text[:150])
@@ -477,8 +482,8 @@ def main() -> int:
 
     # 4.12 Password reset (fresh smoke user avoids rate limits on seeded accounts)
     try:
-        reset_email = smoke_email if smoke_registered else "freetest@civicbot.co.uk"
-        reset_pass = smoke_pass if smoke_registered else "FreePass123!"
+        reset_email = smoke_email if smoke_registered else "free@civicbot.co.uk"
+        reset_pass = smoke_pass if smoke_registered else "CivicSign2026!Free"
         fr = requests.post(
             f"{BASE}/api/auth/forgot-password",
             json={"email": reset_email, "base_url": "http://localhost:3000"},

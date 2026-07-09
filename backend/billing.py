@@ -31,6 +31,7 @@ from db import db
 from auth import get_current_user, _public_user
 from security_utils import validate_redirect_base
 from models import CheckoutRequest, DocumentCheckoutRequest
+from tax import UK_VAT_PERCENT, tax_breakdown
 
 logger = logging.getLogger("civicsign.billing")
 
@@ -66,6 +67,46 @@ def _plan_amount(plan_id: str, billing_interval: str) -> float:
     if interval != "monthly":
         raise HTTPException(status_code=400, detail="billing_interval must be monthly or yearly")
     return float(plan["amount_monthly"])
+
+
+def _stripe_line_items(product_name: str, unit_ex_vat: float, quantity: int = 1) -> list:
+    """Checkout line items: net price + separate VAT line (prices excl. tax)."""
+    total_ex = round(float(unit_ex_vat) * quantity, 2)
+    tax = tax_breakdown(total_ex)
+    items = [
+        {
+            "price_data": {
+                "currency": CURRENCY,
+                "product_data": {"name": product_name},
+                "unit_amount": int(round(unit_ex_vat * 100)),
+            },
+            "quantity": quantity,
+        },
+    ]
+    if tax["vat_amount"] > 0:
+        items.append({
+            "price_data": {
+                "currency": CURRENCY,
+                "product_data": {"name": f"VAT ({UK_VAT_PERCENT}%)"},
+                "unit_amount": int(round(tax["vat_amount"] * 100)),
+            },
+            "quantity": 1,
+        })
+    return items
+
+
+def extra_document_price_label(*, include_tax: bool = True) -> str:
+    """Human-readable extra-document price for API errors and assistants."""
+    if EXTRA_DOCUMENT_PRICE_GBP < 1:
+        base = f"{int(round(EXTRA_DOCUMENT_PRICE_GBP * 100))}p"
+    elif EXTRA_DOCUMENT_PRICE_GBP == int(EXTRA_DOCUMENT_PRICE_GBP):
+        base = f"£{int(EXTRA_DOCUMENT_PRICE_GBP)}"
+    else:
+        base = f"£{EXTRA_DOCUMENT_PRICE_GBP:.2f}"
+    if not include_tax:
+        return base
+    total = tax_breakdown(EXTRA_DOCUMENT_PRICE_GBP)["amount_inc_vat"]
+    return f"{base} excl. VAT (£{total:.2f} incl. VAT)"
 
 
 def _plan_product_name(plan_id: str, billing_interval: str) -> str:
@@ -174,6 +215,9 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
         logger.error(f"[billing] invalid plan_id {plan_id} for session {session_id}")
         return tx
 
+    billing_interval = (tx.get("billing_interval") or "monthly").lower().strip()
+    if billing_interval not in ("monthly", "yearly"):
+        billing_interval = "monthly"
     plan_sig = _generate_plan_signature(user_id, plan_id, now_ts)
     result = await db.users.update_one(
         {"user_id": user_id},
@@ -182,6 +226,7 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
             "plan_updated_at": now_ts,
             "plan_signature": plan_sig,
             "plan_upgraded_via_payment": True,
+            "billing_interval": billing_interval,
         }},
     )
     if result.matched_count == 0:
@@ -197,10 +242,18 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
 
 @billing_router.get("/billing/plans")
 async def list_plans():
-    """Public plan catalogue (amounts come from the server)."""
+    """Public plan catalogue (amounts come from the server, excluding VAT)."""
+    extra_tax = tax_breakdown(EXTRA_DOCUMENT_PRICE_GBP)
     return {
         "currency": CURRENCY,
+        "prices_exclude_vat": True,
+        "tax": {
+            "name": "VAT",
+            "rate": tax_breakdown(1.0)["vat_rate"],
+            "percent": UK_VAT_PERCENT,
+        },
         "extra_document_price": EXTRA_DOCUMENT_PRICE_GBP,
+        "extra_document_tax": extra_tax,
         "yearly_months_paid": YEARLY_MONTHS_PAID,
         "plans": [
             {
@@ -208,6 +261,8 @@ async def list_plans():
                 "name": p["name"],
                 "amount_monthly": p["amount_monthly"],
                 "amount_yearly": p["amount_yearly"],
+                "tax_monthly": tax_breakdown(p["amount_monthly"]),
+                "tax_yearly": tax_breakdown(p["amount_yearly"]),
             }
             for pid, p in PLANS.items()
         ],
@@ -226,7 +281,9 @@ async def create_checkout(body: CheckoutRequest, request: Request,
 
     origin = validate_redirect_base(body.origin_url or "")
     billing_interval = (body.billing_interval or "monthly").lower().strip()
-    amount = _plan_amount(plan_id, billing_interval)
+    amount_ex_vat = _plan_amount(plan_id, billing_interval)
+    tax = tax_breakdown(amount_ex_vat)
+    amount = tax["amount_inc_vat"]
     product_name = _plan_product_name(plan_id, billing_interval)
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/settings?tab=subscription"
@@ -243,14 +300,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="payment",
-            line_items=[{
-                "price_data": {
-                    "currency": CURRENCY,
-                    "product_data": {"name": product_name},
-                    "unit_amount": int(round(amount * 100)),  # server-defined amount only
-                },
-                "quantity": 1,
-            }],
+            line_items=_stripe_line_items(product_name, amount_ex_vat),
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
@@ -268,6 +318,8 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "email": user["email"],
         "plan_id": plan_id,
         "billing_interval": billing_interval,
+        "amount_ex_vat": amount_ex_vat,
+        "vat_amount": tax["vat_amount"],
         "amount": amount,
         "currency": CURRENCY,
         "metadata": metadata,
@@ -286,7 +338,9 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
                                  user: dict = Depends(get_current_user)):
     """One-time Stripe checkout for extra document credits (80p each)."""
     quantity = int(body.quantity or 1)
-    amount = round(EXTRA_DOCUMENT_PRICE_GBP * quantity, 2)
+    amount_ex_vat = round(EXTRA_DOCUMENT_PRICE_GBP * quantity, 2)
+    tax = tax_breakdown(amount_ex_vat)
+    amount = tax["amount_inc_vat"]
     origin = validate_redirect_base(body.origin_url or "")
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}&purchase=document"
     cancel_url = f"{origin}/usage"
@@ -300,21 +354,15 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
 
     _require_stripe_key()
     try:
+        doc_product = (
+            "CivicSign extra document"
+            if quantity == 1
+            else f"CivicSign extra documents ({quantity})"
+        )
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="payment",
-            line_items=[{
-                "price_data": {
-                    "currency": CURRENCY,
-                    "product_data": {
-                        "name": "CivicSign extra document"
-                        if quantity == 1
-                        else f"CivicSign extra documents ({quantity})",
-                    },
-                    "unit_amount": int(round(EXTRA_DOCUMENT_PRICE_GBP * 100)),
-                },
-                "quantity": quantity,
-            }],
+            line_items=_stripe_line_items(doc_product, EXTRA_DOCUMENT_PRICE_GBP, quantity=quantity),
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
@@ -331,6 +379,8 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
         "email": user["email"],
         "purchase_type": "extra_document",
         "document_credits": quantity,
+        "amount_ex_vat": amount_ex_vat,
+        "vat_amount": tax["vat_amount"],
         "amount": amount,
         "currency": CURRENCY,
         "metadata": metadata,

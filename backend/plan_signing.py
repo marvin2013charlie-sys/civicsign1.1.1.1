@@ -34,8 +34,15 @@ def is_organisation_member(user: dict) -> bool:
     return bool(org_id and str(org_id).strip())
 
 
+def is_internal_team(user: dict) -> bool:
+    """CivicSign admin/staff accounts — full product access for demos and support."""
+    return user.get("role") in ("admin", "staff")
+
+
 def get_effective_plan(user: dict) -> str:
     """Return the user's plan after verifying payment signature (anti-tamper)."""
+    if is_internal_team(user):
+        return "business"
     if is_organisation_member(user):
         return "business"
     plan = user.get("plan", "free")

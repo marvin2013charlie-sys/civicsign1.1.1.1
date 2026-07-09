@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { usePlan } from "@/hooks/usePlan";
+import { isOrgStaff } from "@/lib/orgLabels";
 import {
   defaultSignatureLevel, signatureLevelOptions,
 } from "@/lib/signatureLevels";
@@ -31,7 +33,8 @@ export default function SendReview() {
   const [emailConfigured, setEmailConfigured] = useState(true);
   const [expiresIn, setExpiresIn] = useState("none");
   const [drafting, setDrafting] = useState(false);
-  const { features } = usePlan();
+  const { features, user } = usePlan();
+  const orgStaff = isOrgStaff(user);
   const [autoRemind, setAutoRemind] = useState(true);
   const [remindDays, setRemindDays] = useState("3");
   const [remindMax, setRemindMax] = useState("3");
@@ -57,7 +60,7 @@ export default function SendReview() {
         if (data.status !== "draft") {
           const links = (data.recipients || []).map((r) => ({
             name: r.name, email: r.email, token: r.access_token,
-            sign_url: `${window.location.origin}/sign/${r.access_token}`,
+            sign_url: `${getAppOrigin()}/sign/${r.access_token}`,
           }));
           setSent({ links, emailConfigured: configured });
         }
@@ -78,7 +81,7 @@ export default function SendReview() {
     setSending(true);
     try {
       const { data } = await api.post(`/envelopes/${id}/send`, {
-        base_url: window.location.origin, message,
+        base_url: getAppOrigin(), message,
         expires_in_days: expiresIn === "none" ? null : Number(expiresIn),
         auto_remind_enabled: features.auto_reminders && autoRemind,
         auto_remind_days: Number(remindDays) || 3,
@@ -281,8 +284,18 @@ export default function SendReview() {
                 {features.plan === "business" && !features.qes_available && (
                   <p className="mt-2 text-[10px] text-[var(--c-muted-fg)]">
                     Need a Qualified Electronic Signature (QES)?{" "}
-                    <Link to="/contact" className="font-medium text-[var(--c-primary)] hover:underline">Contact us</Link>{" "}
-                    to enable QTSP-backed QES for high-assurance transactions.
+                    {orgStaff ? (
+                      <>
+                        Ask your{" "}
+                        <Link to="/organisation" className="font-medium text-[var(--c-primary)] hover:underline">organisation admin</Link>{" "}
+                        to request QTSP-backed QES for high-assurance transactions.
+                      </>
+                    ) : (
+                      <>
+                        <Link to="/contact" className="font-medium text-[var(--c-primary)] hover:underline">Contact us</Link>{" "}
+                        to enable QTSP-backed QES for high-assurance transactions.
+                      </>
+                    )}
                   </p>
                 )}
               </div>

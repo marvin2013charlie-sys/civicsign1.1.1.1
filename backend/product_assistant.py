@@ -8,10 +8,17 @@ from brand import CONTACT_EMAIL
 
 try:
     from billing import EXTRA_DOCUMENT_PRICE_GBP, PRO_MONTHLY_GBP, BUSINESS_MONTHLY_GBP
+    from tax import UK_VAT_PERCENT, tax_breakdown
 except ImportError:
-    EXTRA_DOCUMENT_PRICE_GBP = 1.00
+    EXTRA_DOCUMENT_PRICE_GBP = 0.80
     PRO_MONTHLY_GBP = 15.00
     BUSINESS_MONTHLY_GBP = 79.00
+    UK_VAT_PERCENT = 20
+
+    def tax_breakdown(amount_ex_vat: float) -> dict:
+        net = round(float(amount_ex_vat), 2)
+        vat = round(net * 0.20, 2)
+        return {"amount_ex_vat": net, "vat_amount": vat, "amount_inc_vat": round(net + vat, 2)}
 
 try:
     from plan_features import PLAN_MONTHLY_QUOTA
@@ -47,8 +54,11 @@ PRODUCT_FALLBACK = (
 
 PRODUCT_SYSTEM_FACTS = (
     f"PRICING (GBP): Free £0/forever — {PLAN_MONTHLY_QUOTA['free']} documents/month. "
-    f"Pro £{int(PRO_MONTHLY_GBP)}/month — {PLAN_MONTHLY_QUOTA['pro']} documents/month (self-serve upgrade). "
+    f"Pro £{int(PRO_MONTHLY_GBP)}/month — {PLAN_MONTHLY_QUOTA['pro']} documents/month "
+    f"(annual: 1,200/year). "
     f"Business £{int(BUSINESS_MONTHLY_GBP)}/month — {PLAN_MONTHLY_QUOTA['business']} documents/month "
+    f"(annual: {PLAN_MONTHLY_QUOTA['business'] * 12:,}/year). "
+    "Manage PDF (edit, merge, split) requires Pro or higher. "
     "(everything in Pro plus bulk send, API/webhooks, recipient authentication, priority support; self-serve). "
     "Organisation — custom multi-seat contracts (contact sales). "
     f"When a user hits their monthly document limit on any self-serve plan, they can buy extra documents "
@@ -68,24 +78,33 @@ def _norm(text: str) -> str:
 
 
 def _pricing_reply() -> str:
+    pro_tax = tax_breakdown(PRO_MONTHLY_GBP)
+    biz_tax = tax_breakdown(BUSINESS_MONTHLY_GBP)
+    extra_tax = tax_breakdown(EXTRA_DOCUMENT_PRICE_GBP)
     return (
-        "CivicSign plans (GBP):\n\n"
+        "CivicSign plans (GBP, **excluding VAT**):\n\n"
         f"• **Free** — £0 forever, **{PLAN_MONTHLY_QUOTA['free']} documents/month**, up to 2 recipients, "
         "electronic signatures + audit trail\n"
-        f"• **Pro** — **£{int(PRO_MONTHLY_GBP)}/month**, **{PLAN_MONTHLY_QUOTA['pro']} documents/month**, "
-        "SES + AES signatures, templates, branding, public signing links, auto-reminders\n"
-        f"• **Business** — **£{int(BUSINESS_MONTHLY_GBP)}/month**, **{PLAN_MONTHLY_QUOTA['business']} documents/month**, "
+        f"• **Pro** — **£{int(PRO_MONTHLY_GBP)}/month excl. VAT** "
+        f"(**£{pro_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT**), "
+        f"**{PLAN_MONTHLY_QUOTA['pro']} documents/month** (annual: **1,200/year**), "
+        "Manage PDF, SES + AES signatures, templates, branding, public signing links, auto-reminders\n"
+        f"• **Business** — **£{int(BUSINESS_MONTHLY_GBP)}/month excl. VAT** "
+        f"(**£{biz_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT**), "
+        f"**{PLAN_MONTHLY_QUOTA['business']} documents/month** (annual: **{PLAN_MONTHLY_QUOTA['business'] * 12:,}/year**), "
         "everything in Pro plus bulk send, API/webhooks, recipient SMS/KBA auth, priority support\n"
         "• **Organisation** — custom multi-seat contracts (contact us)\n\n"
-        f"At your monthly limit? Buy extra documents for **{EXTRA_DOC_LABEL}** each, or upgrade under "
+        f"At your monthly limit? Buy extra documents for **{EXTRA_DOC_LABEL} excl. VAT** "
+        f"(**£{extra_tax['amount_inc_vat']:.2f} incl. VAT** each), or upgrade under "
         "**Settings → Subscription**. Yearly plans save 2 months."
     )
 
 
 def _extra_document_reply() -> str:
+    extra_tax = tax_breakdown(EXTRA_DOCUMENT_PRICE_GBP)
     return (
-        f"When you've used your included documents this month, you can buy **extra documents for {EXTRA_DOC_LABEL} each** "
-        "(one-off, no subscription change).\n\n"
+        f"When you've used your included documents this month, you can buy **extra documents for {EXTRA_DOC_LABEL} excl. VAT** "
+        f"(**£{extra_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT** each, one-off, no subscription change).\n\n"
         "How to buy:\n"
         "1. **Settings → Subscription** → Buy extra document(s)\n"
         "2. On the **Free** plan, use **Buy 1 doc** in the top-right header\n"
@@ -163,10 +182,11 @@ def _upgrade_reply() -> str:
 
 def _quota_reply() -> str:
     return (
-        f"Document limits (per calendar month):\n"
-        f"• Free — {PLAN_MONTHLY_QUOTA['free']} documents\n"
-        f"• Pro — {PLAN_MONTHLY_QUOTA['pro']} documents\n"
-        f"• Business — {PLAN_MONTHLY_QUOTA['business']} documents\n"
+        "Document limits (per billing period):\n"
+        f"• Free — {PLAN_MONTHLY_QUOTA['free']} documents/month\n"
+        f"• Pro — {PLAN_MONTHLY_QUOTA['pro']} documents/month or 1,200/year on annual billing\n"
+        f"• Business — {PLAN_MONTHLY_QUOTA['business']} documents/month or "
+        f"{PLAN_MONTHLY_QUOTA['business'] * 12:,}/year on annual billing\n"
         f"• Organisation — custom allowance\n\n"
         f"Check **Usage** in the sidebar for your count. Over the limit? Buy extras ({EXTRA_DOC_LABEL} each) "
         "or upgrade in **Settings → Subscription**."

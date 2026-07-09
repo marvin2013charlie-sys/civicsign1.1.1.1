@@ -6,6 +6,7 @@ import { PDF_OPTIONS } from "@/lib/pdf";
 import api, { formatApiError, fetchPdfBlobUrl, downloadFile } from "@/lib/api";
 import { getAccessToken } from "@/lib/tokenStore";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { formatProMonthlyShort } from "@/lib/pricing";
 
 const ACTION_ICON = (action) => {
   const a = (action || "").toLowerCase();
@@ -92,7 +94,7 @@ function EnvelopeComments({ envelopeId }) {
       <UpgradePrompt
         feature="comments"
         title="Real-time comments are a Pro feature"
-        description="Collaborate on envelopes with your team. Leave comments that update live for everyone with access. Included on Pro (£15/month)."
+        description={`Collaborate on envelopes with your team. Leave comments that update live for everyone with access. Included on Pro (${formatProMonthlyShort()}).`}
       />
     );
   }
@@ -199,7 +201,7 @@ export default function EnvelopeDetail() {
 
   const sendReminder = async () => {
     try {
-      const { data } = await api.post(`/envelopes/${id}/remind`, { base_url: window.location.origin });
+      const { data } = await api.post(`/envelopes/${id}/remind`, { base_url: getAppOrigin() });
       if (data.email_configured === false) {
         toast.success(`Reminder recorded for ${data.reminded} recipient(s) — email not configured. Copy their signing links below.`);
       } else {
@@ -337,7 +339,7 @@ export default function EnvelopeDetail() {
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Recipients · {env.signing_order}</p>
               <div className="mt-3 space-y-3">
                 {(env.recipients || []).sort((a, b) => a.order - b.order).map((r) => {
-                  const signUrl = `${window.location.origin}/sign/${r.access_token}`;
+                  const signUrl = `${getAppOrigin()}/sign/${r.access_token}`;
                   return (
                     <div key={r.recipient_id} className="rounded-lg border border-[var(--c-border)] bg-white p-3">
                       <div className="flex items-center gap-2">

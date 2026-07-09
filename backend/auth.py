@@ -195,7 +195,9 @@ def _public_user(doc: dict) -> dict:
         "org_id": doc.get("org_id"),
         "org_role": doc.get("org_role"),
         "extra_document_credits": max(0, int(doc.get("extra_document_credits") or 0)),
+        "billing_interval": doc.get("billing_interval") or "monthly",
         "plan_features": plan_features(doc),
+        "tours_completed": doc.get("tours_completed", []),
     }
 
 
@@ -690,6 +692,22 @@ async def me(user: dict = Depends(get_current_user)):
         out["impersonating_session"] = True
         out["document_access_restricted"] = True
     return out
+
+
+@auth_router.post("/me/tours/{surface}")
+async def complete_tour(surface: str, user: dict = Depends(get_current_user)):
+    """Record that the user has seen the product tour for a surface (app/admin).
+
+    Persisted on the account so the tour auto-starts only once, ever —
+    not again on a new device or after clearing browser storage.
+    """
+    if surface not in ("app", "admin"):
+        raise HTTPException(status_code=400, detail="Unknown tour surface")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$addToSet": {"tours_completed": surface}},
+    )
+    return {"ok": True}
 
 
 @auth_router.put("/profile")

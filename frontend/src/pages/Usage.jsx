@@ -3,12 +3,15 @@ import { usePoll, POLL_FAST_MS } from "@/hooks/usePoll";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { AppShell } from "@/components/AppShell";
 import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { purchaseOptionsForPlan } from "@/lib/quota";
-import { formatExtraDocumentPrice } from "@/lib/pricing";
+import { formatExtraDocumentBuyLabel, formatExtraDocumentLimitMessage, formatExtraDocumentPrice } from "@/lib/pricing";
+import { ORG_STAFF_LIMIT_MESSAGE } from "@/lib/orgLabels";
+
 import { Link } from "react-router-dom";
 import { Crown, AlertTriangle, Calendar, TrendingUp, CheckCircle2, Building2, Users, FileText, ExternalLink } from "lucide-react";
 import { RichTextWithContactEmail } from "@/components/BrandText";
@@ -50,6 +53,8 @@ export default function Usage() {
   }
 
   const isOrg = usage.scope === "organization";
+  const isOrgOwnerView = isOrg && usage.is_org_owner;
+  const isOrgStaffView = isOrg && !usage.is_org_owner;
   const percent = Math.min(100, usage.percent || 0);
   const atLimit = usage.at_limit || (!usage.unlimited && usage.used >= usage.limit);
   const danger = !usage.unlimited && (atLimit || percent >= 90);
@@ -59,7 +64,7 @@ export default function Usage() {
     setBuying(true);
     try {
       const { data } = await api.post("/billing/checkout-document", {
-        origin_url: window.location.origin,
+        origin_url: getAppOrigin(),
         quantity: 1,
       });
       if (data.url) window.location.assign(data.url);
@@ -81,16 +86,18 @@ export default function Usage() {
           <div className="flex flex-wrap gap-2">
             {atLimit && !isOrg && (
               <Button variant="outline" onClick={buyDocument} disabled={buying} data-testid="usage-buy-document-button">
-                <FileText className="mr-1.5 h-4 w-4" /> Buy 1 doc ({formatExtraDocumentPrice()})
+                <FileText className="mr-1.5 h-4 w-4" /> Buy 1 doc ({formatExtraDocumentPrice({ includeTaxNote: true })})
               </Button>
             )}
-            <Button
-              onClick={() => (isOrg ? window.location.assign("/contact") : atLimit ? setQuotaModal(true) : navigate("/settings?tab=subscription"))}
-              data-testid="usage-upgrade-button"
-              style={{ background: "var(--c-primary)", color: "#fff" }}
-            >
-              <Crown className="mr-1.5 h-4 w-4" /> {isOrg ? "Contact account team" : atLimit ? "Get more documents" : "Upgrade plan"}
-            </Button>
+            {!isOrgStaffView && (
+              <Button
+                onClick={() => (isOrgOwnerView ? window.location.assign("/contact") : atLimit ? setQuotaModal(true) : navigate("/settings?tab=subscription"))}
+                data-testid="usage-upgrade-button"
+                style={{ background: "var(--c-primary)", color: "#fff" }}
+              >
+                <Crown className="mr-1.5 h-4 w-4" /> {isOrgOwnerView ? "Contact account team" : atLimit ? "Get more documents" : "Upgrade plan"}
+              </Button>
+            )}
           </div>
         )
       }
@@ -106,18 +113,27 @@ export default function Usage() {
                 Organisation plan · {usage.organization.name}
               </p>
               <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
-                <strong className="text-[var(--c-ink)]">Custom seat allocation</strong> per your contract.
-                Your seat: <strong className="text-[var(--c-ink)]">{usage.seat_used?.toLocaleString() ?? usage.used.toLocaleString()}</strong>
-                {" / "}{usage.seat_limit?.toLocaleString() ?? usage.limit.toLocaleString()}.
-                {usage.org_used != null && (
-                  <> Org pool: <strong className="text-[var(--c-ink)]">{usage.org_used.toLocaleString()}</strong>
-                  {usage.org_unlimited ? "" : ` / ${usage.org_limit?.toLocaleString()}`}
-                  {usage.organization.member_count > 1 && (
-                    <> · <Users className="inline h-3.5 w-3.5" /> {usage.organization.member_count} seats</>
-                  )}.</>
+                {isOrgStaffView ? (
+                  <>
+                    Your allowance: <strong className="text-[var(--c-ink)]">{usage.seat_used?.toLocaleString() ?? usage.used.toLocaleString()}</strong>
+                    {" / "}{usage.seat_limit?.toLocaleString() ?? usage.limit.toLocaleString()} documents this billing period.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-[var(--c-ink)]">Custom seat allocation</strong> per your contract.
+                    Your seat: <strong className="text-[var(--c-ink)]">{usage.seat_used?.toLocaleString() ?? usage.used.toLocaleString()}</strong>
+                    {" / "}{usage.seat_limit?.toLocaleString() ?? usage.limit.toLocaleString()}.
+                    {usage.org_used != null && (
+                      <> Org pool: <strong className="text-[var(--c-ink)]">{usage.org_used.toLocaleString()}</strong>
+                      {usage.org_unlimited ? "" : ` / ${usage.org_limit?.toLocaleString()}`}
+                      {usage.organization.member_count > 1 && (
+                        <> · <Users className="inline h-3.5 w-3.5" /> {usage.organization.member_count} seats</>
+                      )}.</>
+                    )}
+                  </>
                 )}
               </p>
-              {usage.pricing_note && (
+              {isOrgOwnerView && usage.pricing_note && (
                 <p className="mt-1 text-xs text-[var(--c-muted-fg)]">{usage.pricing_note}</p>
               )}
               <Link to="/organisation" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--c-primary)] hover:underline">
@@ -140,7 +156,7 @@ export default function Usage() {
                 {isOrg ? <Building2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> : <Crown className="h-4 w-4" style={{ color: "var(--c-primary)" }} />}
               </span>
               <p className="font-heading text-sm font-semibold uppercase tracking-wide text-[var(--c-ink)]">
-                {isOrg ? "Your seat quota" : "Document quota"} · {usage.month}
+                {isOrg ? "Your allowance" : "Document quota"} · {usage.month}
               </p>
               <span className="rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
                 {usage.plan} plan
@@ -171,7 +187,7 @@ export default function Usage() {
                 {usage.extra_document_credits} extra document credit{usage.extra_document_credits !== 1 ? "s" : ""} available
               </p>
             )}
-            {isOrg && usage.org_used != null && (
+            {isOrgOwnerView && usage.org_used != null && (
               <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
                 Organisation pool total: {usage.org_used.toLocaleString()} documents this month
                 {!usage.org_unlimited && usage.org_limit ? ` (cap ${usage.org_limit.toLocaleString()})` : ""}
@@ -206,14 +222,18 @@ export default function Usage() {
                     <RichTextWithContactEmail
                       text={
                         atLimit
-                          ? isOrg
-                            ? "You've reached your organisation seat limit (500/month) or the shared pool cap. Contact info@civicbot.co.uk to review your contract."
-                            : `You've reached your monthly document limit. Upgrade your plan or buy one extra document for ${formatExtraDocumentPrice()}.`
-                          : isOrg
-                            ? "You're nearing your seat or organisation pool limit. Contact info@civicbot.co.uk to discuss your contract."
-                            : usage.fair_use
-                              ? "You're nearing your included Business fair-use allocation. Contact info@civicbot.co.uk to raise your limit."
-                              : "You're almost out of envelopes this month. Upgrade to keep sending."
+                          ? isOrgStaffView
+                            ? ORG_STAFF_LIMIT_MESSAGE
+                            : isOrgOwnerView
+                              ? "You've reached your organisation seat limit or the shared pool cap. Contact info@civicbot.co.uk to review your contract."
+                              : `You've reached your monthly document limit. Upgrade your plan or ${formatExtraDocumentLimitMessage()}.`
+                          : isOrgStaffView
+                            ? "You're nearing your monthly allowance. Contact your organisation admin first."
+                            : isOrgOwnerView
+                              ? "You're nearing your seat or organisation pool limit. Contact info@civicbot.co.uk to discuss your contract."
+                              : usage.fair_use
+                                ? "You're nearing your included Business fair-use allocation. Contact info@civicbot.co.uk to raise your limit."
+                                : "You're almost out of envelopes this month. Upgrade to keep sending."
                       }
                     />
                   </span>
@@ -231,7 +251,7 @@ export default function Usage() {
                       </Button>
                     )}
                     <Button size="sm" variant="outline" onClick={buyDocument} disabled={buying}>
-                      Buy 1 document, {formatExtraDocumentPrice()}
+                      {formatExtraDocumentBuyLabel()}
                     </Button>
                   </div>
                 )}
@@ -252,7 +272,7 @@ export default function Usage() {
           <p className="mt-2 font-heading text-xl font-bold capitalize text-[var(--c-ink)]">{isOrg ? "Organisation" : usage.plan}</p>
           <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
             {isOrg
-              ? `${usage.seat_limit?.toLocaleString() ?? usage.limit} docs/seat/month`
+              ? `${usage.seat_limit?.toLocaleString() ?? usage.limit} docs/month (your allowance)`
               : usage.unlimited
                 ? "Unlimited envelopes"
                 : `${usage.limit} envelopes / month`}

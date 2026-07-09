@@ -29,6 +29,14 @@ def _period_start(year: int, month: int, anchor_day: int) -> datetime:
     return datetime(year, month, day, 0, 0, 0, tzinfo=timezone.utc)
 
 
+def _add_months(dt: datetime, months: int) -> datetime:
+    month_index = dt.month - 1 + months
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    day = _clamp_day(year, month, dt.day)
+    return datetime(year, month, day, 0, 0, 0, tzinfo=timezone.utc)
+
+
 def calendar_month_period(now: Optional[datetime] = None) -> dict:
     """Fallback when no signup anchor exists (legacy accounts)."""
     now = now or datetime.now(timezone.utc)
@@ -84,7 +92,41 @@ def anniversary_period(anchor_iso: Optional[str], now: Optional[datetime] = None
     }
 
 
-def period_for_user(created_at: Optional[str], now: Optional[datetime] = None) -> dict:
+def yearly_period(anchor_iso: Optional[str], now: Optional[datetime] = None) -> dict:
+    """Rolling 12-month window anchored to subscription upgrade or signup."""
+    now = now or datetime.now(timezone.utc)
+    anchor = _parse_iso(anchor_iso)
+    if not anchor:
+        return calendar_month_period(now)
+
+    start = datetime(
+        anchor.year, anchor.month, anchor.day, 0, 0, 0, tzinfo=timezone.utc,
+    )
+    while _add_months(start, 12) <= now:
+        start = _add_months(start, 12)
+    end = _add_months(start, 12)
+    last_inclusive = end - timedelta(days=1)
+    return {
+        "period_key": start.strftime("%Y-%m-%d"),
+        "period_start_iso": start.isoformat(),
+        "period_end_iso": end.isoformat(),
+        "label": f"{start.strftime('%d %b %Y')} – {last_inclusive.strftime('%d %b %Y')}",
+        "resets_at": end.isoformat(),
+        "resets_label": end.strftime("%d %B %Y"),
+        "billing_cycle": "yearly",
+        "anchor_day": anchor.day,
+    }
+
+
+def period_for_user(
+    created_at: Optional[str],
+    now: Optional[datetime] = None,
+    billing_interval: Optional[str] = None,
+    plan_anchor_iso: Optional[str] = None,
+) -> dict:
+    interval = (billing_interval or "monthly").lower().strip()
+    if interval == "yearly":
+        return yearly_period(plan_anchor_iso or created_at, now)
     return anniversary_period(created_at, now)
 
 

@@ -39,6 +39,20 @@ def _sign_payload(secret: str, body: bytes) -> str:
     return hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
 
 
+def _require_integrations_manager(user: dict) -> None:
+    """API keys and webhooks: Business plan, organisation admin only for org accounts."""
+    require_business_feature(user, "api_webhooks")
+    if user.get("org_id") and user.get("org_role") != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the organisation admin can manage API keys and webhooks.",
+        )
+
+
+def _org_member_blocked_for_api(user: dict) -> bool:
+    return bool(user.get("org_id")) and user.get("org_role") != "owner"
+
+
 async def _user_by_api_key(raw_key: str) -> dict | None:
     if not raw_key or len(raw_key) < 20:
         return None
@@ -48,6 +62,8 @@ async def _user_by_api_key(raw_key: str) -> dict | None:
         {"_id": 0},
     )
     if not user or not has_feature(user, "api_webhooks"):
+        return None
+    if _org_member_blocked_for_api(user):
         return None
     return user
 
@@ -97,7 +113,7 @@ async def emit_webhook(owner_id: str, event: str, payload: dict) -> None:
 
 @integrations_router.get("/me/api-keys")
 async def list_api_keys(user: dict = Depends(get_current_user)):
-    require_business_feature(user, "api_webhooks")
+    _require_integrations_manager(user)
     keys = user.get("api_keys") or []
     return [{"key_id": k["key_id"], "label": k.get("label", ""), "prefix": k.get("prefix", ""),
              "created_at": k.get("created_at")} for k in keys]
@@ -105,7 +121,7 @@ async def list_api_keys(user: dict = Depends(get_current_user)):
 
 @integrations_router.post("/me/api-keys")
 async def create_api_key(body: ApiKeyCreate, user: dict = Depends(get_current_user)):
-    require_business_feature(user, "api_webhooks")
+    _require_integrations_manager(user)
     raw = f"cs_live_{secrets.token_urlsafe(32)}"
     key_id = f"key_{uuid.uuid4().hex[:12]}"
     entry = {
@@ -125,7 +141,7 @@ async def create_api_key(body: ApiKeyCreate, user: dict = Depends(get_current_us
 
 @integrations_router.delete("/me/api-keys/{key_id}")
 async def revoke_api_key(key_id: str, user: dict = Depends(get_current_user)):
-    require_business_feature(user, "api_webhooks")
+    _require_integrations_manager(user)
     result = await db.users.update_one(
         {"user_id": user["user_id"]},
         {"$pull": {"api_keys": {"key_id": key_id}}},
@@ -137,7 +153,7 @@ async def revoke_api_key(key_id: str, user: dict = Depends(get_current_user)):
 
 @integrations_router.get("/me/webhook")
 async def get_webhook(user: dict = Depends(get_current_user)):
-    require_business_feature(user, "api_webhooks")
+    _require_integrations_manager(user)
     wh = user.get("webhook") or {}
     return {
         "url": wh.get("url"),
@@ -149,7 +165,7 @@ async def get_webhook(user: dict = Depends(get_current_user)):
 
 @integrations_router.patch("/me/webhook")
 async def update_webhook(body: WebhookUpdate, user: dict = Depends(get_current_user)):
-    require_business_feature(user, "api_webhooks")
+    _require_integrations_manager(user)
     wh = dict(user.get("webhook") or {})
     if body.url is not None:
         url = body.url.strip()

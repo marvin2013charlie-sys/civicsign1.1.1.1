@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { greenHoverLg, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
 import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
-import { getPlanPriceDisplay } from "@/lib/pricing";
+import { extraDocumentLimitFeature, formatPlanDocumentLimit, getPlanPriceDisplay } from "@/lib/pricing";
+import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 
 const FEATURES = [
   { icon: PenLine, title: "Prepare Studio", body: "Drag signature, date, text & checkbox fields onto any PDF or Word doc. Assign each field to a recipient with color coding." },
@@ -65,31 +66,36 @@ const USE_CASES = [
   { icon: Handshake, title: "Freelancers", body: "Client contracts and proposals that look as professional as you are." },
 ];
 
-const PLANS = [
-  { name: "Free", cta: "Start free", to: "/register", highlight: false,
-    features: ["2 documents / billing period (resets on signup date)", "80p per extra document when at limit", "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
-  { name: "Pro", cta: "Start free", to: "/register", highlight: true,
-    features: [
-      "All Free features, plus:",
-      "Up to 100 documents per user / billing period",
-      "80p per extra document when at limit",
-      "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
-      "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
-      "Shared team templates for standardised agreements",
-      "Real-time commenting & collaboration",
-      "Custom branding (logo & colours) to build trust",
-    ] },
-  { name: "Business", cta: "Get Business", to: "/register", highlight: false,
-    features: [
-      "Everything in Pro, plus:",
-      "Up to 500 documents per user / billing period",
-      "80p per extra document when at limit",
-      "AES as default, strengthened with SMS / KBA recipient authentication",
-      "Bulk send",
-      "API & webhooks",
-      "Priority support",
-    ] },
-];
+const EXTRA_DOC_FEATURE = extraDocumentLimitFeature();
+
+function buildPlans(billingInterval) {
+  return [
+    { name: "Free", cta: "Start free", to: "/register", highlight: false,
+      features: [formatPlanDocumentLimit("Free", billingInterval), EXTRA_DOC_FEATURE, "1 sender", "Draw, type & upload signatures", "Electronic signatures with audit trail + Certificate of Completion", "PDF & Word support"] },
+    { name: "Pro", cta: "Start free", to: "/register", highlight: true,
+      features: [
+        "All Free features, plus:",
+        formatPlanDocumentLimit("Pro", billingInterval),
+        "Manage PDF — edit, compress, watermark, protect, unlock, merge, split & AI metadata check",
+        EXTRA_DOC_FEATURE,
+        "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
+        "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
+        "Shared team templates for standardised agreements",
+        "Real-time commenting & collaboration",
+        "Custom branding (logo & colours) to build trust",
+      ] },
+    { name: "Business", cta: "Get Business", to: "/register", highlight: false,
+      features: [
+        "Everything in Pro, plus:",
+        formatPlanDocumentLimit("Business", billingInterval),
+        EXTRA_DOC_FEATURE,
+        "AES as default, strengthened with SMS / KBA recipient authentication",
+        "Bulk send",
+        "API & webhooks",
+        "Priority support",
+      ] },
+  ];
+}
 
 const TESTIMONIALS = [
   { quote: "We replaced our clunky old tool in a day. CivicSign is faster and our clients love how clean the signing page is.", name: "Maya Chen", role: "COO, Northwind Studio" },
@@ -111,6 +117,7 @@ const FAQS = [
 
 export default function Landing() {
   const [billingInterval, setBillingInterval] = useState("monthly");
+  const plans = buildPlans(billingInterval);
   useEffect(() => {
     if (!window.location.hash) window.scrollTo(0, 0);
   }, []);
@@ -285,8 +292,8 @@ export default function Landing() {
           />
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {PLANS.map((p) => {
-            const { price, note, savings } = getPlanPriceDisplay(p.name, billingInterval);
+          {plans.map((p) => {
+            const { price, note, savings, tax } = getPlanPriceDisplay(p.name, billingInterval);
             return (
             <div key={p.name} className={`relative p-6 bg-[var(--card)] ${p.highlight ? "rounded-2xl border border-[var(--c-primary)] shadow-[0_18px_50px_rgba(20,184,166,0.18)]" : greenHoverLg}`}>
               {p.highlight && (
@@ -294,15 +301,14 @@ export default function Landing() {
                   <Star className="h-3 w-3" /> Most popular
                 </span>
               )}
-              {savings && (
+              {savings && !tax && (
                 <span className="absolute -top-3 right-6 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "#0d9488" }}>
                   {savings}
                 </span>
               )}
               <h3 className={`font-heading text-lg font-semibold text-[var(--c-ink)] ${p.highlight ? "" : greenHoverTitle}`}>{p.name}</h3>
-              <div className="mt-2 flex flex-wrap items-end gap-x-1 gap-y-1">
-                <span className="font-heading text-4xl font-bold text-[var(--c-ink)]">{price}</span>
-                <span className="mb-1 text-sm text-[var(--c-muted-fg)]">{note}</span>
+              <div className="mt-2">
+                <PlanPriceBreakdown price={price} note={note} savings={savings} tax={tax} />
               </div>
               <ul className="mt-5 space-y-2.5">
                 {p.features.map((f) => (
@@ -326,11 +332,14 @@ export default function Landing() {
           <Link to="/contact" className="font-medium text-[var(--c-primary)] hover:underline">Contact us</Link>
           {" to discuss your team."}
         </p>
+        <PricingVatFootnote className="mt-4 text-center" />
         <p className="mt-3 text-center text-sm text-[var(--c-muted-fg)]">
           {billingInterval === "yearly"
             ? "Annual Pro and Business are billed once per year at 10 months\u2019 price (2 months free). "
             : null}
-          Document limits reset on your account anniversary each month.{" "}
+          {billingInterval === "yearly"
+            ? "Annual plans include 12× the monthly document allowance, resetting on your subscription anniversary. "
+            : "Document limits reset on your account anniversary each month. "}
           <Link to="/legal/refunds" className="font-medium text-[var(--c-primary)] hover:underline">Refund Policy</Link>
           {" · "}
           <Link to="/legal/terms" className="font-medium text-[var(--c-primary)] hover:underline">Terms</Link>

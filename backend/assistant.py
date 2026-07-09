@@ -1,9 +1,10 @@
 """CivicSign in-app AI help assistant."""
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from models import AuthChatRequest, ChatRequest
+from auth import _access_token_from_request, user_from_access_token
 from auth_assistant import CONTEXT_GREETINGS, generate_auth_reply
 from rate_limits import limiter, auth_limit
 from brand import CONTACT_EMAIL
@@ -51,9 +52,28 @@ SYSTEM_PROMPT = (
 FALLBACK_REPLY = PRODUCT_FALLBACK
 
 
+async def _reject_authenticated_chat(request: Request) -> None:
+    """In-app assistant is public-site only — not while signed in."""
+    token = _access_token_from_request(request)
+    if not token:
+        return
+    try:
+        await user_from_access_token(token)
+    except HTTPException:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "The assistant is not available while you are signed in. "
+            "Use Settings → Help & Support, or visit our public site."
+        ),
+    )
+
+
 @assistant_router.post("/chat")
 @limiter.limit("40/hour")
 async def chat(request: Request, body: ChatRequest):
+    await _reject_authenticated_chat(request)
     history = [{"role": m.role, "content": m.content} for m in (body.history or [])]
     reply = await generate_product_reply(
         body.message,

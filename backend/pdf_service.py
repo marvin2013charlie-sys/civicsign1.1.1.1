@@ -10,6 +10,7 @@ so percentage->absolute mapping is direct and accurate.
 import os
 import base64
 import hashlib
+import shutil
 import tempfile
 import subprocess
 from datetime import datetime, timezone
@@ -21,31 +22,118 @@ def _now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def convert_docx_to_pdf_bytes(docx_bytes: bytes) -> bytes:
-    """Convert a .docx (bytes) to PDF (bytes) via LibreOffice headless."""
+def _resolve_soffice() -> str:
+    """Locate LibreOffice soffice binary (Docker, macOS app bundle, or PATH)."""
+    env = (os.environ.get("LIBREOFFICE_PATH") or os.environ.get("SOFFICE_PATH") or "").strip()
+    candidates = [c for c in (env, "soffice", "libreoffice") if c]
+    candidates.extend([
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        "/usr/bin/soffice",
+        "/usr/bin/libreoffice",
+    ])
+    for cmd in candidates:
+        if os.path.isfile(cmd) and os.access(cmd, os.X_OK):
+            return cmd
+        found = shutil.which(cmd)
+        if found:
+            return found
+    raise FileNotFoundError("LibreOffice (soffice) is not installed")
+
+
+def _libreoffice_convert_bytes(
+    data: bytes,
+    *,
+    input_filename: str,
+    output_ext: str,
+    timeout: int = 120,
+) -> bytes:
+    """Convert office documents via LibreOffice headless."""
+    out_ext = output_ext.lstrip(".")
     with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, "input.docx")
+        in_path = os.path.join(tmp, input_filename)
         with open(in_path, "wb") as fh:
-            fh.write(docx_bytes)
+            fh.write(data)
         profile = os.path.join(tmp, "lo_profile")
         cmd = [
-            "soffice", "--headless", "--norestore", "--nolockcheck",
+            _resolve_soffice(),
+            "--headless", "--norestore", "--nolockcheck",
             f"-env:UserInstallation=file://{profile}",
-            "--convert-to", "pdf", "--outdir", tmp, in_path,
+            "--convert-to", out_ext,
+            "--outdir", tmp,
+            in_path,
         ]
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         except FileNotFoundError as exc:
             raise RuntimeError(
-                "DOCX conversion unavailable — please upload a PDF or install LibreOffice"
+                "Office conversion unavailable — install LibreOffice on the server"
             ) from exc
-        out_path = os.path.join(tmp, "input.pdf")
+        base = os.path.splitext(input_filename)[0]
+        out_path = os.path.join(tmp, f"{base}.{out_ext}")
         if res.returncode != 0 or not os.path.exists(out_path):
+            detail = (res.stderr or res.stdout or "").strip()[:240]
             raise RuntimeError(
-                "DOCX conversion failed — please upload a PDF or try again later"
+                f"Conversion to {out_ext.upper()} failed{f': {detail}' if detail else ''}"
             )
         with open(out_path, "rb") as fh:
             return fh.read()
+
+
+def convert_docx_to_pdf_bytes(docx_bytes: bytes) -> bytes:
+    """Convert a .docx (bytes) to PDF (bytes) via LibreOffice headless."""
+    if not docx_bytes:
+        raise ValueError("Empty Word document")
+    if docx_bytes[:2] != b"PK":
+        raise ValueError("Invalid Word file — upload a .docx document")
+    return _libreoffice_convert_bytes(
+        docx_bytes, input_filename="input.docx", output_ext="pdf",
+    )
+
+
+def _pdf2docx_convert(pdf_bytes: bytes) -> bytes:
+    """Fallback PDF→DOCX using pdf2docx when LibreOffice is unavailable."""
+    from pdf2docx import Converter
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf_path = os.path.join(tmp, "input.pdf")
+        docx_path = os.path.join(tmp, "output.docx")
+        with open(pdf_path, "wb") as fh:
+            fh.write(pdf_bytes)
+        cv = Converter(pdf_path)
+        try:
+            cv.convert(docx_path)
+        finally:
+            cv.close()
+        with open(docx_path, "rb") as fh:
+            data = fh.read()
+    if not data:
+        raise RuntimeError("PDF to Word conversion produced an empty file")
+    return data
+
+
+def convert_pdf_to_docx_bytes(pdf_bytes: bytes) -> bytes:
+    """Convert PDF to editable DOCX (LibreOffice when available, else pdf2docx)."""
+    if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
+        raise ValueError("Invalid PDF file")
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if doc.needs_pass:
+        doc.close()
+        raise ValueError("Password-protected PDFs must be unlocked before converting to Word")
+    if len(doc) < 1:
+        doc.close()
+        raise ValueError("PDF has no pages")
+    doc.close()
+    try:
+        return _libreoffice_convert_bytes(
+            pdf_bytes, input_filename="input.pdf", output_ext="docx",
+        )
+    except (FileNotFoundError, RuntimeError):
+        try:
+            return _pdf2docx_convert(pdf_bytes)
+        except Exception as exc:
+            raise RuntimeError(
+                "PDF to Word conversion failed — try a text-based PDF or install LibreOffice"
+            ) from exc
 
 
 def normalize_pdf_viewbox(pdf_bytes: bytes) -> bytes:
@@ -542,6 +630,78 @@ def _pdf_font_family(font: str) -> str:
     return "Helvetica, Arial, sans-serif"
 
 
+_BASE14_EDIT_FONTS = {
+    "helv", "heit", "hebo", "hebi",
+    "times", "tiit", "tibo", "tibi",
+    "cour", "coit", "cobo", "cobi",
+}
+
+
+def _match_base14(font_raw: str, flags: int = 0) -> str:
+    """Closest base-14 font for an embedded font, preserving bold/italic so
+    replaced text keeps the original look. Passes through already-mapped names."""
+    f = (font_raw or "").lower()
+    if f in _BASE14_EDIT_FONTS:
+        return f
+    bold = bool(flags & 2 ** 4) or any(
+        k in f for k in ("bold", "black", "heavy", "semibold", "demibold")
+    )
+    italic = bool(flags & 2 ** 1) or "italic" in f or "oblique" in f
+    base = _pdf_font_name(font_raw)
+    if base == "times":
+        return "tibi" if (bold and italic) else "tibo" if bold else "tiit" if italic else "times"
+    if base == "cour":
+        return "cobi" if (bold and italic) else "cobo" if bold else "coit" if italic else "cour"
+    return "hebi" if (bold and italic) else "hebo" if bold else "heit" if italic else "helv"
+
+
+def _span_color_rgb(span: dict) -> tuple[float, float, float]:
+    """Convert PyMuPDF span colour (0xRRGGBB int) to normalised RGB."""
+    raw = span.get("color")
+    if raw is None:
+        return (0.06, 0.09, 0.16)
+    try:
+        c = int(raw)
+    except (TypeError, ValueError):
+        return (0.06, 0.09, 0.16)
+    return (
+        ((c >> 16) & 255) / 255.0,
+        ((c >> 8) & 255) / 255.0,
+        (c & 255) / 255.0,
+    )
+
+
+def _rgb_css(rgb: tuple[float, float, float]) -> str:
+    r, g, b = rgb
+    return f"rgb({round(r * 255)},{round(g * 255)},{round(b * 255)})"
+
+
+def _merge_same_row_spans(lines: list) -> list:
+    """Merge horizontally adjacent spans on one visual line (avoids stacked edit boxes)."""
+    if len(lines) < 2:
+        return lines
+    merged: list[dict] = []
+    for line in lines:
+        entry = dict(line)
+        if merged:
+            prev = merged[-1]
+            pr = prev["rect_pct"]
+            lr = entry["rect_pct"]
+            same_row = abs(pr["y"] - lr["y"]) < max(pr["h"], lr["h"]) * 0.55
+            gap = lr["x"] - (pr["x"] + pr["w"])
+            if same_row and gap < 0.04:
+                prev["text"] = f"{prev['text']} {entry['text']}".strip()
+                end_x = lr["x"] + lr["w"]
+                prev["rect_pct"]["w"] = round(end_x - pr["x"], 5)
+                prev["rect_pct"]["h"] = round(max(pr["h"], lr["h"]), 5)
+                prev["rect_pct"]["y"] = round(min(pr["y"], lr["y"]), 5)
+                continue
+        merged.append(entry)
+    for i, entry in enumerate(merged):
+        entry["id"] = f"ln{i}"
+    return merged
+
+
 def extract_page_text_spans(pdf_bytes: bytes, page_index: int) -> list:
     """Return editable text lines (Sejda-style) with percentage bounding boxes."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -567,6 +727,8 @@ def extract_page_text_spans(pdf_bytes: bytes, page_index: int) -> list:
             origin_x = origin_y = None
             font_size = 12.0
             font_raw = "helv"
+            font_flags = 0
+            text_color = (0.06, 0.09, 0.16)
             for span in line.get("spans", []):
                 text = span.get("text") or ""
                 if not text:
@@ -582,6 +744,8 @@ def extract_page_text_spans(pdf_bytes: bytes, page_index: int) -> list:
                     x0, y0, x1, y1 = sx0, sy0, sx1, sy1
                     font_size = float(span.get("size", 12))
                     font_raw = span.get("font") or "helv"
+                    font_flags = int(span.get("flags") or 0)
+                    text_color = _span_color_rgb(span)
                     origin = span.get("origin")
                     if origin and len(origin) >= 2:
                         origin_x, origin_y = float(origin[0]), float(origin[1])
@@ -602,8 +766,10 @@ def extract_page_text_spans(pdf_bytes: bytes, page_index: int) -> list:
                 "id": f"ln{idx}",
                 "text": merged,
                 "font_size": round(font_size, 1),
-                "font_name": _pdf_font_name(font_raw),
+                "font_name": _match_base14(font_raw, font_flags),
                 "font_family": _pdf_font_family(font_raw),
+                "text_color": [round(c, 4) for c in text_color],
+                "text_color_css": _rgb_css(text_color),
                 "rect_pct": {
                     "x": round(max(0.0, (x0 - pr.x0) / pw), 5),
                     "y": round(max(0.0, (y0 - pr.y0) / ph), 5),
@@ -616,6 +782,16 @@ def extract_page_text_spans(pdf_bytes: bytes, page_index: int) -> list:
                 },
             })
             idx += 1
+
+    lines_out = _merge_same_row_spans(lines_out)
+    for entry in lines_out:
+        line_rect = _rect_from_pct(page, entry["rect_pct"])
+        bg_color = _sample_bg_color(
+            page, _text_band_rect(page, line_rect, entry["font_size"]),
+        )
+        entry["bg_color"] = [round(c, 4) for c in bg_color]
+        entry["bg_color_css"] = _rgb_css(bg_color)
+
     doc.close()
     return lines_out
 
@@ -713,43 +889,67 @@ def _text_width(text: str, fontname: str, fontsize: float) -> float:
 
 
 def _text_band_rect(page: "fitz.Page", hit: fitz.Rect, fontsize: float) -> fitz.Rect:
-    """Redact only the glyph band — avoids tall boxes on the saved page."""
-    fs = max(6.0, min(28.0, float(fontsize)))
-    y1 = hit.y1 - fs * 0.05
-    y0 = y1 - fs * 1.05
-    pr = page.rect
+    """Strictly interior band of the matched text.
+
+    MuPDF removes any glyph whose quad INTERSECTS the redaction rect, and
+    char quads span the full line height. A middle band inset from every
+    edge therefore intersects exactly the matched glyphs — and can never
+    touch neighbouring characters on the same line or adjacent lines, so
+    deleting "abcd" no longer takes "ef" with it.
+    """
+    inset_x = min(0.3, hit.width / 4)
+    y_mid = (hit.y0 + hit.y1) / 2.0
+    half = max(0.5, hit.height * 0.25)
     return fitz.Rect(
-        max(pr.x0, hit.x0 - 0.1),
-        max(pr.y0, y0),
-        min(pr.x1, hit.x1 + 0.25),
-        min(pr.y1, y1 + fs * 0.08),
+        hit.x0 + inset_x,
+        y_mid - half,
+        hit.x1 - inset_x,
+        y_mid + half,
     )
+
+
+def _pix_edge_samples(pix: "fitz.Pixmap") -> list[tuple[int, int, int]]:
+    """Sample pixels from the outer rim of a pixmap (avoids glyph interiors)."""
+    w, h = pix.width, pix.height
+    if w < 2 or h < 2:
+        return []
+    pts = []
+    step = max(1, w // 10)
+    for x in range(0, w, step):
+        pts.append(pix.pixel(x, 0))
+        pts.append(pix.pixel(x, h - 1))
+    step_y = max(1, h // 10)
+    for y in range(0, h, step_y):
+        pts.append(pix.pixel(0, y))
+        pts.append(pix.pixel(w - 1, y))
+    return pts
 
 
 def _sample_bg_color(page: "fitz.Page", band: fitz.Rect) -> tuple[float, float, float]:
-    """Match redaction fill to the page background so no white boxes appear."""
-    pad = 6.0
-    clip = fitz.Rect(
-        max(page.rect.x0, band.x0 - pad),
-        max(page.rect.y0, band.y0 - pad * 2),
-        min(page.rect.x1, band.x1 + pad),
-        min(page.rect.y1, band.y1 + pad * 2),
-    )
-    try:
-        pix = page.get_pixmap(dpi=200, clip=clip)
-    except Exception:
-        return (1.0, 1.0, 1.0)
-    if pix.width < 3 or pix.height < 3:
-        return (1.0, 1.0, 1.0)
-
-    pts = []
-    w, h = pix.width, pix.height
-    rows = (0, 1, h - 2, h - 1)
-    step = max(1, w // 8)
-    for y in rows:
-        y = min(max(0, y), h - 1)
-        for x in range(0, w, step):
-            pts.append(pix.pixel(x, y))
+    """Match redaction fill to surrounding page pixels — not glyph ink (no white boxes)."""
+    pr = page.rect
+    margin = 8.0
+    clips = [
+        fitz.Rect(max(pr.x0, band.x0 - margin * 3), band.y0, max(pr.x0, band.x0 - 1), band.y1),
+        fitz.Rect(min(pr.x1, band.x1 + 1), band.y0, min(pr.x1, band.x1 + margin * 3), band.y1),
+        fitz.Rect(band.x0, max(pr.y0, band.y0 - margin * 2), band.x1, max(pr.y0, band.y0 - 1)),
+        fitz.Rect(band.x0, min(pr.y1, band.y1 + 1), band.x1, min(pr.y1, band.y1 + margin * 2)),
+    ]
+    pts: list[tuple[int, int, int]] = []
+    for clip in clips:
+        if clip.width < 2 or clip.height < 2:
+            continue
+        try:
+            pix = page.get_pixmap(dpi=180, clip=clip)
+        except Exception:
+            continue
+        pts.extend(_pix_edge_samples(pix))
+    if not pts:
+        try:
+            pix = page.get_pixmap(dpi=150, clip=band)
+            pts = _pix_edge_samples(pix)
+        except Exception:
+            return (1.0, 1.0, 1.0)
     if not pts:
         return (1.0, 1.0, 1.0)
     n = len(pts)
@@ -814,10 +1014,11 @@ def replace_text_at_rect(
     font_name: str = "helv",
     old_text: str | None = None,
     origin_pct: dict | None = None,
+    text_color: list[float] | tuple[float, float, float] | None = None,
 ) -> bytes:
-    """Redact only changed glyphs, insert replacements, and shift trailing text."""
+    """Replace a whole text line in-place (Sejda-style) with background-matched redaction."""
     old = old_text or ""
-    new = str(new_text)
+    new = str(new_text or "")
     if old == new:
         return pdf_bytes
 
@@ -828,68 +1029,55 @@ def replace_text_at_rect(
     page = doc[page_index]
     rect = _rect_from_pct(page, rect_pct)
     fs = max(6.0, min(28.0, float(font_size)))
-    fn = _pdf_font_name(font_name)
+    fn = _match_base14(font_name)
+    if text_color and len(text_color) >= 3:
+        ink = (
+            max(0.0, min(1.0, float(text_color[0]))),
+            max(0.0, min(1.0, float(text_color[1]))),
+            max(0.0, min(1.0, float(text_color[2]))),
+        )
+    else:
+        ink = (0.06, 0.09, 0.16)
     baseline = _baseline_point(page, rect, origin_pct, fs)
 
-    prefix, removed, added = _diff_edit_parts(old, new)
-    unchanged_suffix = old[len(prefix) + len(removed):]
-    redact_hit = None
-    insert_x = baseline.x
+    hit = None
+    for query in (old, old.strip()):
+        if not query:
+            continue
+        hits = _search_in_line(page, query, rect)
+        hit = _pick_best_hit(hits, page, origin_pct)
+        if hit:
+            break
 
-    if prefix:
-        prefix_hits = _search_in_line(page, prefix, rect)
-        prefix_hit = _pick_best_hit(prefix_hits, page, origin_pct)
-        if prefix_hit:
-            insert_x = prefix_hit.x1 + 0.5
-    if removed:
-        hits = _search_in_line(page, removed, rect)
-        redact_hit = _pick_best_hit(hits, page, origin_pct)
-        if not redact_hit and old.strip():
-            full_hits = _search_in_line(page, old.strip(), rect)
-            redact_hit = _pick_best_hit(full_hits, page, origin_pct)
-        if redact_hit:
-            insert_x = redact_hit.x0
-        elif not prefix:
-            insert_x = rect.x0
+    # Root fix for the "white box": paint nothing (fill=False) — the redaction
+    # strips the original glyphs from the content stream and the page
+    # background shows through untouched. Keep images and vector line art
+    # (underlines, table borders) instead of letting apply_redactions
+    # delete them, which left white gaps.
+    band = _text_band_rect(page, hit, fs) if hit else _text_band_rect(page, rect, fs)
+    page.add_redact_annot(band, fill=False)
+    try:
+        page.apply_redactions(
+            images=fitz.PDF_REDACT_IMAGE_NONE,
+            graphics=fitz.PDF_REDACT_LINE_ART_NONE,
+        )
+    except TypeError:  # older PyMuPDF without the graphics kwarg
+        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
 
-    suffix_x = insert_x + _text_width(added, fn, fs)
-    suffix_hit = _find_suffix_hit(page, unchanged_suffix, rect, origin_pct)
-    suffix_moves = (
-        suffix_hit is not None
-        and unchanged_suffix
-        and abs(suffix_hit.x0 - suffix_x) >= 1.0
-    )
-
-    pending_redacts: list[tuple[fitz.Rect, tuple[float, float, float]]] = []
-
-    if suffix_moves:
-        _queue_redact(page, suffix_hit, fs, pending_redacts)
-
-    if removed:
-        if redact_hit:
-            _queue_redact(page, redact_hit, fs, pending_redacts)
-        else:
-            band = _text_band_rect(page, rect, fs)
-            pending_redacts.append((band, _sample_bg_color(page, band)))
-
-    _flush_redactions(page, pending_redacts)
-
-    if added:
+    if new:
+        insert_x = hit.x0 if hit else baseline.x
+        # Auto-fit like Sejda: shrink slightly instead of running off the page.
+        avail = page.rect.x1 - 4.0 - insert_x
+        if avail > 0:
+            width = fitz.get_text_length(new, fontname=fn, fontsize=fs)
+            if width > avail:
+                fs = max(6.0, fs * avail / width)
         page.insert_text(
             fitz.Point(insert_x, baseline.y),
-            added,
+            new,
             fontsize=fs,
             fontname=fn,
-            color=(0.06, 0.09, 0.16),
-        )
-
-    if suffix_moves:
-        page.insert_text(
-            fitz.Point(suffix_x, baseline.y),
-            unchanged_suffix,
-            fontsize=fs,
-            fontname=fn,
-            color=(0.06, 0.09, 0.16),
+            color=ink,
         )
     return _save_doc(doc)
 
@@ -980,3 +1168,377 @@ def parse_page_ranges(spec: str, page_count: int) -> list[tuple[int, int]]:
     if not parts:
         raise ValueError("Ranges required")
     return parts
+
+
+# ---- Protect / unlock PDF (password & permissions) ----
+
+
+def get_encryption_status(pdf_bytes: bytes) -> dict:
+    """Return whether a PDF requires a password to open."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        needs_password = bool(doc.needs_pass)
+        encrypted = bool(doc.is_encrypted or needs_password)
+        page_count = len(doc) if not needs_password else None
+        return {
+            "encrypted": encrypted,
+            "needs_password": needs_password,
+            "page_count": page_count,
+        }
+    finally:
+        doc.close()
+
+
+def protect_pdf_bytes(
+    pdf_bytes: bytes,
+    *,
+    user_password: str,
+    owner_password: str | None = None,
+    allow_print: bool = True,
+    allow_copy: bool = False,
+    allow_modify: bool = False,
+) -> bytes:
+    """Apply AES-256 password protection with optional permission restrictions."""
+    if not user_password or len(user_password) < 4:
+        raise ValueError("Password must be at least 4 characters")
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if doc.needs_pass:
+        doc.close()
+        raise ValueError("PDF is already password protected — unlock it first")
+    perms = fitz.PDF_PERM_ACCESSIBILITY
+    if allow_print:
+        perms |= fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ
+    if allow_copy:
+        perms |= fitz.PDF_PERM_COPY
+    if allow_modify:
+        perms |= (
+            fitz.PDF_PERM_MODIFY
+            | fitz.PDF_PERM_ANNOTATE
+            | fitz.PDF_PERM_FORM
+            | fitz.PDF_PERM_ASSEMBLE
+        )
+    owner = (owner_password or user_password).strip() or user_password
+    out = doc.tobytes(
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        user_pw=user_password,
+        owner_pw=owner,
+        permissions=perms,
+    )
+    doc.close()
+    return out
+
+
+def unlock_pdf_bytes(pdf_bytes: bytes, password: str) -> bytes:
+    """Remove password protection when the correct password is supplied."""
+    if not password:
+        raise ValueError("Password is required")
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if not doc.is_encrypted and not doc.needs_pass:
+        doc.close()
+        raise ValueError("This PDF is not password protected")
+    if not doc.authenticate(password):
+        doc.close()
+        raise ValueError("Incorrect password")
+    out = doc.tobytes(garbage=4, deflate=True)
+    doc.close()
+    return out
+
+
+# ---- Compress PDF (Sejda-style image optimisation + deflate) ----
+
+COMPRESS_PRESETS = {
+    "medium": {"quality": 65, "dpi_target": 72, "dpi_threshold": 150, "label": "Medium — smaller file, good for email"},
+    "good": {"quality": 80, "dpi_target": 144, "dpi_threshold": 300, "label": "Good — balanced quality and size"},
+    "best": {"quality": 95, "dpi_target": 288, "dpi_threshold": 600, "label": "Best — highest quality, larger file"},
+}
+
+
+def compress_pdf_bytes(
+    pdf_bytes: bytes,
+    *,
+    preset: str = "medium",
+    grayscale: bool = False,
+) -> tuple[bytes, dict]:
+    """Optimise embedded images and deflate streams — similar to Sejda compress."""
+    import logging
+    log = logging.getLogger("civicsign.pdf_service")
+    key = preset if preset in COMPRESS_PRESETS else "medium"
+    cfg = COMPRESS_PRESETS[key]
+    original = len(pdf_bytes)
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        doc.rewrite_images(
+            dpi_threshold=cfg["dpi_threshold"],
+            dpi_target=cfg["dpi_target"],
+            quality=cfg["quality"],
+            set_to_gray=grayscale,
+        )
+    except Exception as exc:
+        log.warning("rewrite_images fallback: %s", exc)
+    out = doc.tobytes(garbage=4, deflate=True, deflate_images=True, deflate_fonts=True)
+    doc.close()
+    compressed = len(out)
+    savings = round((1 - compressed / original) * 100) if original else 0
+    return out, {
+        "original_bytes": original,
+        "compressed_bytes": compressed,
+        "savings_pct": max(0, savings),
+        "preset": key,
+        "grayscale": grayscale,
+        "image_quality": cfg["quality"],
+        "max_dpi": cfg["dpi_target"],
+    }
+
+
+def page_indices_from_ranges(spec: str | None, page_count: int) -> list[int]:
+    """Return 0-based page indices; 'all' or empty means every page."""
+    if not spec or spec.strip().lower() in ("all", "*", ""):
+        return list(range(page_count))
+    ranges = parse_page_ranges(spec, page_count)
+    indices: list[int] = []
+    for start, end in ranges:
+        indices.extend(range(start, end + 1))
+    return sorted(set(indices))
+
+
+def _watermark_font(font_name: str) -> str:
+    f = (font_name or "").lower()
+    if "times" in f or "serif" in f:
+        return "times"
+    if "cour" in f or "mono" in f:
+        return "cour"
+    return "helv"
+
+
+def _watermark_text_point(page: "fitz.Page", text: str, font_name: str, font_size: float,
+                          position: str, x_pct: float, y_pct: float) -> fitz.Point:
+    pr = page.rect
+    tw = fitz.get_text_length(text, fontname=font_name, fontsize=font_size)
+    if position == "center":
+        return fitz.Point(pr.x0 + (pr.width - tw) / 2, pr.y0 + pr.height / 2)
+    return fitz.Point(pr.x0 + x_pct * pr.width, pr.y0 + y_pct * pr.height)
+
+
+def _watermark_image_rect(
+    page: "fitz.Page",
+    pix_width: int,
+    pix_height: int,
+    scale: float,
+    position: str,
+    x_pct: float,
+    y_pct: float,
+) -> fitz.Rect:
+    pr = page.rect
+    w = pr.width * scale
+    h = w * (pix_height / pix_width) if pix_width else w * 0.35
+    if position == "center":
+        x0 = pr.x0 + (pr.width - w) / 2
+        y0 = pr.y0 + (pr.height - h) / 2
+    else:
+        x0 = pr.x0 + x_pct * pr.width - w / 2
+        y0 = pr.y0 + y_pct * pr.height - h / 2
+    return fitz.Rect(x0, y0, x0 + w, y0 + h)
+
+
+def _rotate_watermark_pixmap(pix: fitz.Pixmap, degrees: int) -> fitz.Pixmap:
+    """Rotate a watermark image by any angle using an intermediate page render."""
+    degrees = int(degrees) % 360
+    if degrees == 0:
+        return pix
+    w, h = pix.width, pix.height
+    src = fitz.open()
+    try:
+        page = src.new_page(width=w, height=h)
+        page.insert_image(page.rect, pixmap=pix, keep_proportion=True)
+        mat = fitz.Matrix(1).prerotate(degrees)
+        return page.get_pixmap(matrix=mat, alpha=pix.alpha)
+    finally:
+        src.close()
+
+
+def _watermark_image_pixmap(image_bytes: bytes, opacity: float, rotation: int) -> fitz.Pixmap:
+    """Build a semi-transparent pixmap for an on-page image watermark."""
+    pix = fitz.Pixmap(image_bytes)
+    rot = int(rotation) % 360
+    if rot:
+        pix = _rotate_watermark_pixmap(pix, rot)
+    op = max(0.05, min(1.0, float(opacity)))
+    if not pix.alpha:
+        pix = fitz.Pixmap(pix, 1)
+    w, h = pix.width, pix.height
+    n = pix.n
+    samples = pix.samples
+    alphas = bytearray(w * h)
+    alpha_idx = n - 1
+    for i in range(w * h):
+        base = i * n
+        if n >= 4:
+            alphas[i] = int(samples[base + alpha_idx] * op)
+        else:
+            alphas[i] = int(255 * op)
+    pix.set_alpha(bytes(alphas), premultiply=1)
+    return pix
+
+
+def watermark_pdf_bytes(
+    pdf_bytes: bytes,
+    *,
+    kind: str = "text",
+    text: str = "CONFIDENTIAL",
+    font_name: str = "helv",
+    font_size: float = 48,
+    color: list[float] | None = None,
+    opacity: float = 0.35,
+    rotation: int = 45,
+    position: str = "center",
+    x_pct: float = 0.5,
+    y_pct: float = 0.5,
+    page_range: str = "all",
+    image_bytes: bytes | None = None,
+    image_scale: float = 0.35,
+) -> bytes:
+    """Apply text or image watermark to selected pages (Sejda-style)."""
+    kind = (kind or "text").strip().lower()
+    if kind not in ("text", "image"):
+        raise ValueError("Watermark kind must be text or image")
+    if kind == "image" and not image_bytes:
+        raise ValueError("Image watermark requires an image file")
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page_count = len(doc)
+    indices = page_indices_from_ranges(page_range, page_count)
+    fn = _watermark_font(font_name)
+    rgb = _clamp_rgb(color or [0.55, 0.55, 0.55])
+    op = max(0.05, min(1.0, float(opacity)))
+    rot = int(rotation) % 360
+
+    for idx in indices:
+        if idx < 0 or idx >= page_count:
+            continue
+        page = doc[idx]
+        if kind == "text":
+            label = (text or "CONFIDENTIAL").strip() or "CONFIDENTIAL"
+            pt = _watermark_text_point(page, label, fn, font_size, position, x_pct, y_pct)
+            tw = fitz.get_text_length(label, fontname=fn, fontsize=font_size)
+            pivot = fitz.Point(pt.x + tw / 2, pt.y)
+            if rot % 90 == 0:
+                page.insert_text(
+                    pt,
+                    label,
+                    fontsize=font_size,
+                    fontname=fn,
+                    color=rgb,
+                    rotate=rot,
+                    overlay=True,
+                    fill_opacity=op,
+                )
+            else:
+                page.insert_text(
+                    pt,
+                    label,
+                    fontsize=font_size,
+                    fontname=fn,
+                    color=rgb,
+                    overlay=True,
+                    fill_opacity=op,
+                    morph=(pivot, fitz.Matrix(rot)),
+                )
+        else:
+            wm_pix = _watermark_image_pixmap(image_bytes, op, rot)
+            rect = _watermark_image_rect(
+                page, wm_pix.width, wm_pix.height, image_scale, position, x_pct, y_pct,
+            )
+            # overlay=True: visible on certificates and other opaque pages; opacity keeps text readable.
+            page.insert_image(rect, pixmap=wm_pix, keep_proportion=True, overlay=True)
+            wm_pix = None
+
+    return _save_doc(doc)
+
+
+# ---- Sejda-style annotation tools (highlight, shapes, marks, links) ----
+
+ANNOTATION_KINDS = {"highlight", "rect", "ellipse", "line", "check", "cross", "link"}
+
+
+def _clamp_rgb(color) -> tuple[float, float, float]:
+    try:
+        r, g, b = (max(0.0, min(1.0, float(c))) for c in (color or [])[:3])
+        return (r, g, b)
+    except (TypeError, ValueError):
+        return (0.9, 0.15, 0.15)
+
+
+def add_annotation(
+    pdf_bytes: bytes,
+    page_index: int,
+    kind: str,
+    rect_pct: dict,
+    color: list[float] | None = None,
+    stroke_width: float = 1.5,
+    end_pct: dict | None = None,
+    url: str | None = None,
+) -> bytes:
+    """Draw a Sejda-style annotation onto the page content (flattened)."""
+    kind = (kind or "").strip().lower()
+    if kind not in ANNOTATION_KINDS:
+        raise ValueError(f"Unknown annotation kind: {kind}")
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if page_index < 0 or page_index >= len(doc):
+        doc.close()
+        raise ValueError("Page index out of range")
+    page = doc[page_index]
+    rect = _rect_from_pct(page, rect_pct)
+    rgb = _clamp_rgb(color)
+    sw = max(0.5, min(8.0, float(stroke_width or 1.5)))
+
+    if kind == "highlight":
+        hl = color if color else (1.0, 0.9, 0.2)
+        page.draw_rect(rect, color=None, fill=_clamp_rgb(hl), fill_opacity=0.35, overlay=True)
+    elif kind == "rect":
+        page.draw_rect(rect, color=rgb, width=sw, overlay=True)
+    elif kind == "ellipse":
+        page.draw_oval(rect, color=rgb, width=sw, overlay=True)
+    elif kind == "line":
+        pr = page.rect
+        if end_pct and "x" in end_pct and "y" in end_pct:
+            p1 = fitz.Point(rect.x0, rect.y0)
+            p2 = fitz.Point(
+                pr.x0 + float(end_pct["x"]) * pr.width,
+                pr.y0 + float(end_pct["y"]) * pr.height,
+            )
+        else:
+            p1, p2 = fitz.Point(rect.x0, rect.y1), fitz.Point(rect.x1, rect.y1)
+        page.draw_line(p1, p2, color=rgb, width=sw)
+    elif kind == "check":
+        # tick drawn with two strokes, proportional to the rect
+        w, h = rect.width, rect.height
+        p1 = fitz.Point(rect.x0 + w * 0.12, rect.y0 + h * 0.55)
+        p2 = fitz.Point(rect.x0 + w * 0.4, rect.y0 + h * 0.82)
+        p3 = fitz.Point(rect.x0 + w * 0.88, rect.y0 + h * 0.18)
+        ink = _clamp_rgb(color if color else (0.05, 0.55, 0.25))
+        lw = max(1.2, min(w, h) * 0.14)
+        page.draw_line(p1, p2, color=ink, width=lw)
+        page.draw_line(p2, p3, color=ink, width=lw)
+    elif kind == "cross":
+        pad_x, pad_y = rect.width * 0.15, rect.height * 0.15
+        ink = _clamp_rgb(color if color else (0.75, 0.12, 0.12))
+        lw = max(1.2, min(rect.width, rect.height) * 0.14)
+        page.draw_line(
+            fitz.Point(rect.x0 + pad_x, rect.y0 + pad_y),
+            fitz.Point(rect.x1 - pad_x, rect.y1 - pad_y),
+            color=ink, width=lw,
+        )
+        page.draw_line(
+            fitz.Point(rect.x1 - pad_x, rect.y0 + pad_y),
+            fitz.Point(rect.x0 + pad_x, rect.y1 - pad_y),
+            color=ink, width=lw,
+        )
+    elif kind == "link":
+        target = (url or "").strip()
+        if not target.lower().startswith(("http://", "https://", "mailto:")):
+            doc.close()
+            raise ValueError("Link URL must start with http://, https:// or mailto:")
+        page.insert_link({"kind": fitz.LINK_URI, "from": rect, "uri": target})
+
+    return _save_doc(doc)

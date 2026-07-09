@@ -156,8 +156,10 @@ def rule_based_reply(message: str, context: str = "login") -> Optional[str]:
             return (
                 "After you sign in:\n"
                 "• **Free** — £0, 2 documents/month\n"
-                "• **Pro** — £15/month, 100 documents/month\n"
-                "• **Business** — £79/month, 500 documents/month\n"
+                "• **Pro** — £15/month excl. VAT, 100 documents/month (1,200/year on annual billing)\n"
+                "• **Business** — £79/month excl. VAT, 600 documents/month (7,200/year on annual billing)\n"
+                "• **Manage PDF** — Pro, Business, and Organisation plans only\n"
+                "• **Extra documents** — 80p each excl. VAT when at your monthly limit\n"
                 "• Upgrade under **Settings → Subscription**\n\n"
                 "No credit card needed to create a free account."
             )

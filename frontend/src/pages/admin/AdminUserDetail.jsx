@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -213,7 +214,7 @@ export default function AdminUserDetail() {
     setResetting(true);
     try {
       const { data: res } = await api.post(`/admin/users/${userId}/send-reset`, {
-        base_url: window.location.origin,
+        base_url: getAppOrigin(),
       });
       setResetLink(res.reset_link);
       setResetEmailed(res.emailed);

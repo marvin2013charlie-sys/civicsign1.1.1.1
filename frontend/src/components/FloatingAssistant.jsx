@@ -3,6 +3,7 @@ import { Bot, X, SendHorizonal, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const GREETING = {
   role: "assistant",
@@ -20,6 +21,7 @@ const SUGGESTIONS = [
 ];
 
 export const FloatingAssistant = () => {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState("");
@@ -38,6 +40,8 @@ export const FloatingAssistant = () => {
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, open]);
+
+  if (user) return null;
 
   const send = async (preset) => {
     const text = (preset ?? input).trim();

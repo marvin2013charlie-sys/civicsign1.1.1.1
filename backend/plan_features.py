@@ -8,7 +8,10 @@ from fastapi import HTTPException
 logger = logging.getLogger("civicsign.plan_features")
 
 # Self-serve Business monthly document cap (override per contract in admin).
-BUSINESS_FAIR_USE_DEFAULT = 500
+BUSINESS_FAIR_USE_DEFAULT = 600
+PRO_MONTHLY_QUOTA_DEFAULT = 100
+PRO_YEARLY_QUOTA_DEFAULT = 1200
+BUSINESS_YEARLY_QUOTA_DEFAULT = BUSINESS_FAIR_USE_DEFAULT * 12
 BULK_SEND_MAX_ROWS_DEFAULT = 250
 ENVELOPE_HOURLY_BURST_DEFAULT = 100
 
@@ -17,11 +20,16 @@ def _effective_plan(user: dict) -> str:
     from plan_signing import get_effective_plan
     return get_effective_plan(user)
 
-PLAN_MONTHLY_QUOTA = {"free": 2, "pro": 100, "business": 500}
+PLAN_MONTHLY_QUOTA = {
+    "free": 2,
+    "pro": PRO_MONTHLY_QUOTA_DEFAULT,
+    "business": BUSINESS_FAIR_USE_DEFAULT,
+}
 
 _PRO_FLAGS = {
-    "monthly_quota": 100,
+    "monthly_quota": PRO_MONTHLY_QUOTA_DEFAULT,
     "max_recipients": None,
+    "manage_pdf": True,
     "ses_signatures": True,
     "aes_signatures": True,
     "qes_available": False,
@@ -41,6 +49,7 @@ _PLAN_FLAGS = {
     "free": {
         "monthly_quota": 2,
         "max_recipients": 2,
+        "manage_pdf": False,
         "ses_signatures": False,
         "aes_signatures": False,
         "qes_available": False,
@@ -58,7 +67,7 @@ _PLAN_FLAGS = {
     "pro": dict(_PRO_FLAGS),
     "business": {
         **_PRO_FLAGS,
-        "monthly_quota": 500,
+        "monthly_quota": BUSINESS_FAIR_USE_DEFAULT,
         "recipient_auth": True,
         "bulk_send": True,
         "api_webhooks": True,
@@ -82,11 +91,15 @@ def is_enterprise_unlimited(user: dict) -> bool:
     return _effective_plan(user) == "business" and bool(user.get("enterprise_unlimited"))
 
 
+def _billing_interval(user: dict) -> str:
+    return (user.get("billing_interval") or "monthly").lower().strip()
+
+
 def get_monthly_envelope_limit(user: dict) -> int:
     """
-    Effective monthly envelope cap for this account.
-    -1 = no monthly cap (enterprise_unlimited only).
-    Business default = fair-use pool (BUSINESS_FAIR_USE_MONTHLY), not literally infinite.
+    Effective document cap for the current billing period.
+    -1 = no cap (enterprise_unlimited only).
+    Yearly subscribers receive 12× the monthly allowance for the annual period.
     """
     plan = _effective_plan(user)
     if is_enterprise_unlimited(user):
@@ -94,8 +107,12 @@ def get_monthly_envelope_limit(user: dict) -> int:
     custom = user.get("monthly_envelope_limit")
     if isinstance(custom, int) and custom > 0:
         return custom
+    yearly = _billing_interval(user) == "yearly"
     if plan == "business":
-        return int(os.environ.get("BUSINESS_FAIR_USE_MONTHLY", str(BUSINESS_FAIR_USE_DEFAULT)))
+        monthly = int(os.environ.get("BUSINESS_FAIR_USE_MONTHLY", str(BUSINESS_FAIR_USE_DEFAULT)))
+        return monthly * 12 if yearly else monthly
+    if plan == "pro":
+        return PRO_YEARLY_QUOTA_DEFAULT if yearly else PLAN_MONTHLY_QUOTA["pro"]
     return PLAN_MONTHLY_QUOTA.get(plan, 2)
 
 
@@ -116,19 +133,25 @@ def quota_context(user: dict) -> dict:
     enterprise = is_enterprise_unlimited(user)
     custom = user.get("monthly_envelope_limit")
     fair_use_default = int(os.environ.get("BUSINESS_FAIR_USE_MONTHLY", str(BUSINESS_FAIR_USE_DEFAULT)))
+    interval = _billing_interval(user)
+    yearly = interval == "yearly"
+    period_label = "year" if yearly else "billing period"
     if enterprise:
         note = "Enterprise unlimited — no monthly document cap (contract)."
     elif isinstance(custom, int) and custom > 0:
         note = f"Contract allocation: {custom:,} documents per month."
     elif plan == "business":
         note = (
-            f"Business plan: {limit:,} documents per billing period "
-            "(resets on your signup anniversary)."
+            f"Business plan: {limit:,} documents per {period_label} "
+            f"(resets on your {'subscription' if yearly else 'signup'} anniversary)."
         )
     elif limit < 0:
         note = "Unlimited documents this month."
     else:
-        note = f"{plan.capitalize()} plan: {limit} documents per billing period (resets on your signup anniversary)."
+        note = (
+            f"{plan.capitalize()} plan: {limit:,} documents per {period_label} "
+            f"(resets on your {'subscription' if yearly else 'signup'} anniversary)."
+        )
     return {
         "limit": limit,
         "unlimited": limit < 0,
@@ -141,17 +164,25 @@ def quota_context(user: dict) -> dict:
 
 
 def plan_features(user: dict) -> dict:
+    from plan_signing import is_internal_team
+
     plan = _effective_plan(user)
     flags = dict(_PLAN_FLAGS.get(plan, _PLAN_FLAGS["free"]))
     flags["plan"] = plan
     flags["enterprise_unlimited"] = is_enterprise_unlimited(user)
+    if is_internal_team(user):
+        flags["internal_team"] = True
     if user.get("org_id"):
         seat_limit = int(os.environ.get("ORG_SEAT_MONTHLY_LIMIT", "500"))
         flags["organisation_plan"] = True
         flags["monthly_quota"] = seat_limit
-        flags["pricing_note"] = (
-            "Organisation plan: contract rates agreed in your onboarding meeting."
-        )
+        is_owner = user.get("org_role") == "owner"
+        if is_owner:
+            flags["pricing_note"] = (
+                "Organisation plan: contract rates agreed in your onboarding meeting."
+            )
+        else:
+            flags["api_webhooks"] = False
     return flags
 
 

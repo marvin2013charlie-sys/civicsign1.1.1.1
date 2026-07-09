@@ -329,6 +329,24 @@ async def health():
 @limiter.limit("10/hour")
 async def contact(request: Request, body: ContactRequest):
     """Public contact form submission (stored; email is best-effort skip-mode)."""
+    email = body.email.lower().strip()
+    org_staff = await db.users.find_one(
+        {
+            "email": email,
+            "org_id": {"$exists": True, "$ne": None},
+            "org_role": {"$ne": "owner"},
+            "active": {"$ne": False},
+        },
+        {"_id": 1},
+    )
+    if org_staff:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Organisation members should contact their organisation admin first. "
+                "Your admin can escalate to CivicSign on your organisation's behalf."
+            ),
+        )
     doc = {
         "contact_id": f"msg_{uuid.uuid4().hex[:16]}",
         "name": body.name.strip(),
@@ -2000,6 +2018,11 @@ app.add_middleware(
     allow_origins=get_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "X-Original-Bytes",
+        "X-Compressed-Bytes",
+        "X-Savings-Percent",
+    ],
 )
 
 

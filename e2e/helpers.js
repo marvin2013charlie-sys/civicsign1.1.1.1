@@ -19,6 +19,10 @@ async function clearUiBlockers(page) {
       if (user?.user_id) {
         await page.evaluate((userId) => {
           localStorage.setItem(`cs_product_tour_v1_${userId}_app`, "1");
+          localStorage.setItem(`cs_product_tour_autooffered_v1_${userId}_app`, "1");
+          localStorage.removeItem(`cs_tour_pending_user_v1_${userId}_app`);
+          sessionStorage.removeItem("cs_tour_pending_app");
+          sessionStorage.removeItem(`cs_tour_autostart_${userId}_app`);
         }, user.user_id);
       }
     }

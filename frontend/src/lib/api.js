@@ -131,6 +131,21 @@ async function blobLooksLikeApiError(blob) {
   }
 }
 
+/** Parse axios errors when responseType is blob (errors arrive as Blob, not JSON). */
+export async function parseBlobApiError(err) {
+  const data = err?.response?.data;
+  if (data instanceof Blob) {
+    const parsed = await blobLooksLikeApiError(data);
+    if (parsed) return parsed;
+    const type = (data.type || "").toLowerCase();
+    if (type.includes("text") || type.includes("json")) {
+      const text = (await data.text()).trim();
+      if (text) return text;
+    }
+  }
+  return formatApiError(err);
+}
+
 export async function fetchPdfBlobUrl(path) {
   const res = await api.get(path, {
     responseType: "blob",

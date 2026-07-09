@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,12 +14,17 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, Building2, Crown, FileText, Loader2 } from "lucide-react";
 import { RichTextWithContactEmail } from "@/components/BrandText";
+import { formatExtraDocumentBuyLabel, formatProMonthlyShort } from "@/lib/pricing";
+import { ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
 
 export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
   const navigate = useNavigate();
   const [buying, setBuying] = useState(false);
 
-  const options = detail?.options || usage?.purchase_options || {};
+  const scope = detail?.scope || usage?.scope || "user";
+  const isOrgStaffView = scope === "organization"
+    && (detail?.is_org_owner === false || usage?.is_org_owner === false);
+  const options = isOrgStaffView ? {} : (detail?.options || usage?.purchase_options || {});
   const plan = detail?.plan || usage?.plan || "free";
   const used = detail?.used ?? usage?.used;
   const limit = detail?.limit ?? usage?.limit;
@@ -28,13 +34,12 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
   const showUpgradeBusiness = Boolean(options.upgrade_business);
   const showContact = Boolean(options.contact_support);
   const showBuyOne = Boolean(options.buy_single_document_gbp);
-  const buyPrice = options.buy_single_document_gbp ?? 0.8;
 
   const buyDocument = async () => {
     setBuying(true);
     try {
       const { data } = await api.post("/billing/checkout-document", {
-        origin_url: window.location.origin,
+        origin_url: getAppOrigin(),
         quantity: 1,
       });
       if (data.url) window.location.assign(data.url);
@@ -58,12 +63,16 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
           <DialogDescription asChild>
             <div className="space-y-2 text-left text-sm text-[var(--c-muted-fg)]">
               <p>
-                <RichTextWithContactEmail
-                  text={
-                    detail?.message ||
-                    `You've used all documents on your ${planLabel} plan this month. Deleting sent or signed envelopes does not restore your allowance.`
-                  }
-                />
+                {isOrgStaffView ? (
+                  detail?.message || ORG_STAFF_ESCALATION_NOTE
+                ) : (
+                  <RichTextWithContactEmail
+                    text={
+                      detail?.message ||
+                      `You've used all documents on your ${planLabel} plan this month. Deleting sent or signed envelopes does not restore your allowance.`
+                    }
+                  />
+                )}
               </p>
               {limit > 0 && (
                 <p className="font-medium text-[var(--c-ink)]">
@@ -79,6 +88,20 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-col">
+          {isOrgStaffView && (
+            <Button
+              className="w-full"
+              style={{ background: "var(--c-primary)", color: "#fff" }}
+              onClick={() => {
+                onOpenChange(false);
+                navigate("/organisation");
+              }}
+              data-testid="quota-org-admin-button"
+            >
+              <Building2 className="mr-2 h-4 w-4" />
+              View your allowance
+            </Button>
+          )}
           {showUpgradePro && (
             <Button
               className="w-full"
@@ -90,7 +113,7 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
               data-testid="quota-upgrade-pro-button"
             >
               <Crown className="mr-2 h-4 w-4" />
-              Upgrade to Pro, £{options.upgrade_pro_amount_gbp ?? 15}/month
+              Upgrade to Pro, {formatProMonthlyShort()}
             </Button>
           )}
           {showUpgradeBusiness && (
@@ -121,7 +144,7 @@ export function QuotaLimitModal({ open, onOpenChange, detail, usage }) {
               ) : (
                 <FileText className="mr-2 h-4 w-4" />
               )}
-              Buy 1 extra document, £{buyPrice.toFixed(2)}
+              {formatExtraDocumentBuyLabel()}
             </Button>
           )}
           {showContact && !showBuyOne && (

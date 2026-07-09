@@ -7,6 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Word (.docx) → PDF conversion (headless LibreOffice)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-writer-nogui \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install startup-critical packages in their own layer so a stale Docker cache
 # cannot ship an image missing cryptography (crashes db.py import on Render).
 RUN pip install --no-cache-dir cryptography==44.0.2 httpx==0.28.1

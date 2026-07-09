@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const { USERS, loginUser } = require("./helpers");
 
-const pdfPath = path.join(__dirname, "..", "demo-videos", "assets", "employment-contract.pdf");
+const pdfPath = path.join(__dirname, "fixtures", "employment-contract.pdf");
 
 test.describe("Documents & seal verify", () => {
   test("business user can open sealed panel and verify library", async ({ page }) => {

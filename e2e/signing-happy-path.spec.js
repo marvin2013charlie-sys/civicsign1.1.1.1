@@ -3,12 +3,12 @@ const { test, expect } = require("@playwright/test");
 const path = require("path");
 const fs = require("fs");
 
-const pdfPath = path.join(__dirname, "..", "demo-videos", "assets", "employment-contract.pdf");
+const pdfPath = path.join(__dirname, "fixtures", "employment-contract.pdf");
 const backendUrl = process.env.E2E_BACKEND_URL || "http://localhost:8001";
 
 const FALLBACK_USER = {
-  email: process.env.E2E_USER_EMAIL || "protest@civicbot.co.uk",
-  password: process.env.E2E_USER_PASSWORD || "ProTest123!",
+  email: process.env.E2E_USER_EMAIL || "pro@civicbot.co.uk",
+  password: process.env.E2E_USER_PASSWORD || "CivicSign2026!Pro",
 };
 
 function uniqueEmail() {
@@ -24,6 +24,10 @@ async function clearUiBlockers(page) {
       if (user?.user_id) {
         await page.evaluate((userId) => {
           localStorage.setItem(`cs_product_tour_v1_${userId}_app`, "1");
+          localStorage.setItem(`cs_product_tour_autooffered_v1_${userId}_app`, "1");
+          localStorage.removeItem(`cs_tour_pending_user_v1_${userId}_app`);
+          sessionStorage.removeItem("cs_tour_pending_app");
+          sessionStorage.removeItem(`cs_tour_autostart_${userId}_app`);
         }, user.user_id);
       }
     }
@@ -61,7 +65,8 @@ async function registerAndVerify(page, email, password) {
   const body = await reg.json();
   expect(body.dev_code, "DEV_MODE must expose verification code").toBeTruthy();
 
-  await page.goto("/verify-email");
+  // Seed sessionStorage before navigation — VerifyEmail redirects to /register when email is missing.
+  await page.goto("/login");
   await page.evaluate(
     ({ em, code }) => {
       sessionStorage.setItem("cs_verify_email", em);
@@ -70,7 +75,7 @@ async function registerAndVerify(page, email, password) {
     },
     { em: email, code: body.dev_code },
   );
-  await page.reload();
+  await page.goto("/verify-email");
 
   await expect(page.getByTestId("verify-dev-code")).toBeVisible({ timeout: 10_000 });
   await page.getByTestId("verify-code-input").fill(body.dev_code);
@@ -80,6 +85,7 @@ async function registerAndVerify(page, email, password) {
   if (page.url().includes("/login")) {
     await loginExisting(page, email, password);
   }
+  await clearUiBlockers(page);
   return true;
 }
 
@@ -111,13 +117,15 @@ test.describe("Signing happy path", () => {
     await page.getByTestId("recipient-add-button").click();
     await expect(page.getByTestId("recipient-row")).toBeVisible();
 
-    // Place signature field
+    // Place signature field on the PDF overlay (not the scroll container padding)
+    await page.locator(".react-pdf__Page__canvas").first().waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("recipient-row").first().click();
     await page.getByTestId("field-chip-signature").click();
-    const canvas = page.getByTestId("prepare-canvas");
-    await expect(canvas).toBeVisible();
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error("prepare canvas not visible");
-    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.6);
+    const overlay = page.getByTestId("pdf-page-overlay").first();
+    await expect(overlay).toBeVisible({ timeout: 10_000 });
+    const box = await overlay.boundingBox();
+    if (!box) throw new Error("pdf page overlay not visible");
+    await overlay.click({ position: { x: box.width * 0.5, y: box.height * 0.65 } });
     await expect(page.getByTestId("placed-field")).toBeVisible({ timeout: 10_000 });
 
     // Continue to send

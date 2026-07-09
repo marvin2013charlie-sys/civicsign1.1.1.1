@@ -5,6 +5,8 @@ import api, { formatApiError, downloadFile } from "@/lib/api";
 import { fetchAllEnvelopes } from "@/lib/envelopes";
 import { AppShell } from "@/components/AppShell";
 import { DocumentsSealedPanel } from "@/components/DocumentsSealedPanel";
+import { DocumentsManagePdfPanel } from "@/components/DocumentsManagePdfPanel";
+import { isManagePdfEnvelope } from "@/lib/savePdfToDocuments";
 import { StatusBadge } from "@/components/StatusBadge";
 import { VerifySealDialog } from "@/components/VerifySealDialog";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,7 @@ import { usePlan } from "@/hooks/usePlan";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import {
   FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye, Inbox, Download,
-  ShieldCheck, CheckCircle2, XCircle, Fingerprint,
+  ShieldCheck, CheckCircle2, XCircle, Fingerprint, Pencil,
 } from "lucide-react";
 
 export default function Documents() {
@@ -30,8 +32,10 @@ export default function Documents() {
   const { user } = useAuth();
   const { features, shouldOfferUpgrade } = usePlan();
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "sealed" ? "sealed" : "all";
+  const tabParam = params.get("tab");
+  const tab = tabParam === "sealed" ? "sealed" : tabParam === "manage-pdf" ? "manage-pdf" : "all";
   const canVerify = features.seal_verification;
+  const canManagePdf = features.manage_pdf;
   const setTab = (t) => setParams(t === "all" ? {} : { tab: t }, { replace: true });
 
   const [loading, setLoading] = useState(true);
@@ -65,8 +69,14 @@ export default function Documents() {
     [envelopes],
   );
 
+  const managePdfCount = useMemo(
+    () => envelopes.filter(isManagePdfEnvelope).length,
+    [envelopes],
+  );
+
   const filtered = useMemo(() => {
     return envelopes.filter((e) => {
+      if (isManagePdfEnvelope(e)) return false;
       const okQ = !query || e.title.toLowerCase().includes(query.toLowerCase());
       const okS = statusFilter === "all" || e.status === statusFilter;
       return okQ && okS;
@@ -127,6 +137,16 @@ export default function Documents() {
               </span>
             )}
           </TabsTrigger>
+          {canManagePdf && (
+            <TabsTrigger value="manage-pdf" data-testid="documents-tab-manage-pdf" className="data-[state=active]:bg-[var(--card)]">
+              <Pencil className="mr-1.5 h-4 w-4" /> From Manage PDF
+              {managePdfCount > 0 && (
+                <span className="pointer-events-none ml-1.5 rounded-full bg-[var(--c-primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {managePdfCount}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="all">
@@ -238,6 +258,18 @@ export default function Documents() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="manage-pdf">
+          {canManagePdf ? (
+            <DocumentsManagePdfPanel envelopes={envelopes} loading={loading} onReload={load} />
+          ) : (
+            <UpgradePrompt
+              feature="manage_pdf"
+              title="Manage PDF saves appear on Pro plans"
+              description="Use any Manage PDF tool — compress, watermark, AI metadata check, and more — then save PDFs here ready for signing."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="sealed">

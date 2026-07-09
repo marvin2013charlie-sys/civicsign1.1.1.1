@@ -17,13 +17,81 @@ def is_dev_mode() -> bool:
     return os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes")
 
 
-def get_cors_origins() -> list:
-    """Explicit allow-list; never returns wildcard when credentials are used."""
+def _normalize_redirect_origin(url: str) -> str | None:
+    """Return scheme://host[:port] or None if invalid."""
+    candidate = (url or "").strip().rstrip("/")
+    if not candidate or not _URL_PREFIX.match(candidate):
+        return None
+    parsed = urlparse(candidate)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _localhost_origin_aliases(origin: str) -> set[str]:
+    """Treat localhost and 127.0.0.1 on the same port as equivalent (local dev)."""
+    parsed = urlparse(origin)
+    host = (parsed.hostname or "").lower()
+    if host not in ("localhost", "127.0.0.1"):
+        return {origin}
+    port = parsed.port
+    port_suffix = f":{port}" if port else ""
+    return {
+        origin,
+        f"{parsed.scheme}://localhost{port_suffix}",
+        f"{parsed.scheme}://127.0.0.1{port_suffix}",
+    }
+
+
+def _www_origin_aliases(origin: str) -> set[str]:
+    """Treat www and apex host as equivalent when one is explicitly allowed."""
+    parsed = urlparse(origin)
+    host = (parsed.hostname or "").lower()
+    if not host.startswith("www."):
+        bare = host
+        www = f"www.{host}" if host else ""
+    else:
+        www = host
+        bare = host[4:]
+    if not bare:
+        return {origin}
+    port_suffix = f":{parsed.port}" if parsed.port else ""
+    return {
+        origin,
+        f"{parsed.scheme}://{bare}{port_suffix}",
+        f"{parsed.scheme}://{www}{port_suffix}",
+    }
+
+
+def allowed_redirect_origins() -> set[str]:
+    """All origins permitted for sign links, redirects, and CORS (expanded aliases)."""
+    seeds: list[str] = []
     raw = os.environ.get("CORS_ORIGINS", "").strip()
     if not raw or raw == "*":
-        return ["http://localhost:3000", "http://127.0.0.1:3000"]
-    origins = [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
-    return origins or ["http://localhost:3000"]
+        seeds.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
+    else:
+        seeds.extend(o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*")
+    for key in ("FRONTEND_URL", "PUBLIC_SITE_URL"):
+        origin = _normalize_redirect_origin(os.environ.get(key, ""))
+        if origin:
+            seeds.append(origin)
+    if not seeds:
+        seeds = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    out: set[str] = set()
+    for seed in seeds:
+        origin = _normalize_redirect_origin(seed)
+        if not origin:
+            continue
+        out.update(_localhost_origin_aliases(origin))
+        if parsed := urlparse(origin):
+            if parsed.hostname and "." in parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1"):
+                out.update(_www_origin_aliases(origin))
+    return out
+
+
+def get_cors_origins() -> list:
+    """Explicit allow-list; never returns wildcard when credentials are used."""
+    return sorted(allowed_redirect_origins())
 
 
 _PRIVATE_NETS = tuple(
@@ -82,18 +150,25 @@ def validate_webhook_url(url: str) -> str:
 
 def validate_redirect_base(url: str, *, fallback: str = "") -> str:
     """Validate and return a normalised origin for redirects and sign links."""
-    candidate = (url or fallback or "").strip().rstrip("/")
-    if not candidate:
+    allowed = allowed_redirect_origins()
+    candidates = [url, fallback, os.environ.get("FRONTEND_URL", "")]
+    tried: list[str] = []
+    for raw in candidates:
+        origin = _normalize_redirect_origin(raw)
+        if not origin or origin in tried:
+            continue
+        tried.append(origin)
+        if origin in allowed:
+            return origin
+    if not tried:
         raise HTTPException(status_code=400, detail="Missing origin URL")
-    if not _URL_PREFIX.match(candidate):
-        raise HTTPException(status_code=400, detail="Origin must use http or https")
-    parsed = urlparse(candidate)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(status_code=400, detail="Invalid origin URL")
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    if origin not in get_cors_origins():
-        raise HTTPException(status_code=400, detail="Origin not allowed")
-    return origin
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Origin not allowed. Open CivicSign using an approved site URL "
+            f"(received {tried[0]})."
+        ),
+    )
 
 
 def esc(text) -> str:

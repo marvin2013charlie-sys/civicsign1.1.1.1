@@ -86,11 +86,49 @@ These have appeared in setup transcripts and should be rotated once:
 - Atlas database-user password (then update `MONGO_URL`)
 - Resend API key
 
+## Private beta (founder-led, 5–10 pilots)
+
+Use this path before public self-serve launch. You handle support via email yourself.
+
+### Day 1 — Secrets & keys (2–3 hours)
+1. Rotate Atlas password, `JWT_SECRET`, `PLAN_ENCRYPTION_SECRET`, `RESEND_API_KEY`
+2. Generate `DOCUMENT_ENCRYPTION_KEY` and set in Render dashboard
+3. Run `python3 scripts/reset_dev_data.py` **only on local** — never on production Atlas
+
+### Day 2 — Deploy (half day)
+1. Push `civicsign-2026-overhaul` → Render Blueprint (`render.yaml` uses **starter** plan)
+2. Set all `sync: false` env vars in Render (see §1 table)
+3. Cloudflare Pages: `REACT_APP_BACKEND_URL=https://api.civicsign.co.uk` and `REACT_APP_PRIVATE_BETA=true`
+4. Redeploy frontend
+5. Stripe **test** keys first; webhook `https://api.civicsign.co.uk/api/webhook/stripe`
+
+### Day 3 — Verify (2 hours)
+```bash
+REACT_APP_BACKEND_URL=https://api.civicsign.co.uk python3 scripts/smoke_test.py
+```
+Manual: register → verify email → upload PDF → send → sign → download → seal verify.
+
+### Onboarding pilots (you create accounts)
+| Option | How |
+|--------|-----|
+| **Self-serve** | Send them `https://civicsign.co.uk/register` — you watch contact inbox |
+| **Org customer** | You (super-admin) create org in `/admin/organizations`, org owner adds staff |
+| **Free/Pro trial** | They register; you upgrade plan in `/admin/users` if needed |
+
+### Support during beta (you)
+- **Logged-in users:** Settings → Help & Support (private beta banner → `info@civicbot.co.uk`)
+- **Org staff:** contact their org admin first (enforced in app)
+- **Signers:** no account needed — support via sender only
+- Monitor: `https://api.civicsign.co.uk/api/health` every 5 min (UptimeRobot free tier)
+
+### Beta scope — OK to defer
+- SMS recipient auth, Google OAuth, recurring Stripe subscriptions
+- Public marketing pages can stay; avoid promising SMS/Google until wired
+
+---
+
 ## Notes
-- `render.yaml` uses the **free** plan to start — no card needed. Free services
-  sleep after 15 min idle and take ~30-60s to wake on the next request. When you
-  start taking real traffic or enable Stripe webhooks, change `plan: free` to
-  `plan: starter` ($7/mo) for an always-on service — that's the only change needed.
+- `render.yaml` uses the **starter** plan ($7/mo) so the API stays awake for webhooks.
 - Free tier gives 512MB RAM; the pruned image fits comfortably.
 - Backend runtime deps are pinned minimally in `backend/requirements.txt`
   (18 packages — the ~113 unused Emergent-era packages were removed).

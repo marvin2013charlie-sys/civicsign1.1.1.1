@@ -45,11 +45,11 @@ export default function VerifyEmail() {
     if (code.trim().length < 6) { toast.error("Enter the 6-digit code"); return; }
     setVerifying(true);
     try {
-      await verifyEmail(email, code.trim());
+      const data = await verifyEmail(email, code.trim());
       sessionStorage.removeItem("cs_verify_email");
       sessionStorage.removeItem("cs_verify_dev_code");
       sessionStorage.removeItem("cs_verify_dev_mode");
-      requestProductTour("app");
+      requestProductTour("app", data?.user?.user_id);
       toast.success("Email verified, welcome to CivicSign!");
       const dest = next || "/dashboard";
       clearAuthNext();

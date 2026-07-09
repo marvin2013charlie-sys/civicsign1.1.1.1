@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getAppOrigin } from "@/lib/appOrigin";
 import {
   Building2, Plus, Users, FileText, Pencil, Trash2, Loader2, Infinity,
   Eye, EyeOff, Copy, Check, KeyRound, Upload, Download,
@@ -358,7 +359,7 @@ function CreateOrgDialog({ open, onOpenChange, onCreated }) {
           <DialogFooter>
             <Button variant="outline" onClick={async () => {
               const ok = await copyToClipboard(
-                `Organisation: ${createdCreds.orgName}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLogin: ${window.location.origin}/login`,
+                `Organisation: ${createdCreds.orgName}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLogin: ${getAppOrigin()}/login`,
               );
               if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
             }}>

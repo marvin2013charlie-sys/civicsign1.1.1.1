@@ -1,31 +1,91 @@
 export const TOUR_VERSION = "v1";
 
 const TOUR_PENDING_PREFIX = "cs_tour_pending";
+const TOUR_PENDING_USER_PREFIX = "cs_tour_pending_user";
+const TOUR_AUTO_OFFERED_PREFIX = "cs_product_tour_autooffered";
 
 export function tourStorageKey(userId, surface) {
   return `cs_product_tour_${TOUR_VERSION}_${userId}_${surface}`;
 }
 
-/** Call after signup / email verification so the app tour runs on first dashboard visit. */
-export function requestProductTour(surface = "app") {
-  sessionStorage.setItem(`${TOUR_PENDING_PREFIX}_${surface}`, "1");
+function pendingSessionKey(surface) {
+  return `${TOUR_PENDING_PREFIX}_${surface}`;
 }
 
-export function consumeTourPending(surface = "app") {
-  const key = `${TOUR_PENDING_PREFIX}_${surface}`;
-  const pending = sessionStorage.getItem(key) === "1";
-  if (pending) sessionStorage.removeItem(key);
-  return pending;
+function pendingUserKey(userId, surface) {
+  return `${TOUR_PENDING_USER_PREFIX}_${TOUR_VERSION}_${userId}_${surface}`;
 }
 
-export function hasCompletedTour(userId, surface) {
+function autoOfferedKey(userId, surface) {
+  return `${TOUR_AUTO_OFFERED_PREFIX}_${TOUR_VERSION}_${userId}_${surface}`;
+}
+
+/**
+ * Queue a one-time automatic tour after signup / email verification.
+ * Persists per user so the tour still runs if they verify on one device and open the app later.
+ */
+export function requestProductTour(surface = "app", userId = null) {
+  sessionStorage.setItem(pendingSessionKey(surface), "1");
+  if (userId) {
+    localStorage.setItem(pendingUserKey(userId, surface), "1");
+  }
+}
+
+/** True when a first-visit tour was explicitly requested and not yet consumed. */
+export function peekTourPending(surface = "app", userId = null) {
+  if (sessionStorage.getItem(pendingSessionKey(surface)) === "1") return true;
+  if (userId && localStorage.getItem(pendingUserKey(userId, surface)) === "1") return true;
+  return false;
+}
+
+export function consumeTourPending(surface = "app", userId = null) {
+  if (!peekTourPending(surface, userId)) return false;
+  sessionStorage.removeItem(pendingSessionKey(surface));
+  if (userId) localStorage.removeItem(pendingUserKey(userId, surface));
+  return true;
+}
+
+/**
+ * Accepts the full user object (preferred) or a bare userId string.
+ * With the full user, the account-level `tours_completed` flag from the API
+ * is honoured, so the tour never auto-replays on a new device or after
+ * clearing browser storage.
+ */
+export function hasCompletedTour(user, surface) {
+  const userId = user && typeof user === "object" ? user.user_id : user;
   if (!userId) return true;
+  if (user && typeof user === "object" && (user.tours_completed || []).includes(surface)) {
+    return true;
+  }
   return localStorage.getItem(tourStorageKey(userId, surface)) === "1";
 }
 
-export function markTourCompleted(userId, surface) {
+export function markTourCompleted(user, surface) {
+  const userId = user && typeof user === "object" ? user.user_id : user;
   if (!userId) return;
   localStorage.setItem(tourStorageKey(userId, surface), "1");
+  if (user && typeof user === "object") {
+    if (Array.isArray(user.tours_completed) && !user.tours_completed.includes(surface)) {
+      user.tours_completed.push(surface);
+    }
+    // Persist on the account — best-effort, localStorage already covers this browser.
+    import("@/lib/api").then(({ default: api }) =>
+      api.post(`/auth/me/tours/${surface}`).catch(() => {}),
+    );
+  }
+}
+
+/** Automatic tour was already shown (or dismissed) — do not auto-start again. */
+export function hasAutoTourBeenOffered(user, surface) {
+  const userId = user && typeof user === "object" ? user.user_id : user;
+  if (!userId) return true;
+  if (hasCompletedTour(user, surface)) return true;
+  return localStorage.getItem(autoOfferedKey(userId, surface)) === "1";
+}
+
+export function markAutoTourOffered(userId, surface) {
+  if (!userId) return;
+  localStorage.setItem(autoOfferedKey(userId, surface), "1");
 }
 
 function navStep(testid, title, description, side = "right") {
@@ -99,15 +159,6 @@ export function buildAppTourSteps(user) {
         title: "Settings",
         description: "Update your profile, manage your subscription, security, and account preferences.",
         side: "bottom",
-        align: "end",
-      },
-    },
-    {
-      element: '[data-testid="floating-assistant-toggle"]',
-      popover: {
-        title: "Signing Copilot",
-        description: "Stuck on a step? Open the assistant for in-app help while you work.",
-        side: "left",
         align: "end",
       },
     },

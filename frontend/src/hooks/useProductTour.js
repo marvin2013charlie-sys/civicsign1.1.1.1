@@ -5,8 +5,11 @@ import {
   buildAdminTourSteps,
   buildAppTourSteps,
   consumeTourPending,
+  hasAutoTourBeenOffered,
   hasCompletedTour,
+  markAutoTourOffered,
   markTourCompleted,
+  peekTourPending,
 } from "@/lib/productTour";
 
 function isMobileNav() {
@@ -34,7 +37,7 @@ export function useProductTour({ surface, user, impersonation, onOpenMobileNav }
     async (force = false) => {
       const userId = user?.user_id;
       if (!userId || impersonation) return false;
-      if (!force && hasCompletedTour(userId, surface)) return false;
+      if (!force && hasCompletedTour(user, surface)) return false;
       if (driverRef.current?.isActive()) return false;
 
       if (isMobileNav() && onOpenMobileNav) {
@@ -67,40 +70,49 @@ export function useProductTour({ surface, user, impersonation, onOpenMobileNav }
         progressText: "{{current}} of {{total}}",
         steps,
         onDestroyed: () => {
-          markTourCompleted(userId, surface);
+          markTourCompleted(user, surface);
+          markAutoTourOffered(userId, surface);
           driverRef.current = null;
         },
       });
 
       driverRef.current = driverObj;
       driverObj.drive();
-      sessionStorage.setItem(sessionAutoStartKey(userId, surface), "1");
       return true;
     },
     [surface, user, impersonation, onOpenMobileNav],
   );
 
+  // Auto-start only once after register / email verification — never on routine logins.
   useEffect(() => {
     const userId = user?.user_id;
     if (!userId || impersonation) return undefined;
-    if (hasCompletedTour(userId, surface)) return undefined;
+    if (hasAutoTourBeenOffered(user, surface)) return undefined;
 
     const autoKey = sessionAutoStartKey(userId, surface);
     if (sessionStorage.getItem(autoKey)) return undefined;
+    if (!peekTourPending(surface, userId)) return undefined;
 
-    const pending = consumeTourPending(surface);
-    const delay = pending ? 500 : 1400;
     let cancelled = false;
 
     const run = async () => {
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       if (cancelled || autoStartRef.current) return;
       autoStartRef.current = true;
+      sessionStorage.setItem(autoKey, "1");
 
       let started = await startTour(false);
-      if (!started && !cancelled && !sessionStorage.getItem(autoKey)) {
+      if (!started && !cancelled) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         if (!cancelled) started = await startTour(false);
+      }
+
+      if (started) {
+        consumeTourPending(surface, userId);
+        markAutoTourOffered(userId, surface);
+      } else {
+        sessionStorage.removeItem(autoKey);
+        autoStartRef.current = false;
       }
     };
 

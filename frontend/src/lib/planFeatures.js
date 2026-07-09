@@ -5,6 +5,7 @@ const PLAN_RANK = { free: 0, pro: 1, business: 2 };
 /** Minimum plan required to use each feature (matches backend _BUSINESS_ONLY + pro flags). */
 export const FEATURE_MIN_PLAN = {
   auto_reminders: "free",
+  manage_pdf: "pro",
   team_templates: "pro",
   comments: "pro",
   seal_verification: "pro", // Pro and Business (minimum paid tier)
@@ -22,6 +23,7 @@ const DEFAULT_FEATURES = {
   plan: "free",
   monthly_quota: 2,
   max_recipients: 2,
+  manage_pdf: false,
   ses_signatures: false,
   aes_signatures: false,
   qes_available: false,
@@ -40,8 +42,9 @@ const DEFAULT_FEATURES = {
 /** Full Business tier — organisation contract accounts receive the same feature set. */
 const BUSINESS_FEATURES = {
   plan: "business",
-  monthly_quota: 500,
+  monthly_quota: 600,
   max_recipients: null,
+  manage_pdf: true,
   ses_signatures: true,
   aes_signatures: true,
   qes_available: false,
@@ -58,14 +61,23 @@ const BUSINESS_FEATURES = {
 };
 
 export function resolvePlanFeatures(user) {
+  if (user?.role === "admin" || user?.role === "staff") {
+    return { ...BUSINESS_FEATURES, plan: "business", internal_team: true };
+  }
   const base = { ...DEFAULT_FEATURES, ...(user?.plan_features || {}) };
   if (user?.org_id) {
+    const isOwner = user.org_role === "owner";
     return {
       ...base,
       ...BUSINESS_FEATURES,
       organisation_plan: true,
-      pricing_note:
-        "Organisation plan: custom document pools and pricing agreed in your onboarding meeting.",
+      api_webhooks: isOwner,
+      ...(isOwner
+        ? {
+            pricing_note:
+              "Organisation plan: custom document pools and pricing agreed in your onboarding meeting.",
+          }
+        : {}),
     };
   }
   return base;

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { buildQuotaDetailFromUsage } from "@/lib/quota";
+import { formatExtraDocumentLimitMessage } from "@/lib/pricing";
+import { ORG_STAFF_LIMIT_MESSAGE, ORG_STAFF_SEND_BLOCKED } from "@/lib/orgLabels";
 import { AppShell } from "@/components/AppShell";
 import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -20,7 +22,7 @@ import {
 } from "recharts";
 import {
   FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye,
-  CheckCircle2, Clock, Files, TrendingUp, Inbox, Crown, AlertTriangle,
+  CheckCircle2, Clock, Files, TrendingUp, Inbox, Crown, AlertTriangle, Building2,
 } from "lucide-react";
 
 const StatCard = ({ icon: Icon, label, value, accent }) => (
@@ -88,7 +90,15 @@ export default function Dashboard() {
   };
 
   const startNewEnvelope = () => {
-    if (usage?.at_limit && usage.scope !== "organization") {
+    if (usage?.at_limit) {
+      if (usage.scope === "organization") {
+        toast.error(
+          usage.is_org_owner
+            ? "You've reached your organisation limit. Contact your account team."
+            : ORG_STAFF_SEND_BLOCKED,
+        );
+        return;
+      }
       openQuotaModal();
       return;
     }
@@ -135,7 +145,11 @@ export default function Dashboard() {
       </div>
 
       {/* Monthly quota meter */}
-      {!loading && usage && (
+      {!loading && usage && (() => {
+        const isOrg = usage.scope === "organization";
+        const isOrgOwnerView = isOrg && usage.is_org_owner;
+        const isOrgStaffView = isOrg && !usage.is_org_owner;
+        return (
         <div
           className="mt-4 rounded-xl border bg-[var(--card)] p-5"
           style={{ borderColor: (usage.at_limit || usage.percent >= 90) && !usage.unlimited ? "#FCA5A5" : "var(--c-border)" }}
@@ -145,13 +159,13 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
-                  <Crown className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+                  {isOrg ? <Building2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> : <Crown className="h-4 w-4" style={{ color: "var(--c-primary)" }} />}
                 </span>
                 <p className="font-heading text-sm font-semibold uppercase tracking-wide text-[var(--c-ink)]">
-                  Document quota · {usage.month}
+                  {isOrg ? "Your allowance" : "Document quota"} · {usage.month}
                 </p>
                 <span className="rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
-                  {usage.plan} plan
+                  {isOrg ? "Organisation" : `${usage.plan} plan`}
                 </span>
               </div>
               <p className="mt-1 text-2xl font-bold font-heading text-[var(--c-ink)]" data-testid="dashboard-quota-counter">
@@ -172,14 +186,26 @@ export default function Dashboard() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {!usage.unlimited && (usage.at_limit || usage.percent >= 80) && (
+              {!usage.unlimited && !isOrgStaffView && (usage.at_limit || usage.percent >= 80) && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => (usage.at_limit ? openQuotaModal() : navigate("/settings?tab=subscription"))}
+                  onClick={() => (
+                    isOrgOwnerView
+                      ? navigate("/contact")
+                      : usage.at_limit
+                        ? openQuotaModal()
+                        : navigate("/settings?tab=subscription")
+                  )}
                   data-testid="dashboard-quota-upgrade"
                 >
-                  <Crown className="mr-1.5 h-3.5 w-3.5" /> {usage.at_limit ? "Get more documents" : "Upgrade plan"}
+                  <Crown className="mr-1.5 h-3.5 w-3.5" /> {
+                    isOrgOwnerView
+                      ? "Contact account team"
+                      : usage.at_limit
+                        ? "Get more documents"
+                        : "Upgrade plan"
+                  }
                 </Button>
               )}
             </div>
@@ -202,14 +228,23 @@ export default function Dashboard() {
                 <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-rose-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   {usage.at_limit
-                    ? "Monthly limit reached. Upgrade your plan or buy one extra document for 80p."
-                    : "You're almost out of envelopes this month. Upgrade to keep sending."}
+                    ? isOrgStaffView
+                      ? ORG_STAFF_LIMIT_MESSAGE
+                      : isOrgOwnerView
+                        ? "Organisation limit reached. Contact your account team to review your contract."
+                        : `Monthly limit reached. Upgrade your plan or ${formatExtraDocumentLimitMessage()}.`
+                    : isOrgStaffView
+                      ? "You're nearing your monthly allowance."
+                      : isOrgOwnerView
+                        ? "You're nearing your organisation limit."
+                        : "You're almost out of envelopes this month. Upgrade to keep sending."}
                 </p>
               )}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Chart */}
       {!loading && stats && stats.total > 0 && (

@@ -18,8 +18,17 @@ def _now() -> str:
 
 
 async def resolve_user_period(owner_id: str) -> dict:
-    user = await db.users.find_one({"user_id": owner_id}, {"_id": 0, "created_at": 1})
-    return period_for_user(user.get("created_at") if user else None)
+    user = await db.users.find_one(
+        {"user_id": owner_id},
+        {"_id": 0, "created_at": 1, "billing_interval": 1, "plan_updated_at": 1},
+    )
+    if not user:
+        return period_for_user(None)
+    return period_for_user(
+        user.get("created_at"),
+        billing_interval=user.get("billing_interval"),
+        plan_anchor_iso=user.get("plan_updated_at") or user.get("created_at"),
+    )
 
 
 async def resolve_org_period(org_id: str) -> dict:

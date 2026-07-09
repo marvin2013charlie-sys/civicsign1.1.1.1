@@ -262,14 +262,26 @@ class APITester:
             current_plan = data.get("user", {}).get("plan", "free")
             self.log(f"   Current plan: {current_plan}", Colors.BLUE)
 
-        # Test 16: GET /api/billing/plans (should return currency 'gbp', Pro £15, Business £79)
+        # Test 16: GET /api/billing/plans (GBP, ex-VAT catalogue + tax slabs)
         self.test(
-            "Get billing plans (GBP currency)",
+            "Get billing plans (GBP currency, ex-VAT + VAT slabs)",
             "GET", "billing/plans", 200,
             check_fn=lambda d: (
                 d.get("currency") == "gbp" and
-                any(p["id"] == "pro" and p["amount"] == 15.00 for p in d.get("plans", [])) and
-                any(p["id"] == "business" and p["amount"] == 79.00 for p in d.get("plans", []))
+                d.get("prices_exclude_vat") is True and
+                d.get("tax", {}).get("percent") == 20 and
+                any(
+                    p["id"] == "pro"
+                    and p["amount_monthly"] == 15.00
+                    and p["tax_monthly"]["amount_inc_vat"] == 18.00
+                    for p in d.get("plans", [])
+                ) and
+                any(
+                    p["id"] == "business"
+                    and p["amount_monthly"] == 79.00
+                    and p["tax_monthly"]["amount_inc_vat"] == 94.80
+                    for p in d.get("plans", [])
+                )
             )
         )
 

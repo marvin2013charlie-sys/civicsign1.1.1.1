@@ -81,7 +81,7 @@ export default function Register() {
           state: { email: data.email, dev_code: data.dev_code, dev_mode: data.dev_mode },
         });
       } else {
-        requestProductTour("app");
+        requestProductTour("app", data?.user?.user_id);
         clearAuthNext();
         navigate(next || "/dashboard", { replace: true });
       }

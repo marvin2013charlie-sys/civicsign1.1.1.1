@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import api, { formatApiError, downloadFile, fetchPdfBlobUrl } from "@/lib/api";
 import { Document, Page } from "react-pdf";
 import { PDF_OPTIONS } from "@/lib/pdf";
-import { formatOrgRole } from "@/lib/orgLabels";
+import { formatOrgRole, isOrgOwner } from "@/lib/orgLabels";
 import { usePoll, POLL_FAST_MS, POLL_SLOW_MS } from "@/hooks/usePoll";
 import { useAuth } from "@/context/AuthContext";
 import { AppShell } from "@/components/AppShell";
@@ -51,7 +51,7 @@ function UsageBar({ used, limit, label, unlimited }) {
   );
 }
 
-function OverviewTab({ data }) {
+function OverviewTab({ data, isOwner }) {
   const org = data.organization;
   const usage = data.usage;
   const atRisk = usage.at_limit || usage.seat_percent >= 70;
@@ -62,66 +62,77 @@ function OverviewTab({ data }) {
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
-            <p className="font-semibold">Approaching or at your contract limit</p>
+            <p className="font-semibold">
+              {isOwner ? "Approaching or at your contract limit" : "Approaching or at your allowance"}
+            </p>
             <p className="mt-1">
               {usage.seat_at_limit
-                ? "Your seat has reached its monthly allowance."
-                : usage.org_at_limit
+                ? "You have reached your monthly document allowance."
+                : isOwner && usage.org_at_limit
                   ? "Your organisation pool has reached its monthly cap."
                   : "You are nearing your monthly allowance."}
-              {" "}Contact your account manager to review your contract.
+              {" "}
+              {isOwner
+                ? "Contact your account manager to review your contract."
+                : "Contact your organisation admin if you need more capacity."}
             </p>
-            <Button size="sm" className="mt-3" asChild style={{ background: "var(--c-primary)", color: "#fff" }}>
-              <Link to="/contact">Contact account team</Link>
-            </Button>
+            {isOwner && (
+              <Button size="sm" className="mt-3" asChild style={{ background: "var(--c-primary)", color: "#fff" }}>
+                <Link to="/contact">Contact account team</Link>
+              </Button>
+            )}
           </div>
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={`grid gap-4 ${isOwner ? "md:grid-cols-2" : "max-w-xl"}`}>
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
           <div className="flex items-center gap-2">
             <Gauge className="h-4 w-4 text-[var(--c-primary)]" />
-            <h3 className="font-heading font-semibold text-[var(--c-ink)]">Your seat</h3>
+            <h3 className="font-heading font-semibold text-[var(--c-ink)]">Your allowance</h3>
           </div>
           <p className="mt-1 text-xs text-[var(--c-muted-fg)]">Documents you send this billing period</p>
           <div className="mt-4">
-            <UsageBar used={org.seat_used} limit={org.seat_limit} label="Monthly seat allowance" />
+            <UsageBar used={org.seat_used} limit={org.seat_limit} label="Monthly allowance" />
           </div>
         </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[var(--c-primary)]" />
-            <h3 className="font-heading font-semibold text-[var(--c-ink)]">Organisation pool</h3>
+        {isOwner && (
+          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-[var(--c-primary)]" />
+              <h3 className="font-heading font-semibold text-[var(--c-ink)]">Organisation pool</h3>
+            </div>
+            <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
+              Shared across {org.member_count} seat{org.member_count !== 1 ? "s" : ""}
+              {org.contract_pool_limit
+                ? ` · Contract cap ${org.contract_pool_limit.toLocaleString()}`
+                : org.org_unlimited
+                  ? " · Enterprise unlimited"
+                  : ` · Default ${org.per_seat_limit} × seats`}
+            </p>
+            <div className="mt-4">
+              <UsageBar
+                used={org.org_used}
+                limit={org.org_limit ?? 0}
+                label="Monthly pool"
+                unlimited={org.org_unlimited}
+              />
+            </div>
           </div>
-          <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
-            Shared across {org.member_count} seat{org.member_count !== 1 ? "s" : ""}
-            {org.contract_pool_limit
-              ? ` · Contract cap ${org.contract_pool_limit.toLocaleString()}`
-              : org.org_unlimited
-                ? " · Enterprise unlimited"
-                : ` · Default ${org.per_seat_limit} × seats`}
-          </p>
-          <div className="mt-4">
-            <UsageBar
-              used={org.org_used}
-              limit={org.org_limit ?? 0}
-              label="Monthly pool"
-              unlimited={org.org_unlimited}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${isOwner ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Your role</p>
           <p className="mt-2 font-heading text-lg font-bold text-[var(--c-ink)]">{formatOrgRole(org.your_role)}</p>
         </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Team size</p>
-          <p className="mt-2 font-heading text-lg font-bold text-[var(--c-ink)]">{org.member_count} seats</p>
-        </div>
+        {isOwner && (
+          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Team size</p>
+            <p className="mt-2 font-heading text-lg font-bold text-[var(--c-ink)]">{org.member_count} seats</p>
+          </div>
+        )}
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Resets</p>
           <p className="mt-2 font-heading text-lg font-bold text-[var(--c-ink)]">{org.resets_label || "Monthly"}</p>
@@ -129,7 +140,16 @@ function OverviewTab({ data }) {
       </div>
 
       <div className="rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] p-4 text-sm text-[var(--c-muted-fg)]">
-        <p><strong className="text-[var(--c-ink)]">Hourly burst:</strong> up to {usage.hourly_burst_limit} documents/hour across your organisation.</p>
+        {isOwner ? (
+          <p>
+            <strong className="text-[var(--c-ink)]">Hourly burst:</strong> up to {usage.hourly_burst_limit} documents/hour across your organisation.
+          </p>
+        ) : (
+          <p>
+            Your organisation admin manages team accounts and your allowance.
+            Contact them first — they can escalate to CivicSign if needed.
+          </p>
+        )}
         <p className="mt-2">Deleting sent documents does not restore your monthly allowance.</p>
       </div>
     </div>
@@ -388,6 +408,14 @@ export default function OrganisationPortal() {
     loadPortal();
   }, [loadPortal]);
 
+  const ownerFromUser = isOrgOwner(user);
+  useEffect(() => {
+    const canViewRestricted = data?.can_view_contract ?? ownerFromUser;
+    if (!canViewRestricted && (tab === "team" || tab === "contract")) {
+      setParams({}, { replace: true });
+    }
+  }, [tab, data?.can_view_contract, ownerFromUser, setParams]);
+
   const prevTab = useRef(tab);
   useEffect(() => {
     if (prevTab.current === tab) return;
@@ -414,6 +442,7 @@ export default function OrganisationPortal() {
   if (user && !user.org_id) return <Navigate to="/dashboard" replace />;
 
   const org = data?.organization;
+  const ownerView = data?.can_view_contract ?? org?.is_owner ?? isOrgOwner(user);
 
   return (
     <AppShell
@@ -440,7 +469,12 @@ export default function OrganisationPortal() {
                 <div>
                   <h1 className="font-heading text-xl font-bold text-[var(--c-ink)]">{org.name}</h1>
                   <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">
-                    Organisation plan · {org.member_count} seat{org.member_count !== 1 ? "s" : ""} · You are the <span className="font-medium text-[var(--c-ink)]">{formatOrgRole(org.your_role)}</span>
+                    Organisation plan
+                    {ownerView && org.member_count != null
+                      ? ` · ${org.member_count} seat${org.member_count !== 1 ? "s" : ""}`
+                      : ""}
+                    {" · "}
+                    <span className="font-medium text-[var(--c-ink)]">{formatOrgRole(org.your_role)}</span>
                   </p>
                 </div>
               </div>
@@ -453,25 +487,33 @@ export default function OrganisationPortal() {
               <TabsTrigger value="overview" data-testid="org-portal-tab-overview" className="data-[state=active]:bg-[var(--card)]">
                 <Gauge className="mr-1.5 h-4 w-4" /> Overview
               </TabsTrigger>
-              <TabsTrigger value="team" data-testid="org-portal-tab-team" className="data-[state=active]:bg-[var(--card)]">
-                <Users className="mr-1.5 h-4 w-4" /> Team
-              </TabsTrigger>
-              <TabsTrigger value="contract" data-testid="org-portal-tab-contract" className="data-[state=active]:bg-[var(--card)]">
-                <FileText className="mr-1.5 h-4 w-4" /> Contract
-              </TabsTrigger>
+              {ownerView && (
+                <TabsTrigger value="team" data-testid="org-portal-tab-team" className="data-[state=active]:bg-[var(--card)]">
+                  <Users className="mr-1.5 h-4 w-4" /> Team
+                </TabsTrigger>
+              )}
+              {ownerView && (
+                <TabsTrigger value="contract" data-testid="org-portal-tab-contract" className="data-[state=active]:bg-[var(--card)]">
+                  <FileText className="mr-1.5 h-4 w-4" /> Contract
+                </TabsTrigger>
+              )}
             </TabsList>
-            <TabsContent value="overview"><OverviewTab data={data} /></TabsContent>
-            <TabsContent value="team">
-              <TeamRosterTab
-                team={data.team}
-                canManage={data.can_manage_team}
-                orgPerSeat={org.org_per_seat_limit}
-                onReload={loadPortal}
-              />
-            </TabsContent>
-            <TabsContent value="contract">
-              <ContractTab org={org} refreshKey={contractRefreshKey} />
-            </TabsContent>
+            <TabsContent value="overview"><OverviewTab data={data} isOwner={ownerView} /></TabsContent>
+            {ownerView && (
+              <TabsContent value="team">
+                <TeamRosterTab
+                  team={data.team}
+                  canManage={data.can_manage_team}
+                  orgPerSeat={org.org_per_seat_limit}
+                  onReload={loadPortal}
+                />
+              </TabsContent>
+            )}
+            {ownerView && (
+              <TabsContent value="contract">
+                <ContractTab org={org} refreshKey={contractRefreshKey} />
+              </TabsContent>
+            )}
           </Tabs>
         </>
       )}

@@ -258,7 +258,7 @@ async def create_staff(body: StaffCreate, admin: dict = Depends(require_admin)):
         "auth_provider": "password",
         "role": "staff",
         "permissions": perms,
-        "plan": "free",
+        "plan": "business",
         "active": True,
         "email_verified": True,
         "created_at": datetime.now(timezone.utc).isoformat(),

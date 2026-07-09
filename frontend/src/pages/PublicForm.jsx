@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { publicApi, formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,7 @@ export default function PublicForm() {
     try {
       const { data } = await publicApi.post(`/public/forms/${slug}/start`, {
         ...form,
-        base_url: window.location.origin,
+        base_url: getAppOrigin(),
       });
       window.location.href = data.sign_url;
     } catch (err) {

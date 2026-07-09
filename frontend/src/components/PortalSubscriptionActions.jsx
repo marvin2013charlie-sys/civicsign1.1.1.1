@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Crown, FileText, Loader2, Sparkles } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { formatExtraDocumentPrice, PRO_MONTHLY_GBP } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,7 @@ export function PortalSubscriptionActions({ user }) {
     setBuying(true);
     try {
       const { data } = await api.post("/billing/checkout-document", {
-        origin_url: window.location.origin,
+        origin_url: getAppOrigin(),
         quantity: 1,
       });
       if (data.url) window.location.assign(data.url);
@@ -57,7 +58,7 @@ export function PortalSubscriptionActions({ user }) {
       >
         {buying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
         <span className="hidden md:inline">Buy 1 doc</span>
-        <span>{formatExtraDocumentPrice()}</span>
+        <span>{formatExtraDocumentPrice({ includeTaxNote: true })}</span>
       </Button>
 
       <DropdownMenu>
@@ -81,7 +82,7 @@ export function PortalSubscriptionActions({ user }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={goSubscription} data-testid="header-upgrade-pro-item">
             <Crown className="mr-2 h-4 w-4" style={{ color: "var(--c-primary)" }} />
-            Upgrade to Pro — £{PRO_MONTHLY_GBP}/mo
+            Upgrade to Pro — £{PRO_MONTHLY_GBP}/mo excl. VAT
           </DropdownMenuItem>
           <DropdownMenuItem onClick={buyDocument} disabled={buying} data-testid="header-buy-document-item">
             {buying ? (
@@ -89,7 +90,7 @@ export function PortalSubscriptionActions({ user }) {
             ) : (
               <FileText className="mr-2 h-4 w-4" style={{ color: "var(--c-primary)" }} />
             )}
-            Buy 1 document — {formatExtraDocumentPrice()}
+            Buy 1 document — {formatExtraDocumentPrice({ includeTaxNote: true })}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={goSubscription} data-testid="header-all-plans-item">

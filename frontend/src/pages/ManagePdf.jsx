@@ -18,9 +18,18 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import api, { downloadFile, fetchPdfBlobUrl, formatApiError } from "@/lib/api";
+import { savePdfBlobToDocuments } from "@/lib/savePdfToDocuments";
 import { handleQuotaApiError } from "@/lib/quota";
 import { AppShell } from "@/components/AppShell";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { usePlan } from "@/hooks/usePlan";
 import { PdfTextEditor } from "@/components/PdfTextEditor";
+import { PdfCompressPanel } from "@/components/PdfCompressPanel";
+import { PdfWatermarkPanel } from "@/components/PdfWatermarkPanel";
+import { PdfProtectPanel } from "@/components/PdfProtectPanel";
+import { PdfUnlockPanel } from "@/components/PdfUnlockPanel";
+import { PdfWordConvertPanel } from "@/components/PdfWordConvertPanel";
+import { PdfAiMetadataPanel } from "@/components/PdfAiMetadataPanel";
 import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +54,22 @@ import {
   ArrowLeft,
   ArrowRight,
   Pencil,
+  Highlighter,
+  Square,
+  Circle,
+  Minus,
+  Check,
+  X,
+  Link as LinkIcon,
+  Undo2,
+  Redo2,
+  Minimize2,
+  Droplets,
+  Lock,
+  LockOpen,
+  FileOutput,
+  FileType,
+  ScanSearch,
 } from "lucide-react";
 
 const TOOLS = [
@@ -52,6 +77,26 @@ const TOOLS = [
   { id: "text", label: "Edit text", icon: Type, testid: "pdf-tool-text" },
   { id: "image", label: "Image", icon: ImageIcon, testid: "pdf-tool-image" },
   { id: "whiteout", label: "Whiteout", icon: Eraser, testid: "pdf-tool-whiteout" },
+  { id: "highlight", label: "Highlight", icon: Highlighter, testid: "pdf-tool-highlight" },
+  { id: "rect", label: "Rectangle", icon: Square, testid: "pdf-tool-rect" },
+  { id: "ellipse", label: "Ellipse", icon: Circle, testid: "pdf-tool-ellipse" },
+  { id: "line", label: "Line", icon: Minus, testid: "pdf-tool-line" },
+  { id: "check", label: "Checkmark", icon: Check, testid: "pdf-tool-check" },
+  { id: "cross", label: "Cross", icon: X, testid: "pdf-tool-cross" },
+  { id: "link", label: "Link", icon: LinkIcon, testid: "pdf-tool-link" },
+];
+
+// Tools that use click-and-drag on the page
+const DRAG_TOOLS = new Set(["whiteout", "highlight", "rect", "ellipse", "line", "link"]);
+// Tools that place a mark with a single click
+const CLICK_TOOLS = new Set(["check", "cross"]);
+
+const ANNOT_COLORS = [
+  { id: "red", css: "#dc2626", rgb: [0.86, 0.15, 0.15] },
+  { id: "blue", css: "#2563eb", rgb: [0.15, 0.39, 0.92] },
+  { id: "green", css: "#16a34a", rgb: [0.09, 0.64, 0.29] },
+  { id: "black", css: "#1f2937", rgb: [0.12, 0.16, 0.22] },
+  { id: "yellow", css: "#eab308", rgb: [0.92, 0.7, 0.03] },
 ];
 
 function SortablePageCard({
@@ -128,6 +173,7 @@ function SortablePageCard({
 }
 
 export default function ManagePdf() {
+  const { has: hasFeature } = usePlan();
   const navigate = useNavigate();
   const [homeView, setHomeView] = useState("home");
   const [workspace, setWorkspace] = useState(null);
@@ -144,9 +190,10 @@ export default function ManagePdf() {
   const [tool, setTool] = useState("select");
   const [pendingImage, setPendingImage] = useState(null);
   const [whiteoutDrag, setWhiteoutDrag] = useState(null);
+  const [annotColor, setAnnotColor] = useState(ANNOT_COLORS[0]);
   const [saveTitle, setSaveTitle] = useState("");
   const [splitRanges, setSplitRanges] = useState("");
-  const [mergeFiles, setMergeFiles] = useState([]);
+  const [splitWorkspace, setSplitWorkspace] = useState(null);
   const canvasRef = useRef(null);
   const imageInputRef = useRef(null);
   const blobUrlsRef = useRef([]);
@@ -251,9 +298,31 @@ export default function ManagePdf() {
     }
   };
 
-  const refreshAfterTextEdit = useCallback(() => {
+  const refreshAfterTextEdit = useCallback(async () => {
     bumpThumbs();
-  }, [bumpThumbs]);
+    // refresh undo/redo availability after PdfTextEditor saves
+    const wid = workspace?.workspace_id;
+    if (!wid) return;
+    try {
+      const { data } = await api.get(`/pdf/workspace/${wid}`);
+      setWorkspace((prev) => (prev ? { ...prev, ...data } : prev));
+    } catch {
+      /* thumbnails already refreshed; meta refresh is best-effort */
+    }
+  }, [bumpThumbs, workspace?.workspace_id]);
+
+  const restoreVersion = async (direction, msg) => {
+    const data = await runOp(
+      () => api.post(`/pdf/workspace/${workspace.workspace_id}/${direction}`).then((r) => r.data),
+      msg,
+    );
+    if (data?.page_count) {
+      setEditorPage((p) => Math.min(p, data.page_count - 1));
+    }
+  };
+
+  const onUndo = () => restoreVersion("undo", "Change undone");
+  const onRedo = () => restoreVersion("redo", "Change redone");
 
   const createWorkspace = async (file) => {
     const fd = new FormData();
@@ -327,6 +396,43 @@ export default function ManagePdf() {
       toast.success(`Merged ${ws.page_count} pages, edit or save when ready`);
     } catch (err) {
       toast.error(formatApiError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mergeAndSaveDocuments = async () => {
+    if (standaloneMergeFiles.length < 2) {
+      toast.error("Add at least 2 files to merge");
+      return;
+    }
+    setBusy(true);
+    try {
+      let ws = await createWorkspace(standaloneMergeFiles[0]);
+      if (standaloneMergeFiles.length > 1) {
+        const fd = new FormData();
+        standaloneMergeFiles.slice(1).forEach((f) => fd.append("files", f));
+        const { data: updated } = await api.post(`/pdf/workspace/${ws.workspace_id}/merge`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        ws = { ...ws, ...updated };
+      }
+      const res = await api.get(`/pdf/workspace/${ws.workspace_id}/download`, { responseType: "blob" });
+      const title = mergeTitle.trim() || "Merged document";
+      const filename = `${title.replace(/\.pdf$/i, "")}.pdf`;
+      await savePdfBlobToDocuments({
+        blob: res.data,
+        filename,
+        title: `${title} (Merged)`,
+        tool: "merge",
+        originalFilename: standaloneMergeFiles.map((f) => f.name).join(", "),
+        quotaHandlers: { setDetail: setQuotaDetail, setOpen: setQuotaModal },
+      });
+      toast.success("Saved to Documents → From Manage PDF");
+    } catch (err) {
+      if (!handleQuotaApiError(err, { setDetail: setQuotaDetail, setOpen: setQuotaModal })) {
+        toast.error(formatApiError(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -432,12 +538,73 @@ export default function ManagePdf() {
     );
   };
 
+  const ANNOT_LABELS = {
+    highlight: "Highlight added",
+    rect: "Rectangle added",
+    ellipse: "Ellipse added",
+    line: "Line added",
+    check: "Checkmark added",
+    cross: "Cross added",
+    link: "Link added",
+  };
+
+  const postAnnotation = (body, msg) =>
+    runOp(
+      () => api.post(`/pdf/workspace/${workspace.workspace_id}/annotate`, body).then((r) => r.data),
+      msg,
+    );
+
+  const finishAnnotationDrag = async (kind, start, end) => {
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const w = Math.max(0.01, Math.abs(end.x - start.x));
+    const h = Math.max(0.01, Math.abs(end.y - start.y));
+    const body = {
+      page_index: editorPage,
+      kind,
+      rect_pct: { x, y, w, h },
+      color: kind === "highlight" ? [1, 0.9, 0.2] : annotColor.rgb,
+      stroke_width: 1.5,
+    };
+    if (kind === "line") {
+      // preserve the drag direction for the line endpoints
+      body.rect_pct = { x: start.x, y: start.y, w: Math.max(0.01, w), h: Math.max(0.01, h) };
+      body.end_pct = { x: end.x, y: end.y };
+    }
+    if (kind === "link") {
+      const url = window.prompt("Link URL (https://…)");
+      if (!url) return;
+      body.url = url.trim();
+    }
+    await postAnnotation(body, ANNOT_LABELS[kind]);
+  };
+
+  const placeClickMark = async (kind, pt) => {
+    const size = 0.028;
+    await postAnnotation({
+      page_index: editorPage,
+      kind,
+      rect_pct: {
+        x: Math.max(0, pt.x - size / 2),
+        y: Math.max(0, pt.y - size / 2),
+        w: size,
+        h: size,
+      },
+      color: kind === "check" ? [0.05, 0.55, 0.25] : [0.75, 0.12, 0.12],
+    }, ANNOT_LABELS[kind]);
+  };
+
   const onCanvasMouseDown = (e) => {
     if (tool === "image") {
       placeImage(e);
       return;
     }
-    if (tool === "whiteout") {
+    if (CLICK_TOOLS.has(tool)) {
+      const pt = relPoint(e);
+      if (pt) placeClickMark(tool, pt);
+      return;
+    }
+    if (DRAG_TOOLS.has(tool)) {
       const pt = relPoint(e);
       if (pt) setWhiteoutDrag({ start: pt, end: pt });
     }
@@ -451,8 +618,14 @@ export default function ManagePdf() {
 
   const onCanvasMouseUp = () => {
     if (!whiteoutDrag) return;
-    finishWhiteout(whiteoutDrag.start, whiteoutDrag.end);
+    const { start, end } = whiteoutDrag;
     setWhiteoutDrag(null);
+    if (Math.abs(end.x - start.x) < 0.005 && Math.abs(end.y - start.y) < 0.005) return;
+    if (tool === "whiteout") {
+      finishWhiteout(start, end);
+    } else if (DRAG_TOOLS.has(tool)) {
+      finishAnnotationDrag(tool, start, end);
+    }
   };
 
   const onDownload = () => {
@@ -464,13 +637,14 @@ export default function ManagePdf() {
     if (!workspace) return;
     const fd = new FormData();
     fd.append("title", saveTitle || "Edited document");
+    fd.append("tool", "edit");
     setBusy(true);
     try {
       await api.post(
         `/pdf/workspace/${workspace.workspace_id}/save-to-documents`,
         fd,
       );
-      toast.success("Saved to Documents, open from your Dashboard when ready to add fields");
+      toast.success("Saved to Documents → From Manage PDF tab");
     } catch (err) {
       if (!handleQuotaApiError(err, {
         setDetail: setQuotaDetail,
@@ -483,19 +657,67 @@ export default function ManagePdf() {
     }
   };
 
+  const onSplitUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      const data = await createWorkspace(file);
+      setSplitWorkspace({
+        workspace_id: data.workspace_id,
+        filename: data.filename,
+        page_count: data.page_count,
+      });
+      setSplitRanges("");
+      toast.success(`${data.page_count} page${data.page_count === 1 ? "" : "s"} loaded`);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSplitSave = async () => {
+    if (!splitWorkspace || !splitRanges.trim()) {
+      toast.error("Upload a PDF and enter page ranges (e.g. 1-2, 3)");
+      return;
+    }
+    setBusy(true);
+    try {
+      const base = (splitWorkspace.filename || "document").replace(/\.pdf$/i, "");
+      const { data } = await api.post(
+        `/pdf/workspace/${splitWorkspace.workspace_id}/split/save-to-documents`,
+        { ranges: splitRanges.trim(), title: `${base} (Split)` },
+      );
+      const n = data.saved_count || 1;
+      toast.success(
+        n === 1
+          ? "Saved to Documents → From Manage PDF"
+          : `Saved ${n} documents to Documents → From Manage PDF`,
+      );
+    } catch (err) {
+      if (!handleQuotaApiError(err, { setDetail: setQuotaDetail, setOpen: setQuotaModal })) {
+        toast.error(formatApiError(err));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSplit = async () => {
-    if (!workspace || !splitRanges.trim()) {
-      toast.error("Enter page ranges (e.g. 1-2, 3)");
+    if (!splitWorkspace || !splitRanges.trim()) {
+      toast.error("Upload a PDF and enter page ranges (e.g. 1-2, 3)");
       return;
     }
     setBusy(true);
     try {
       const res = await api.post(
-        `/pdf/workspace/${workspace.workspace_id}/split`,
+        `/pdf/workspace/${splitWorkspace.workspace_id}/split`,
         { ranges: splitRanges.trim() },
         { responseType: "blob" },
       );
-      const base = (workspace.filename || "document").replace(/\.pdf$/i, "");
+      const base = (splitWorkspace.filename || "document").replace(/\.pdf$/i, "");
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;
@@ -512,21 +734,7 @@ export default function ManagePdf() {
     }
   };
 
-  const onMergeAppend = async () => {
-    if (!workspace || !mergeFiles.length) {
-      toast.error("Select PDF or Word files to append");
-      return;
-    }
-    const fd = new FormData();
-    mergeFiles.forEach((f) => fd.append("files", f));
-    await runOp(
-      () => api.post(`/pdf/workspace/${workspace.workspace_id}/merge`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      }).then((r) => r.data),
-      "Files appended",
-    );
-    setMergeFiles([]);
-  };
+  const quotaHandlers = { setDetail: setQuotaDetail, setOpen: setQuotaModal };
 
   const headerActions = workspace ? (
     <>
@@ -563,6 +771,20 @@ export default function ManagePdf() {
     return { left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` };
   })() : null;
 
+  if (!hasFeature("manage_pdf")) {
+    return (
+      <AppShell title="Manage PDF">
+        <div className="mx-auto max-w-xl" data-testid="manage-pdf-upgrade">
+          <UpgradePrompt
+            feature="manage_pdf"
+            title="Manage PDF is a Pro feature"
+            description="Edit, compress, watermark, protect, unlock, convert PDF/Word, merge, split, and scan AI metadata — available on Pro, Business, Organisation, and internal team plans."
+          />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="Manage PDF" actions={headerActions}>
       <div data-testid="manage-pdf" className="mx-auto max-w-6xl">
@@ -571,9 +793,9 @@ export default function ManagePdf() {
             {homeView === "home" && (
               <>
                 <p className="mb-6 text-center text-sm text-[var(--c-muted-fg)]">
-                  Edit a single document or combine multiple PDFs, then add signature fields and send.
+                  Edit, compress, watermark, protect, unlock, convert, merge, split, or scan PDFs and images for AI metadata — then download or save to Documents.
                 </p>
-                <div className="grid gap-5 md:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   <button
                     type="button"
                     data-testid="pdf-mode-edit"
@@ -588,7 +810,7 @@ export default function ManagePdf() {
                     </span>
                     <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Edit PDF</h2>
                     <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Reorder, rotate, or delete pages. Add text, images, and whiteout. Split or download when done.
+                      Reorder, rotate, or delete pages. Edit text, add images, highlights, shapes, checkmarks, links, and whiteout.
                     </p>
                     <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
                       Open editor <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -615,8 +837,241 @@ export default function ManagePdf() {
                       Merge files <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-split"
+                    onClick={() => setHomeView("split")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <Scissors className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Split PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Divide one PDF into separate files by page ranges. Download a ZIP — no editor required.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Split document <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-compress"
+                    onClick={() => setHomeView("compress")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <Minimize2 className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Compress PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Optimise images and reduce file size. Choose quality level — ideal before email or upload.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Compress file <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-watermark"
+                    onClick={() => setHomeView("watermark")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <Droplets className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Watermark PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Add CONFIDENTIAL, DRAFT, or your logo. Control opacity, rotation, colour, and which pages to stamp.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Add watermark <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-protect"
+                    onClick={() => setHomeView("protect")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <Lock className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Protect PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Password-protect your PDF with AES-256. Restrict printing, copying, and editing.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Add password <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-unlock"
+                    onClick={() => setHomeView("unlock")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <LockOpen className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Unlock PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Remove password protection when you have the correct open or owner password.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Remove password <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-pdf-to-word"
+                    onClick={() => setHomeView("pdf-to-word")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <FileOutput className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">PDF to Word</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Turn a PDF into an editable Word document. Best results with text-based PDFs.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Convert to DOCX <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-word-to-pdf"
+                    onClick={() => setHomeView("word-to-pdf")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <FileType className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Word to PDF</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Convert a Word (.docx) file to PDF. Download or save to Documents for signing.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Convert to PDF <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="pdf-mode-ai-metadata"
+                    onClick={() => setHomeView("ai-metadata")}
+                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
+                  >
+                    <span
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
+                      style={{ background: "var(--c-primary)18" }}
+                    >
+                      <ScanSearch className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                    </span>
+                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">AI metadata check</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                      Deep fraud scan — metadata, binary strings, structure, and body text for AI or altered documents.
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
+                      Scan file <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </button>
                 </div>
               </>
+            )}
+
+            {homeView === "compress" && (
+              <PdfCompressPanel
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "watermark" && (
+              <PdfWatermarkPanel
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "protect" && (
+              <PdfProtectPanel
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "unlock" && (
+              <PdfUnlockPanel
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "pdf-to-word" && (
+              <PdfWordConvertPanel
+                mode="pdf-to-word"
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "word-to-pdf" && (
+              <PdfWordConvertPanel
+                mode="word-to-pdf"
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
+            )}
+
+            {homeView === "ai-metadata" && (
+              <PdfAiMetadataPanel
+                busy={busy}
+                setBusy={setBusy}
+                onBack={() => setHomeView("home")}
+                quotaHandlers={quotaHandlers}
+              />
             )}
 
             {homeView === "edit" && (
@@ -637,7 +1092,7 @@ export default function ManagePdf() {
                   </span>
                   <h2 className="mt-4 font-heading text-xl font-bold text-[var(--c-ink)]">Edit PDF</h2>
                   <p className="mt-2 text-sm text-[var(--c-muted-fg)]">
-                    Upload one PDF or Word file to open the page editor, overlay tools, and split/merge tabs.
+                    Upload one PDF or Word file to open the page editor and overlay tools.
                   </p>
                 </div>
                 <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--c-border)] bg-[var(--c-paper-2)] py-12 transition-colors hover:border-[var(--c-primary)]">
@@ -737,7 +1192,7 @@ export default function ManagePdf() {
                   </ol>
                 )}
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   <Button
                     type="button"
                     variant="outline"
@@ -751,6 +1206,17 @@ export default function ManagePdf() {
                   </Button>
                   <Button
                     type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={busy || standaloneMergeFiles.length < 2}
+                    onClick={mergeAndSaveDocuments}
+                    data-testid="standalone-merge-save-documents-btn"
+                  >
+                    {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                    Save to Documents
+                  </Button>
+                  <Button
+                    type="button"
                     className="w-full"
                     disabled={busy || standaloneMergeFiles.length < 2}
                     onClick={mergeAndPrepare}
@@ -758,10 +1224,124 @@ export default function ManagePdf() {
                     style={{ background: "var(--c-primary)", color: "#fff" }}
                   >
                     {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <PenTool className="mr-1.5 h-4 w-4" />}
-                    Merge &amp; prepare for signing
+                    Prepare for signing
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {homeView === "split" && (
+              <div className="mx-auto max-w-xl rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 sm:p-8">
+                <button
+                  type="button"
+                  className="mb-4 inline-flex items-center gap-1 text-sm text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]"
+                  onClick={() => {
+                    setHomeView("home");
+                    setSplitWorkspace(null);
+                    setSplitRanges("");
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl"
+                    style={{ background: "var(--c-primary)18" }}
+                  >
+                    <Scissors className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+                  </span>
+                  <div>
+                    <h2 className="font-heading text-xl font-bold text-[var(--c-ink)]">Split PDF</h2>
+                    <p className="text-xs text-[var(--c-muted-fg)]">
+                      {splitWorkspace
+                        ? `${splitWorkspace.filename} · ${splitWorkspace.page_count} page${splitWorkspace.page_count === 1 ? "" : "s"}`
+                        : "Upload a PDF, then enter page ranges"}
+                    </p>
+                  </div>
+                </div>
+
+                {!splitWorkspace ? (
+                  <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--c-border)] bg-[var(--c-paper-2)] py-12 transition-colors hover:border-[var(--c-primary)]">
+                    <Upload className="h-9 w-9 text-[var(--c-primary)]" />
+                    <span className="mt-3 text-sm font-medium text-[var(--c-ink)]">Choose PDF or DOCX</span>
+                    <span className="mt-1 text-xs text-[var(--c-muted-fg)]">Up to 20 MB</span>
+                    <Button
+                      type="button"
+                      className="mt-4"
+                      disabled={busy}
+                      data-testid="standalone-split-upload-btn"
+                      style={{ background: "var(--c-primary)", color: "#fff" }}
+                      onClick={(ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        document.getElementById("standalone-split-upload-input")?.click();
+                      }}
+                    >
+                      {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                      Upload document
+                    </Button>
+                    <input
+                      id="standalone-split-upload-input"
+                      type="file"
+                      accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="hidden"
+                      data-testid="standalone-split-upload-input"
+                      onChange={onSplitUpload}
+                    />
+                  </label>
+                ) : (
+                  <>
+                    <div className="mt-5">
+                      <Label htmlFor="standalone-split-ranges">Page ranges</Label>
+                      <Input
+                        id="standalone-split-ranges"
+                        className="mt-1"
+                        placeholder="e.g. 1-2, 3"
+                        value={splitRanges}
+                        onChange={(e) => setSplitRanges(e.target.value)}
+                        data-testid="standalone-split-input"
+                      />
+                      <p className="mt-1.5 text-xs text-[var(--c-muted-fg)]">
+                        Use commas between parts. Each range becomes a separate PDF in the ZIP.
+                      </p>
+                    </div>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          setSplitWorkspace(null);
+                          setSplitRanges("");
+                        }}
+                        data-testid="standalone-split-change-file-btn"
+                      >
+                        Change file
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={busy || !splitRanges.trim()}
+                        onClick={onSplit}
+                        data-testid="standalone-split-download-btn"
+                        style={{ background: "var(--c-primary)", color: "#fff" }}
+                      >
+                        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                        Download ZIP
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy || !splitRanges.trim()}
+                        onClick={onSplitSave}
+                        data-testid="standalone-split-save-documents-btn"
+                      >
+                        {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                        Save to Documents
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -796,8 +1376,6 @@ export default function ManagePdf() {
               <TabsList className="bg-[var(--c-paper-2)]">
                 <TabsTrigger value="pages" data-testid="pdf-tab-pages">Pages</TabsTrigger>
                 <TabsTrigger value="editor" data-testid="pdf-tab-editor">Editor</TabsTrigger>
-                <TabsTrigger value="merge" data-testid="pdf-tab-merge">Merge</TabsTrigger>
-                <TabsTrigger value="split" data-testid="pdf-tab-split">Split</TabsTrigger>
               </TabsList>
 
               <TabsContent value="pages" className="mt-4">
@@ -860,6 +1438,23 @@ export default function ManagePdf() {
                         {t.label}
                       </Button>
                     ))}
+                    {(DRAG_TOOLS.has(tool) || CLICK_TOOLS.has(tool)) && tool !== "whiteout" && tool !== "highlight" && (
+                      <div className="flex items-center gap-1.5 pt-1" data-testid="pdf-annot-colors">
+                        {ANNOT_COLORS.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            aria-label={`Colour ${c.id}`}
+                            data-testid={`pdf-annot-color-${c.id}`}
+                            onClick={() => setAnnotColor(c)}
+                            className={`h-5 w-5 rounded-full border-2 transition-transform ${
+                              annotColor.id === c.id ? "scale-110 border-[var(--c-ink)]" : "border-transparent"
+                            }`}
+                            style={{ background: c.css }}
+                          />
+                        ))}
+                      </div>
+                    )}
                     {pendingImage && (
                       <p className="text-xs text-[var(--c-muted-fg)]">
                         Image ready, click the page to place
@@ -883,6 +1478,29 @@ export default function ManagePdf() {
 
                   <div className="min-w-0 flex-1">
                     <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy || !workspace.can_undo}
+                        onClick={onUndo}
+                        data-testid="pdf-undo-btn"
+                      >
+                        <Undo2 className="mr-1.5 h-4 w-4" />
+                        Undo
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy || !workspace.can_redo}
+                        onClick={onRedo}
+                        data-testid="pdf-redo-btn"
+                      >
+                        <Redo2 className="mr-1.5 h-4 w-4" />
+                        Redo
+                      </Button>
+                      <span className="mx-1 h-5 w-px bg-[var(--c-border)]" />
                       <Label className="text-sm">Page</Label>
                       <select
                         className="h-9 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-2 text-sm"
@@ -911,7 +1529,7 @@ export default function ManagePdf() {
                           ref={canvasRef}
                           data-testid="pdf-editor-canvas"
                           className={`relative mx-auto max-w-3xl overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] ${
-                            tool === "whiteout" || tool === "image" ? "cursor-crosshair" : ""
+                            DRAG_TOOLS.has(tool) || CLICK_TOOLS.has(tool) || tool === "image" ? "cursor-crosshair" : ""
                           }`}
                           onMouseDown={onCanvasMouseDown}
                           onMouseMove={onCanvasMouseMove}
@@ -932,7 +1550,13 @@ export default function ManagePdf() {
                           )}
                           {whiteoutPreview && (
                             <div
-                              className="pointer-events-none absolute border-2 border-dashed border-[var(--c-primary)] bg-white/70"
+                              className={`pointer-events-none absolute border-2 border-dashed ${
+                                tool === "whiteout"
+                                  ? "border-[var(--c-primary)] bg-white/70"
+                                  : tool === "highlight"
+                                    ? "border-yellow-500 bg-yellow-300/40"
+                                    : "border-[var(--c-primary)] bg-[var(--c-primary)]/10"
+                              } ${tool === "ellipse" ? "rounded-full" : ""}`}
                               style={whiteoutPreview}
                             />
                           )}
@@ -940,85 +1564,18 @@ export default function ManagePdf() {
                         <p className="mt-2 text-center text-xs text-[var(--c-muted-fg)]">
                           {tool === "image" && (pendingImage ? "Click to place image" : "Pick an image, then click to place")}
                           {tool === "whiteout" && "Click and drag to white out an area"}
+                          {tool === "highlight" && "Click and drag to highlight an area"}
+                          {tool === "rect" && "Click and drag to draw a rectangle"}
+                          {tool === "ellipse" && "Click and drag to draw an ellipse"}
+                          {tool === "line" && "Click and drag to draw a line"}
+                          {tool === "check" && "Click the page to place a checkmark"}
+                          {tool === "cross" && "Click the page to place a cross"}
+                          {tool === "link" && "Click and drag over text to add a web link"}
                           {tool === "select" && "Select a tool to edit the page"}
                         </p>
                       </>
                     )}
                   </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="merge" className="mt-4">
-                <div className="max-w-xl rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-                  <div className="flex items-center gap-3">
-                    <FileStack className="h-5 w-5 text-[var(--c-primary)]" />
-                    <div>
-                      <h3 className="font-heading font-semibold text-[var(--c-ink)]">Merge more files</h3>
-                      <p className="text-xs text-[var(--c-muted-fg)]">Append additional PDF or Word files to the end of this document</p>
-                    </div>
-                  </div>
-                  <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--c-border)] bg-[var(--c-paper-2)] py-8">
-                    <Upload className="h-7 w-7 text-[var(--c-primary)]" />
-                    <span className="mt-2 text-sm font-medium">Add files</span>
-                    <input
-                      type="file"
-                      accept="application/pdf,.pdf,.docx"
-                      multiple
-                      className="hidden"
-                      data-testid="pdf-merge-input"
-                      onChange={(e) => setMergeFiles(Array.from(e.target.files || []))}
-                    />
-                  </label>
-                  {mergeFiles.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-sm text-[var(--c-ink)]">
-                      {mergeFiles.map((f, i) => (
-                        <li key={`${f.name}-${i}`}>{f.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <Button
-                    className="mt-4 w-full"
-                    disabled={busy || !mergeFiles.length}
-                    onClick={onMergeAppend}
-                    data-testid="pdf-merge-btn"
-                    style={{ background: "var(--c-primary)", color: "#fff" }}
-                  >
-                    {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                    Append files
-                  </Button>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="split" className="mt-4">
-                <div className="max-w-xl rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-                  <div className="flex items-center gap-3">
-                    <Scissors className="h-5 w-5 text-[var(--c-primary)]" />
-                    <div>
-                      <h3 className="font-heading font-semibold text-[var(--c-ink)]">Split into parts</h3>
-                      <p className="text-xs text-[var(--c-muted-fg)]">Use ranges like 1-2, 3, downloads a ZIP of PDFs</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <Label htmlFor="split-ranges">Page ranges</Label>
-                    <Input
-                      id="split-ranges"
-                      className="mt-1"
-                      placeholder="e.g. 1-2, 3"
-                      value={splitRanges}
-                      onChange={(e) => setSplitRanges(e.target.value)}
-                      data-testid="pdf-split-input"
-                    />
-                  </div>
-                  <Button
-                    className="mt-4 w-full"
-                    disabled={busy || !splitRanges.trim()}
-                    onClick={onSplit}
-                    data-testid="pdf-split-btn"
-                    style={{ background: "var(--c-primary)", color: "#fff" }}
-                  >
-                    {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                    Download ZIP
-                  </Button>
                 </div>
               </TabsContent>
             </Tabs>

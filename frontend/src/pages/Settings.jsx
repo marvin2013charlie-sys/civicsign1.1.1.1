@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError, API_ORIGIN } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { validatePassword } from "@/lib/password";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/context/AuthContext";
@@ -18,7 +19,7 @@ import {
 import {
   User, CreditCard, LifeBuoy, Loader2, Save, KeyRound, Check, Mail,
   MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2,
-  Trash2, AlertTriangle, Bot, SendHorizonal, Camera, ImagePlus, ImageOff,
+  Trash2, AlertTriangle, Camera, ImagePlus, ImageOff,
   Palette, Plug, Webhook, Headphones,
 } from "lucide-react";
 import { usePlan } from "@/hooks/usePlan";
@@ -26,50 +27,56 @@ import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { ContactEmailLink, RichTextWithContactEmail } from "@/components/BrandText";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
-import { getPlanPriceDisplay } from "@/lib/pricing";
+import { extraDocumentLimitFeature, formatPlanDocumentLimit, formatProMonthlyShort, getPlanPriceDisplay } from "@/lib/pricing";
+import { isOrgStaff, ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
+import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 
+const EXTRA_DOC_FEATURE = extraDocumentLimitFeature();
 
-const PLAN_DEFS = [
-  {
-    id: "free", name: "Free", icon: Sparkles,
-    tagline: "For individuals getting started",
-    features: [
-      "2 documents per billing period (resets on your signup anniversary; deleting does not restore quota)",
-      "£1 per extra document when at limit",
-      "Up to 2 recipients",
-      "Draw, type & upload signatures",
-      "Electronic signatures with tamper-evident audit trail",
-    ],
-  },
-  {
-    id: "pro", name: "Pro", icon: Crown,
-    tagline: "For professionals & growing teams",
-    features: [
-      "All Free features, plus:",
-      "Up to 100 documents per user / month",
-      "£1 per extra document when at limit",
-      "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
-      "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
-      "Shared team templates for standardised agreements",
-      "Real-time commenting & collaboration",
-      "Seal verification — check tamper-evident seals on any signed document",
-      "Custom branding (logo & colours) to build trust",
-    ],
-  },
-  {
-    id: "business", name: "Business", icon: Building2,
-    tagline: "For teams that need volume & controls",
-    features: [
-      "Everything in Pro, plus:",
-      "Up to 500 documents per user / month",
-      "£1 per extra document when at limit",
-      "AES as default, strengthened with SMS / KBA recipient authentication",
-      "Bulk send",
-      "API & webhooks",
-      "Priority support",
-    ],
-  },
-];
+function buildPlanDefs(billingInterval) {
+  return [
+    {
+      id: "free", name: "Free", icon: Sparkles,
+      tagline: "For individuals getting started",
+      features: [
+        `${formatPlanDocumentLimit("Free", billingInterval)} (deleting does not restore quota)`,
+        EXTRA_DOC_FEATURE,
+        "Up to 2 recipients",
+        "Draw, type & upload signatures",
+        "Electronic signatures with tamper-evident audit trail",
+      ],
+    },
+    {
+      id: "pro", name: "Pro", icon: Crown,
+      tagline: "For professionals & growing teams",
+      features: [
+        "All Free features, plus:",
+        formatPlanDocumentLimit("Pro", billingInterval),
+        "Manage PDF — edit, compress, watermark, protect, unlock, merge, split & AI metadata check",
+        EXTRA_DOC_FEATURE,
+        "Simple Electronic Signatures (SES), UK eIDAS Art. 3(11)",
+        "Advanced Electronic Signatures (AES), UK eIDAS Art. 26",
+        "Shared team templates for standardised agreements",
+        "Real-time commenting & collaboration",
+        "Seal verification — check tamper-evident seals on any signed document",
+        "Custom branding (logo & colours) to build trust",
+      ],
+    },
+    {
+      id: "business", name: "Business", icon: Building2,
+      tagline: "For teams that need volume & controls",
+      features: [
+        "Everything in Pro, plus:",
+        formatPlanDocumentLimit("Business", billingInterval),
+        EXTRA_DOC_FEATURE,
+        "AES as default, strengthened with SMS / KBA recipient authentication",
+        "Bulk send",
+        "API & webhooks",
+        "Priority support",
+      ],
+    },
+  ];
+}
 
 const FAQS = [
   { q: "Are CivicSign signatures legally binding?", a: "Yes. Every completed document captures signer intent and consent, timestamps, IP address, and a SHA-256 tamper-evident seal, and is finalized with a Certificate of Completion, aligned with the UK Electronic Communications Act 2000 and UK eIDAS expectations." },
@@ -309,7 +316,7 @@ function ProfileTab() {
     setSaving(true);
     try {
       const { data } = await api.put("/auth/profile", {
-        name: form.name.trim(), email: form.email.trim(), mobile: form.mobile.trim(),
+        name: form.name.trim(), mobile: form.mobile.trim(),
         company: form.company.trim(), job_title: form.job_title.trim(), phone: form.phone.trim(),
         country: form.country.trim(), city: form.city.trim(), postcode: form.postcode.trim(),
         vat_number: form.vat_number.trim(), company_size: form.company_size,
@@ -362,9 +369,11 @@ function ProfileTab() {
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="email">Email address</Label>
-              <Input id="email" type="email" className="mt-1" value={form.email} data-testid="settings-email-input"
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">This is the email you use to sign in.</p>
+              <Input id="email" type="email" value={form.email} data-testid="settings-email-input"
+                readOnly disabled className="mt-1 bg-[var(--c-paper-2)]" />
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
+                Sign-in email is fixed during private beta. Contact support if you need to change it.
+              </p>
             </div>
           </div>
           <div className="mt-5 flex justify-end">
@@ -547,6 +556,7 @@ function SubscriptionTab() {
   const [billingInterval, setBillingInterval] = useState("monthly");
   const current = user?.plan || "free";
   const isOrgAccount = !!user?.org_id;
+  const orgStaff = isOrgStaff(user);
 
   // When Stripe redirects back with ?session_id=..., poll the backend until the
   // payment is confirmed (polling is the source of truth for one-time checkout).
@@ -628,7 +638,7 @@ function SubscriptionTab() {
       const { data } = await api.post("/billing/checkout", {
         plan_id: planId,
         billing_interval: billingInterval,
-        origin_url: window.location.origin,
+        origin_url: getAppOrigin(),
       });
       if (data.url) {
         window.location.assign(data.url); // redirect to Stripe-hosted checkout
@@ -642,6 +652,43 @@ function SubscriptionTab() {
   };
 
   if (isOrgAccount) {
+    if (orgStaff) {
+      return (
+        <div data-testid="org-staff-subscription-panel">
+          <div className="rounded-xl border border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 p-6">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)22" }}>
+                <Building2 className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+              </span>
+              <div>
+                <h3 className="font-heading text-lg font-bold text-[var(--c-ink)]">Organisation member</h3>
+                <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
+                  Your account is part of {user?.company || "your organisation"}&apos;s team plan.
+                  You can view your personal document allowance on the dashboard or usage page.
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-[var(--c-ink)]">
+                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Full organisation feature set for sending and signing</li>
+                  <li className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} /> Personal monthly document allowance set by your organisation admin</li>
+                </ul>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button onClick={() => window.location.assign("/organisation")}
+                    style={{ background: "var(--c-primary)", color: "#fff" }}>
+                    View your allowance
+                  </Button>
+                  <Button variant="outline" onClick={() => window.location.assign("/usage")}>
+                    Usage details
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-[var(--c-muted-fg)]">
+            {ORG_STAFF_ESCALATION_NOTE}
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div data-testid="org-subscription-panel">
         <div className="rounded-xl border border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 p-6">
@@ -696,10 +743,10 @@ function SubscriptionTab() {
         onChange={setBillingInterval}
       />
       <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {PLAN_DEFS.map((p) => {
+        {buildPlanDefs(billingInterval).map((p) => {
           const isCurrent = p.id === current;
           const Icon = p.icon;
-          const { price, note, savings } = getPlanPriceDisplay(p.name, billingInterval);
+          const { price, note, savings, tax } = getPlanPriceDisplay(p.name, billingInterval);
           return (
             <div key={p.id} data-testid={`plan-card-${p.id}`}
               className="flex flex-col rounded-xl border bg-[var(--card)] p-6 transition-shadow hover:shadow-md"
@@ -712,14 +759,15 @@ function SubscriptionTab() {
               </div>
               <h3 className="mt-4 font-heading text-xl font-bold text-[var(--c-ink)]">{p.name}</h3>
               <p className="text-sm text-[var(--c-muted-fg)]">{p.tagline}</p>
-              {savings && (
-                <span className="mt-2 inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: "#0d9488" }}>
-                  {savings}
-                </span>
-              )}
-              <div className="mt-3 flex flex-wrap items-end gap-x-1 gap-y-1">
-                <span className="font-heading text-3xl font-bold text-[var(--c-ink)]">{price}</span>
-                <span className="mb-1 text-sm text-[var(--c-muted-fg)]">{note}</span>
+              <div className="mt-3">
+                <PlanPriceBreakdown
+                  price={price}
+                  note={note}
+                  savings={savings}
+                  tax={tax}
+                  priceClassName="font-heading text-3xl font-bold text-[var(--c-ink)]"
+                  compact
+                />
               </div>
               <ul className="mt-4 flex-1 space-y-2">
                 {p.features.map((f) => (
@@ -739,10 +787,13 @@ function SubscriptionTab() {
           );
         })}
       </div>
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]">
+      <PricingVatFootnote className="mt-4 text-xs" />
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]">
         <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
         Payments are processed securely by Stripe. Upgrades are charged once and take effect immediately; downgrading to Free is always free.
-        {billingInterval === "yearly" ? " Annual Pro and Business are billed at 10 months\u2019 price (2 months free)." : ""}
+        {billingInterval === "yearly"
+          ? " Annual Pro and Business are billed at 10 months\u2019 price (2 months free) and include 12× the monthly document allowance for the year."
+          : ""}
       </p>
       <p className="mt-2 text-xs text-[var(--c-muted-fg)]">
         Refunds and billing disputes are covered in our{" "}
@@ -751,101 +802,6 @@ function SubscriptionTab() {
         </Link>
         .
       </p>
-    </div>
-  );
-}
-
-function AiAssistant() {
-  const greeting = { role: "assistant", content: "Hi! I'm the CivicSign Assistant. Ask me anything about preparing, sending, signing, templates, reminders or your account." };
-  const [messages, setMessages] = useState([greeting]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const endRef = useRef(null);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
-
-  const send = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-    const next = [...messages, { role: "user", content: text }];
-    setMessages(next);
-    setInput("");
-    setLoading(true);
-    try {
-      // history = everything after greeting, excluding the message we're sending now
-      const history = next.slice(1, -1).map((m) => ({ role: m.role, content: m.content }));
-      const { data } = await api.post("/assistant/chat", { message: text, history });
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
-    } catch (err) {
-      setMessages((m) => [...m, { role: "assistant", content: "Sorry, I couldn't respond right now. Please try again in a moment." }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  };
-
-  const suggestions = [
-    "How do I add a signature field?",
-    "What's the difference between the plans?",
-    "How do I buy an extra document?",
-    "How do reminders work?",
-    "What's the difference between SES and AES?",
-    "How do I upgrade to Business?",
-  ];
-
-  return (
-    <div className="flex h-[460px] flex-col rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="help-ai-chat">
-      <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-5 py-3">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--c-primary)" }}>
-          <Bot className="h-4 w-4 text-white" />
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-[var(--c-ink)]">CivicSign Assistant</p>
-          <p className="text-xs text-[var(--c-muted-fg)]">AI-powered help · available 24/7</p>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 cs-scroll" data-testid="help-ai-messages">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${m.role === "user" ? "rounded-br-sm text-white" : "rounded-bl-sm text-[var(--c-ink)]"}`}
-              style={m.role === "user" ? { background: "var(--c-primary)" } : { background: "var(--c-paper-2)" }}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm bg-[var(--c-paper-2)] px-3.5 py-2 text-sm text-[var(--c-muted-fg)]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-            </div>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-
-      {messages.length <= 1 && (
-        <div className="flex flex-wrap gap-2 px-5 pb-2">
-          {suggestions.map((s) => (
-            <button key={s} onClick={() => setInput(s)} data-testid="help-ai-suggestion"
-              className="rounded-full border border-[var(--c-border)] px-3 py-1 text-xs text-[var(--c-muted-fg)] transition-colors hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]">
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 border-t border-[var(--c-border)] p-3">
-        <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown}
-          placeholder="Ask the assistant…" data-testid="help-ai-input" />
-        <Button onClick={send} disabled={loading || !input.trim()} data-testid="help-ai-send"
-          style={{ background: "var(--c-primary)", color: "#fff" }}>
-          <SendHorizonal className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }
@@ -889,7 +845,7 @@ function BrandingTab() {
       <UpgradePrompt
         feature="custom_branding"
         title="Custom branding is a Pro feature"
-        description="Add your logo, brand colours and a signing-page banner so recipients see your business, not generic CivicSign chrome. Included on Pro (£15/month)."
+        description={`Add your logo, brand colours and a signing-page banner so recipients see your business, not generic CivicSign chrome. Included on Pro (${formatProMonthlyShort()}).`}
       />
     );
   }
@@ -1177,12 +1133,40 @@ function IntegrationsTab() {
   );
 }
 
+const PRIVATE_BETA = process.env.REACT_APP_PRIVATE_BETA === "true";
+
 function HelpTab() {
+  const { user } = useAuth();
   const { features } = usePlan();
+  const orgStaff = isOrgStaff(user);
+  const faqs = orgStaff
+    ? FAQS.filter((f) => f.q !== "How do I change or cancel my plan?")
+    : FAQS;
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-5">
-        {features.priority_support && (
+        {PRIVATE_BETA && !orgStaff && (
+          <div className="rounded-xl border border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 p-5" data-testid="private-beta-help-banner">
+            <p className="font-heading font-semibold text-[var(--c-ink)]">Private beta</p>
+            <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
+              You&apos;re on an early access build. For billing, limits, or product questions, email{" "}
+              <ContactEmailLink /> — we reply personally during beta hours (Mon–Fri).
+            </p>
+          </div>
+        )}
+        {orgStaff && (
+          <div className="rounded-xl border border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 p-5" data-testid="org-staff-help-banner">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-8 w-8 shrink-0" style={{ color: "var(--c-primary)" }} />
+              <div>
+                <p className="font-heading font-semibold text-[var(--c-ink)]">Organisation member support</p>
+                <p className="text-sm text-[var(--c-muted-fg)]">{ORG_STAFF_ESCALATION_NOTE}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        {features.priority_support && !orgStaff && (
           <div className="rounded-xl border border-[var(--c-primary)] bg-[var(--status-sent-bg)] p-5" data-testid="priority-support-banner">
             <div className="flex items-center gap-3">
               <Headphones className="h-8 w-8" style={{ color: "var(--c-primary)" }} />
@@ -1196,13 +1180,12 @@ function HelpTab() {
             </div>
           </div>
         )}
-        <AiAssistant />
         <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
           <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
             <MessageCircleQuestion className="h-5 w-5" style={{ color: "var(--c-primary)" }} /> Frequently asked questions
           </h3>
           <Accordion type="single" collapsible className="mt-3" data-testid="help-faq-accordion">
-            {FAQS.map((f, i) => (
+            {faqs.map((f, i) => (
               <AccordionItem key={f.q} value={`faq-${i}`}>
                 <AccordionTrigger className="text-left text-sm font-semibold text-[var(--c-ink)]">{f.q}</AccordionTrigger>
                 <AccordionContent className="text-sm text-[var(--c-muted-fg)]">
@@ -1214,22 +1197,42 @@ function HelpTab() {
         </div>
       </div>
       <div className="space-y-5">
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
-            <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
-          </span>
-          <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need a human?</h3>
-          <p className="mt-1 text-sm text-[var(--c-muted-fg)]">Our team typically replies within one business day. Send us a message and we will get right back to you.</p>
-          <Link to="/contact" data-testid="help-contact-link">
-            <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
-              <Mail className="mr-1.5 h-4 w-4" /> Contact support
-            </Button>
-          </Link>
-        </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-sm">
-          <p className="font-semibold text-[var(--c-ink)]">Email us directly</p>
-          <ContactEmailLink className="mt-1 inline-block" />
-        </div>
+        {orgStaff ? (
+          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+              <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+            </span>
+            <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Need help?</h3>
+            <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
+              Billing, limits, contracts and account changes are managed by your organisation admin.
+              Ask them first — they can contact CivicSign on your organisation&apos;s behalf.
+            </p>
+            <Link to="/organisation" data-testid="help-org-admin-link">
+              <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                <Building2 className="mr-1.5 h-4 w-4" /> View your allowance
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "var(--status-sent-bg)" }}>
+                <LifeBuoy className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+              </span>
+              <h3 className="mt-3 font-heading text-lg font-semibold text-[var(--c-ink)]">Still need a human?</h3>
+              <p className="mt-1 text-sm text-[var(--c-muted-fg)]">Our team typically replies within one business day. Send us a message and we will get right back to you.</p>
+              <Link to="/contact" data-testid="help-contact-link">
+                <Button className="mt-4 w-full" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                  <Mail className="mr-1.5 h-4 w-4" /> Contact support
+                </Button>
+              </Link>
+            </div>
+            <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-sm">
+              <p className="font-semibold text-[var(--c-ink)]">Email us directly</p>
+              <ContactEmailLink className="mt-1 inline-block" />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

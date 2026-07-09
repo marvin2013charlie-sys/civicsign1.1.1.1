@@ -10,9 +10,7 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: free               # free tier — sleeps after 15 min idle (~30-60s cold
-                             # start on wake). Change to "starter" ($7/mo) before
-                             # taking real traffic / enabling Stripe webhooks.
+    plan: starter            # always-on — required for Stripe webhooks + private beta
     region: frankfurt        # closest Render region to the UK
     healthCheckPath: /api/health
     autoDeploy: true

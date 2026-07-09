@@ -263,6 +263,33 @@ async def _is_org_owner(user: dict, org: dict) -> bool:
     return bool(owner_id and user.get("user_id") == owner_id)
 
 
+def _staff_quota_note(personal_used: int, seat_limit: int, *, at_limit: bool) -> str:
+    note = f"Your allowance: {personal_used:,} / {seat_limit:,} documents this billing period."
+    if at_limit:
+        note += (
+            " Contact your organisation admin if you need more capacity."
+            " They can escalate to CivicSign if required."
+        )
+    return note
+
+
+def _owner_quota_note(
+    org_name: str,
+    personal_used: int,
+    seat_limit: int,
+    org_used: int,
+    org_limit: int,
+    org_unlimited: bool,
+    member_count: int,
+) -> str:
+    return (
+        f"Your seat: {personal_used:,} / {seat_limit:,} documents this month. "
+        f"Organisation «{org_name}» pool: {org_used:,}"
+        f"{'' if org_unlimited else f' / {org_limit:,}'} across {member_count} seat"
+        f"{'s' if member_count != 1 else ''}. {ORG_PRICING_NOTE}"
+    )
+
+
 async def require_org_admin(user: dict = Depends(get_current_user)) -> dict:
     """Organisation owner — can provision logins for their org."""
     if user.get("role") in ("admin", "staff"):
@@ -410,10 +437,11 @@ def _quota_exceeded_detail(
     limit: int,
     plan: str,
     scope: str = "user",
+    is_org_owner: bool | None = None,
 ) -> dict:
     at_limit = limit > 0 and used >= limit
     options = purchase_options_for_plan(plan, at_limit, scope)
-    return {
+    payload = {
         "message": message,
         "code": "quota_exceeded",
         "plan": plan,
@@ -424,6 +452,9 @@ def _quota_exceeded_detail(
         "scope": scope,
         "options": options,
     }
+    if scope == "organization" and is_org_owner is not None:
+        payload["is_org_owner"] = is_org_owner
+    return payload
 
 
 async def release_envelope_quota(user: dict, count: int = 1, credits_consumed: int = 0) -> None:
@@ -475,15 +506,12 @@ async def resolve_usage_quota(user: dict) -> dict:
         seat_at_limit = personal_used >= seat_limit
         org_at_limit = not org_unlimited and org_used >= org_limit
         at_limit = seat_at_limit or org_at_limit
-        note = (
-            f"Your seat: {personal_used:,} / {seat_limit:,} documents this month. "
-            f"Organisation «{org['name']}» pool: {org_used:,}"
-            f"{'' if org_unlimited else f' / {org_limit:,}'} across {member_count} seat"
-            f"{'s' if member_count != 1 else ''}. {ORG_PRICING_NOTE}"
-        )
-        return {
+        is_owner = await _is_org_owner(user, org)
+
+        payload = {
             "scope": "organization",
             "plan": plan,
+            "is_org_owner": is_owner,
             **_period_fields(org_period),
             "used": personal_used,
             "personal_used": personal_used,
@@ -491,31 +519,46 @@ async def resolve_usage_quota(user: dict) -> dict:
             "seat_limit": seat_limit,
             "seat_used": personal_used,
             "seat_remaining": seat_remaining,
-            "org_used": org_used,
-            "org_limit": org_limit,
-            "org_unlimited": org_unlimited,
             "unlimited": False,
             "remaining": seat_remaining,
             "percent": seat_percent,
             "at_limit": at_limit,
             "rate_limited": at_limit,
             "seat_at_limit": seat_at_limit,
-            "org_at_limit": org_at_limit,
             "extra_document_credits": 0,
-            "enterprise_unlimited": bool(org.get("enterprise_unlimited")),
             "fair_use": False,
-            "contract_limit": org.get("monthly_envelope_limit"),
-            "quota_note": note,
-            "pricing_note": ORG_PRICING_NOTE,
             "hourly_burst_limit": get_hourly_burst_limit(user),
             "purchase_options": purchase_options_for_plan(plan, at_limit, "organization"),
             "organization": {
                 "org_id": org_id,
                 "name": org.get("name"),
-                "member_count": member_count,
-                "seat_limit": seat_limit,
             },
         }
+
+        if is_owner:
+            payload.update({
+                "org_used": org_used,
+                "org_limit": org_limit,
+                "org_unlimited": org_unlimited,
+                "org_at_limit": org_at_limit,
+                "enterprise_unlimited": bool(org.get("enterprise_unlimited")),
+                "contract_limit": org.get("monthly_envelope_limit"),
+                "quota_note": _owner_quota_note(
+                    org["name"], personal_used, seat_limit, org_used, org_limit, org_unlimited, member_count,
+                ),
+                "pricing_note": ORG_PRICING_NOTE,
+                "organization": {
+                    "org_id": org_id,
+                    "name": org.get("name"),
+                    "member_count": member_count,
+                    "seat_limit": seat_limit,
+                },
+            })
+        else:
+            payload.update({
+                "quota_note": _staff_quota_note(personal_used, seat_limit, at_limit=at_limit),
+            })
+        return payload
 
     # Per-user quota (existing logic)
     from plan_features import get_monthly_envelope_limit, is_enterprise_unlimited, quota_context
@@ -563,18 +606,27 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
     if count < 1:
         return 0
 
+    if user.get("role") in ("admin", "staff"):
+        return 0
+
     org = await get_org_for_user(user)
     if org:
         org_period = await resolve_org_period(org["org_id"])
         user_period = await resolve_user_period(user["user_id"])
         hourly_cap = int(os.environ.get("ORG_HOURLY_BURST", "500"))
         recent = await hourly_org_envelope_count(org["org_id"])
+        is_owner = await _is_org_owner(user, org)
         if recent + count > hourly_cap:
+            burst_tail = (
+                "Spread bulk jobs over time or contact info@civicbot.co.uk for higher throughput."
+                if is_owner
+                else "Spread bulk jobs over time or ask your organisation admin to contact CivicSign."
+            )
             raise HTTPException(
                 status_code=429,
                 detail=(
                     f"Your organisation is sending too fast ({hourly_cap}/hour limit). "
-                    "Spread bulk jobs over time or contact support for higher throughput."
+                    f"{burst_tail}"
                 ),
             )
         seat_limit = org_member_seat_limit(user, org)
@@ -585,18 +637,27 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
             )
             if seat_result < 0:
                 personal_used = await current_month_envelope_count(user["user_id"], user_period)
+                seat_msg = (
+                    f"You've reached your personal allowance of {seat_limit:,} documents this billing period. "
+                    "Deleting documents does not restore your allowance. "
+                    + (
+                        "Contact info@civicbot.co.uk to discuss your contract."
+                        if is_owner
+                        else (
+                            "Contact your organisation admin — they can escalate "
+                            "to CivicSign if required."
+                        )
+                    )
+                )
                 raise HTTPException(
                     status_code=402,
                     detail=_quota_exceeded_detail(
-                        message=(
-                            f"You've reached your organisation seat limit of {seat_limit:,} documents "
-                            "this billing period. Deleting documents does not restore your allowance. "
-                            "Contact info@civicbot.co.uk to discuss your contract."
-                        ),
+                        message=seat_msg,
                         used=personal_used,
                         limit=seat_limit,
                         plan=_effective_plan(user),
                         scope="organization",
+                        is_org_owner=is_owner,
                     ),
                 )
             if seat_result > 0:
@@ -605,14 +666,23 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
                     status_code=402,
                     detail=_quota_exceeded_detail(
                         message=(
-                            f"You've reached your organisation seat limit of {seat_limit:,} documents "
-                            "this billing period. Organisation accounts cannot buy extra documents "
-                            "online — contact info@civicbot.co.uk to discuss your contract."
+                            f"You've reached your personal allowance of {seat_limit:,} documents "
+                            "this billing period. "
+                            + (
+                                "Organisation accounts cannot buy extra documents online — "
+                                "contact info@civicbot.co.uk to discuss your contract."
+                                if is_owner
+                                else (
+                                    "Contact your organisation admin — they can escalate "
+                                    "to CivicSign if required."
+                                )
+                            )
                         ),
                         used=await current_month_envelope_count(user["user_id"], user_period),
                         limit=seat_limit,
                         plan=_effective_plan(user),
                         scope="organization",
+                        is_org_owner=is_owner,
                     ),
                 )
             seat_reserved = True
@@ -624,19 +694,30 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
             if not ok:
                 if seat_reserved:
                     await release_user_quota(user["user_id"], count, 0, user_period)
-                org_used = await current_month_org_envelope_count(org["org_id"], org_period)
+                personal_used = await current_month_envelope_count(user["user_id"], user_period)
+                if is_owner:
+                    org_used = await current_month_org_envelope_count(org["org_id"], org_period)
+                    pool_msg = (
+                        f"Organisation «{org['name']}» has used its shared pool of "
+                        f"{org_limit:,} documents this billing period. Contact info@civicbot.co.uk "
+                        "to discuss your contract."
+                    )
+                    detail_used, detail_limit = org_used, org_limit
+                else:
+                    pool_msg = (
+                        "You cannot send more documents right now. Contact your organisation admin — "
+                        "they can resolve this with CivicSign if needed."
+                    )
+                    detail_used, detail_limit = personal_used, seat_limit
                 raise HTTPException(
                     status_code=402,
                     detail=_quota_exceeded_detail(
-                        message=(
-                            f"Organisation «{org['name']}» has used its shared pool of "
-                            f"{org_limit:,} documents this billing period. Contact info@civicbot.co.uk "
-                            "to discuss your contract."
-                        ),
-                        used=org_used,
-                        limit=org_limit,
+                        message=pool_msg,
+                        used=detail_used,
+                        limit=detail_limit,
                         plan=_effective_plan(user),
                         scope="organization",
+                        is_org_owner=is_owner,
                     ),
                 )
         elif not seat_reserved:
@@ -671,17 +752,20 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
     if credits >= 0:
         return credits
 
+    from billing import extra_document_price_label
+
+    extra_doc = extra_document_price_label()
     if plan == "business":
         msg = (
             f"You've used your included Business allocation of {limit:,} documents this billing period. "
             "Deleting documents does not restore your allowance. Upgrade your allocation, "
-            "buy an extra document for 80p, or contact info@civicbot.co.uk."
+            f"buy an extra document for {extra_doc}, or contact info@civicbot.co.uk."
         )
     else:
         msg = (
             f"You've reached your {plan.capitalize()} plan limit of {limit} documents for this billing period. "
             "Deleting documents does not restore your allowance. Upgrade to Pro or buy one "
-            "extra document for 80p."
+            f"extra document for {extra_doc}."
         )
     raise HTTPException(
         status_code=402,
@@ -700,44 +784,57 @@ def _org_portal_payload(user: dict, org: dict, usage: dict, *, is_owner: bool) -
 
     seat_limit = usage.get("seat_limit", usage["limit"])
     seat_used = usage.get("seat_used", usage["used"])
-    org_limit = usage.get("org_limit")
-    org_used = usage.get("org_used", 0)
-    org_unlimited = usage.get("org_unlimited", False)
-    per_seat = org_seat_monthly_limit(org)
+    your_role = user.get("org_role") or ("owner" if is_owner else "member")
 
-    return {
-        "organization": {
-            "org_id": org["org_id"],
-            "name": org["name"],
-            "is_owner": is_owner,
-            "your_role": user.get("org_role") or ("owner" if is_owner else "member"),
-            "member_count": usage["organization"]["member_count"],
+    org_view = {
+        "org_id": org["org_id"],
+        "name": org["name"],
+        "is_owner": is_owner,
+        "your_role": your_role,
+        "seat_limit": seat_limit,
+        "seat_used": seat_used,
+        "seat_remaining": max(0, seat_limit - seat_used),
+        "your_contribution": usage["personal_used"],
+        "quota_note": usage["quota_note"],
+        "resets_label": usage.get("resets_label"),
+        "period_label": usage.get("period_label"),
+    }
+
+    usage_view = {
+        "at_limit": usage.get("at_limit", False),
+        "seat_at_limit": usage.get("seat_at_limit", False),
+        "seat_percent": usage.get("percent", 0),
+        "hourly_burst_limit": get_hourly_burst_limit(user),
+    }
+
+    if is_owner:
+        org_limit = usage.get("org_limit")
+        org_used = usage.get("org_used", 0)
+        org_unlimited = usage.get("org_unlimited", False)
+        per_seat = org_seat_monthly_limit(org)
+        org_view.update({
+            "member_count": usage["organization"].get("member_count"),
             "per_seat_limit": per_seat,
-            "seat_limit": seat_limit,
-            "seat_used": seat_used,
-            "seat_remaining": max(0, seat_limit - seat_used),
             "org_limit": org_limit,
             "org_used": org_used,
             "org_remaining": None if org_unlimited else max(0, (org_limit or 0) - org_used),
             "org_unlimited": org_unlimited,
             "enterprise_unlimited": bool(org.get("enterprise_unlimited")),
             "contract_pool_limit": org.get("monthly_envelope_limit"),
-            "your_contribution": usage["personal_used"],
-            "quota_note": usage["quota_note"],
             "pricing_note": usage.get("pricing_note", ORG_PRICING_NOTE),
-            "resets_label": usage.get("resets_label"),
-            "period_label": usage.get("period_label"),
             "contract": _contract_public_meta(org),
-        },
-        "usage": {
-            "at_limit": usage.get("at_limit", False),
-            "seat_at_limit": usage.get("seat_at_limit", False),
-            "org_at_limit": usage.get("org_at_limit", False),
-            "seat_percent": usage.get("percent", 0),
-            "hourly_burst_limit": int(os.environ.get("ORG_HOURLY_BURST", "500")),
-        },
+            "org_per_seat_limit": per_seat,
+        })
+        usage_view["org_at_limit"] = usage.get("org_at_limit", False)
+    else:
+        org_view["contract"] = None
+
+    return {
+        "organization": org_view,
+        "usage": usage_view,
         "features": plan_features(user),
         "can_manage_team": is_owner,
+        "can_view_contract": is_owner,
     }
 
 
@@ -763,16 +860,18 @@ async def org_portal(request: Request, user: dict = Depends(get_current_user)):
     is_owner = await _is_org_owner(user, org)
     payload = _org_portal_payload(user, org, usage, is_owner=is_owner)
 
-    roster = await db.users.find(
-        {"org_id": org["org_id"]},
-        {"_id": 0, "password_hash": 0},
-    ).sort("created_at", 1).to_list(500)
-    usage_map = await _member_usage_map(org["org_id"], [m["user_id"] for m in roster])
-    payload["team"] = [
-        _public_org_member(m, org=org, seat_used=usage_map.get(m["user_id"], 0))
-        for m in roster
-    ]
-    payload["organization"]["org_per_seat_limit"] = org_seat_monthly_limit(org)
+    if is_owner:
+        roster = await db.users.find(
+            {"org_id": org["org_id"]},
+            {"_id": 0, "password_hash": 0},
+        ).sort("created_at", 1).to_list(500)
+        usage_map = await _member_usage_map(org["org_id"], [m["user_id"] for m in roster])
+        payload["team"] = [
+            _public_org_member(m, org=org, seat_used=usage_map.get(m["user_id"], 0))
+            for m in roster
+        ]
+    else:
+        payload["team"] = []
     return payload
 
 
@@ -783,11 +882,16 @@ async def download_org_contract(
     user: dict = Depends(get_current_user),
     inline: bool = Query(False),
 ):
-    """Download or view the signed organisation contract (all org members)."""
-    org_id = user.get("org_id")
-    if not org_id:
+    """Download or view the signed organisation contract (organisation admin only)."""
+    org = await get_org_for_user(user)
+    if not org:
         raise HTTPException(status_code=404, detail="No organisation linked to this account")
-    data, filename, content_type, file_id = await _read_contract_file(org_id)
+    if not await _is_org_owner(user, org):
+        raise HTTPException(
+            status_code=403,
+            detail="Only the organisation admin can view the contract",
+        )
+    data, filename, content_type, file_id = await _read_contract_file(org["org_id"])
     return _contract_download_response(
         data,
         filename,

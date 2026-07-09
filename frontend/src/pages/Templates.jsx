@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { copyToClipboard } from "@/lib/clipboard";
 import { handleQuotaApiError } from "@/lib/quota";
 import { AppShell } from "@/components/AppShell";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { formatProMonthlyShort } from "@/lib/pricing";
 import { Input } from "@/components/ui/input";
 import { LayoutTemplate, Loader2, Trash2, FileText, Users, Send, Play, Sparkles, Link2 } from "lucide-react";
 
@@ -99,7 +101,7 @@ export default function Templates() {
     setBulkSending(true);
     try {
       const { data } = await api.post(`/templates/${bulkTpl.template_id}/bulk-send`, {
-        base_url: window.location.origin,
+        base_url: getAppOrigin(),
         message: bulkMsg,
         rows,
       });
@@ -158,7 +160,7 @@ export default function Templates() {
       const { data } = await api.patch(`/templates/${t.template_id}/public-form`, { enabled });
       setItems((p) => p.map((x) => (x.template_id === t.template_id ? { ...x, public_form: data.public_form } : x)));
       if (enabled) {
-        const url = `${window.location.origin}/form/${data.public_form.slug}`;
+        const url = `${getAppOrigin()}/form/${data.public_form.slug}`;
         const copied = await copyToClipboard(url);
         toast.success(copied ? "Public link enabled and copied" : "Public link enabled, copy the URL from the card");
       } else {
@@ -208,7 +210,7 @@ export default function Templates() {
           <UpgradePrompt
             feature="public_links"
             title="Public signing links on Pro"
-            description="Share a URL anyone can use to sign, DocuSign calls this PowerForms and locks it to Business Pro (~£45/user). We include it on Pro at £15."
+            description={`Share a URL anyone can use to sign, DocuSign calls this PowerForms and locks it to Business Pro (~£45/user). We include it on Pro at ${formatProMonthlyShort()}.`}
           />
         </div>
       )}

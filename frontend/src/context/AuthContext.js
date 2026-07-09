@@ -6,6 +6,7 @@ import {
   getAccessToken,
   purgeLegacyTokenStorage,
 } from "@/lib/tokenStore";
+import { getAppOrigin } from "@/lib/appOrigin";
 
 const AuthContext = createContext(null);
 
@@ -92,7 +93,7 @@ export function AuthProvider({ children }) {
 
   const forgotPassword = async (email) => {
     const { data } = await api.post("/auth/forgot-password", {
-      email, base_url: window.location.origin,
+      email, base_url: getAppOrigin(),
     });
     return data;
   };
