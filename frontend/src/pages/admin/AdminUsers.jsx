@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ShieldCheck, Download, ChevronRight, Crown, Building2 } from "lucide-react";
+import { AdminPageIntro, AdminPillTabs, AdminEmptyState } from "@/components/portal/AdminPrimitives";
 
 const PLAN_BADGE = {
   free: { bg: "var(--status-draft-bg)", fg: "var(--c-ink)" },
@@ -20,6 +21,11 @@ const PLAN_BADGE = {
 const CATEGORY_OPTIONS = [
   { value: "customer", label: "Customer", desc: "End-user accounts — solo plans or organisation seats." },
   { value: "team", label: "Team member", desc: "Internal team accounts — staff members and super-admins." },
+];
+
+const CATEGORY_TABS = [
+  { id: "customer", label: "Customer", testId: "admin-users-category-customer" },
+  { id: "team", label: "Team member", testId: "admin-users-category-team" },
 ];
 
 const CUSTOMER_PLAN_OPTIONS = [
@@ -162,35 +168,33 @@ export default function AdminUsers() {
 
   return (
     <div data-testid="admin-users">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]" data-testid="admin-users-heading">
-            {heading}
-          </h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">{description}</p>
-        </div>
-        <Button variant="outline" onClick={() => downloadCsv(`/admin/export/users.csv`, "civicsign_users.csv")} data-testid="admin-export-users">
-          <Download className="mr-1.5 h-4 w-4" /> Export CSV
-        </Button>
+      <div data-testid="admin-users-heading">
+        <AdminPageIntro
+          caveat="Internal console"
+          title={heading}
+          subtitle={description}
+          actions={(
+            <Button variant="outline" className="rounded-xl" onClick={() => downloadCsv(`/admin/export/users.csv`, "civicsign_users.csv")} data-testid="admin-export-users">
+              <Download className="mr-1.5 h-4 w-4" /> Export CSV
+            </Button>
+          )}
+        />
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mb-4">
+        <AdminPillTabs
+          tabs={CATEGORY_TABS}
+          value={activeCategory}
+          onChange={(v) => { setCategory(v); setSubFilter("all"); setOrgFilter("all"); setOrgMemberType("all"); }}
+          testId="admin-users-category-filter"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-sm flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email…" className="pl-9" data-testid="admin-users-search" />
         </div>
-        <Select value={activeCategory} onValueChange={(v) => { setCategory(v); setSubFilter("all"); setOrgFilter("all"); setOrgMemberType("all"); }}>
-          <SelectTrigger className="h-10 w-[160px]" data-testid="admin-users-category-filter">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORY_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value} data-testid={`admin-users-category-${o.value}`}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Select value={activeSubFilter} onValueChange={(v) => { setSubFilter(v); setOrgFilter("all"); setOrgMemberType("all"); }}>
           <SelectTrigger
             className="h-10 w-[180px]"
@@ -244,11 +248,11 @@ export default function AdminUsers() {
         </span>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-users-table">
+      <div className="mt-4 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="admin-users-table">
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }, (_, i) => <Skeleton key={`users-skel-${i}`} className="h-14 w-full" />)}</div>
         ) : users.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No {heading.toLowerCase()} found.</div>
+          <AdminEmptyState title={`No ${heading.toLowerCase()} found`} description="Try adjusting your search or filters." />
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] lg:grid">

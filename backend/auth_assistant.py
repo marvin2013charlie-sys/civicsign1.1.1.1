@@ -9,10 +9,11 @@ from typing import List, Optional
 logger = logging.getLogger("civicsign.auth_assistant")
 
 AUTH_SYSTEM_PROMPT = (
-    "You are CivicSign Sign-in Copilot, a friendly assistant on the login and registration portal. "
+    "You are CivicSign Sign-in Copilot on the login/registration portal. "
     "You ONLY help with: signing in, creating an account, email verification, password reset, "
     "session/security questions, and getting started after signup. "
-    "Be concise (under 120 words), use short bullet steps when helpful. "
+    "REPLY STYLE: one direct opening sentence, then short bullet steps (•). Plain UI labels — no markdown or asterisks. "
+    "Under 120 words. No filler openers. UK spelling. "
     "Password rules: 8+ characters, 1 capital, 1 number, 1 special character. "
     "If locked out after failed attempts, wait 15 minutes or use Forgot password. "
     "Rate limits in production protect accounts — suggest waiting a few minutes if they hit limits. "
@@ -158,7 +159,7 @@ def rule_based_reply(message: str, context: str = "login") -> Optional[str]:
                 "• **Free** — £0, 2 documents/month\n"
                 "• **Pro** — £15/month excl. VAT, 100 documents/month (1,200/year on annual billing)\n"
                 "• **Business** — £79/month excl. VAT, 600 documents/month (7,200/year on annual billing)\n"
-                "• **Manage PDF** — Pro, Business, and Organisation plans only\n"
+                "• **Manage PDF** — included on all paid plans (Pro, Business, Organisation); not on Free\n"
                 "• **Extra documents** — 80p each excl. VAT when at your monthly limit\n"
                 "• Upgrade under **Settings → Subscription**\n\n"
                 "No credit card needed to create a free account."
@@ -227,22 +228,20 @@ async def generate_auth_reply(
     context: str = "login",
     history: Optional[List[dict]] = None,
 ) -> str:
-    """Hybrid AI: OpenAI when configured, otherwise intelligent rule matching."""
-    history = history or []
+    """Hybrid AI: accurate rules for known intents, then OpenAI, then fallback."""
+    from assistant_format import polish_reply
 
+    history = history or []
     ruled = rule_based_reply(message, context)
-    if ruled and len(_norm(message)) < 80:
-        # Short direct questions → prefer fast accurate rules
-        return ruled
+
+    if ruled:
+        return polish_reply(ruled)
 
     llm = await _openai_reply(message, history, context)
     if llm:
-        return llm
+        return polish_reply(llm)
 
-    if ruled:
-        return ruled
-
-    return (
+    return polish_reply(
         "I'm not sure I caught that. Try asking about:\n"
         "• Can't log in / wrong password\n"
         "• Too many attempts or rate limits\n"

@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AdminPageIntro, AdminStatCard, AdminSurfaceCard, AdminEmptyState, AdminStaffBadge,
+} from "@/components/portal/AdminPrimitives";
 import {
   UserPlus, Trash2, ShieldCheck, Users as UsersIcon, Eye, EyeOff, Crown,
   KeyRound, PauseCircle, PlayCircle, Copy, Check,
@@ -169,40 +171,51 @@ export default function AdminTeam() {
 
   return (
     <div data-testid="admin-team">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Internal Team</h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Super-admins and staff members with scoped permissions.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
-            <ShieldCheck className="h-3.5 w-3.5" /> Super-admin only
-          </Badge>
-          <Button onClick={() => setCreateOpen(true)} data-testid="admin-team-create-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
-            <UserPlus className="mr-1.5 h-4 w-4" /> Add staff
-          </Button>
-        </div>
+      <AdminPageIntro
+        caveat="Access control"
+        title="Internal Team"
+        subtitle="Super-admins and staff members with scoped permissions."
+        actions={(
+          <>
+            <AdminStaffBadge label="Super-admin only" />
+            <Button onClick={() => setCreateOpen(true)} data-testid="admin-team-create-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
+              <UserPlus className="mr-1.5 h-4 w-4" /> Add staff
+            </Button>
+          </>
+        )}
+      />
+
+      <div className="grid grid-cols-2 gap-4">
+        <AdminStatCard
+          icon={Crown}
+          label="Super admins"
+          value={loading ? "…" : adminCount}
+          tone="warning"
+          testId="admin-team-admin-count"
+        />
+        <AdminStatCard
+          icon={ShieldCheck}
+          label="Staff members"
+          value={loading ? "…" : staffCount}
+          tone="teal"
+          testId="admin-team-staff-count"
+        />
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Super admins</span>
-          <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]" data-testid="admin-team-admin-count">{adminCount}</p>
-        </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Staff members</span>
-          <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]" data-testid="admin-team-staff-count">{staffCount}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-team-table">
+      <AdminSurfaceCard className="mt-4 overflow-hidden" flush testId="admin-team-table">
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
         ) : members.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <UsersIcon className="mx-auto h-10 w-10 text-[var(--c-muted-fg)]" />
-            <p className="mt-3 text-sm text-[var(--c-muted-fg)]">No team members yet.</p>
-          </div>
+          <AdminEmptyState
+            icon={UsersIcon}
+            title="No team members yet"
+            description="Add staff accounts with scoped permissions for blog, careers, contacts and more."
+            action={(
+              <Button onClick={() => setCreateOpen(true)} data-testid="admin-team-empty-create" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                <UserPlus className="mr-1.5 h-4 w-4" /> Add staff
+              </Button>
+            )}
+          />
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] sm:grid">
@@ -289,7 +302,7 @@ export default function AdminTeam() {
             ))}
           </div>
         )}
-      </div>
+      </AdminSurfaceCard>
 
       {/* Create staff dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

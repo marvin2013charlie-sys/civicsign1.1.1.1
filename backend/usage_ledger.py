@@ -36,10 +36,11 @@ async def resolve_org_period(org_id: str) -> dict:
     return period_for_org(org.get("created_at") if org else None)
 
 
-async def _live_envelope_count(owner_id: str, period_start_iso: str) -> int:
+async def _live_sent_envelope_count(owner_id: str, period_start_iso: str) -> int:
+    """Documents sent for signature in the billing period (drafts excluded)."""
     return await db.envelopes.count_documents({
         "owner_id": owner_id,
-        "created_at": {"$gte": period_start_iso},
+        "sent_at": {"$gte": period_start_iso},
     })
 
 
@@ -58,19 +59,17 @@ async def get_monthly_usage(owner_id: str, period: Optional[dict] = None) -> int
     )
     ledger = int(entry.get("count", 0)) if entry else 0
 
-    if ledger == 0:
-        live = await _live_envelope_count(owner_id, start_iso)
-        if live > 0:
-            await db.usage_ledger.update_one(
-                {"owner_id": owner_id, "month": key},
-                {
-                    "$max": {"count": live},
-                    "$set": {"updated_at": _now()},
-                    "$setOnInsert": {"created_at": _now()},
-                },
-                upsert=True,
-            )
-            ledger = live
+    live = await _live_sent_envelope_count(owner_id, start_iso)
+    if ledger != live:
+        await db.usage_ledger.update_one(
+            {"owner_id": owner_id, "month": key},
+            {
+                "$set": {"count": live, "updated_at": _now()},
+                "$setOnInsert": {"created_at": _now()},
+            },
+            upsert=True,
+        )
+        ledger = live
     return ledger
 
 
@@ -209,8 +208,29 @@ async def reserve_user_quota(
         if not debit:
             break
         credits_consumed = overage
-        await _inc_ledger(owner_id, count, period, org_id)
-        return credits_consumed
+        result = await db.usage_ledger.update_one(
+            {
+                "owner_id": owner_id,
+                "month": key,
+                "count": current,
+            },
+            {
+                "$inc": {"count": count},
+                "$set": {"updated_at": _now()},
+                "$setOnInsert": {
+                    "created_at": _now(),
+                    **({"org_id": org_id} if org_id else {}),
+                },
+            },
+            upsert=False,
+        )
+        if result.modified_count:
+            return credits_consumed
+        await db.users.update_one(
+            {"user_id": owner_id},
+            {"$inc": {"extra_document_credits": overage}},
+        )
+        continue
 
     return -1
 

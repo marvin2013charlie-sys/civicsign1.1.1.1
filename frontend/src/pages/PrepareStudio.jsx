@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
 import api, { formatApiError, fetchPdfBlobUrl } from "@/lib/api";
 import { FIELD_TYPES, FIELD_ORDER, hexToRgba } from "@/lib/fields";
-import { Logo } from "@/components/Logo";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,31 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft, Plus, Trash2, ZoomIn, ZoomOut, Send, UserPlus, Loader2,
-  GripVertical, X, Users, ListOrdered, LayoutTemplate, LayoutGrid, Save, ShieldCheck,
+  X, Users, ListOrdered, LayoutTemplate, LayoutGrid, Save, ShieldCheck,
+  UploadCloud, PenLine, FileText,
 } from "lucide-react";
 import { usePlan } from "@/hooks/usePlan";
 
 import { RECIPIENT_COLORS } from "@/lib/semanticColors";
 const COLORS = RECIPIENT_COLORS;
+
+const PREPARE_STEPS = [
+  { id: 1, label: "Upload", icon: UploadCloud, done: true },
+  { id: 2, label: "Prepare", icon: PenLine, active: true },
+  { id: 3, label: "Send", icon: Send, done: false },
+];
+
+function PanelCard({ title, icon: Icon, children, testId }) {
+  return (
+    <section className="cs-portal-surface-card overflow-hidden rounded-xl" data-testid={testId}>
+      <div className="flex items-center gap-2 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-3">
+        {Icon && <Icon className="h-3.5 w-3.5 text-[var(--c-primary)]" />}
+        <h3 className="text-[11px] font-semibold uppercase tracking-[1px] text-[var(--c-muted-fg)]">{title}</h3>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
 
 function PrepareField({ f, color, selected, onSelect, onChange, onDelete }) {
   const meta = FIELD_TYPES[f.type] || FIELD_TYPES.text;
@@ -317,215 +336,341 @@ export default function PrepareStudio() {
   };
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-[var(--c-paper)]"><Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" /></div>;
+    return (
+      <div className="cs-portal-main-panel flex min-h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" />
+        <p className="text-sm text-[var(--c-muted-fg)]">Loading your document…</p>
+      </div>
+    );
   }
 
   // Shared panel content, rendered both in the desktop sidebar and inside the
   // mobile bottom sheet so the prepare flow has full parity on phones.
   const renderPanels = ({ onPick, mode = "all" } = {}) => (
-    <div className="prepare-panels box-border w-full max-w-full min-w-0 space-y-5 overflow-x-hidden p-3 xl:p-4">
-      {/* Recipients */}
-      {(mode === "all" || mode === "recipients") && <section className="min-w-0">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]"><Users className="h-3.5 w-3.5" /> Recipients</div>
-        <div className="mt-3 space-y-2">
-          {recipients.map((r) => (
-            <div key={r.recipient_id}
-              onClick={() => setActiveRecipient(r.recipient_id)}
-              data-testid="recipient-row"
-              className={`flex min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg border p-2 transition-colors ${activeRecipient === r.recipient_id ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)]" : "border-[var(--c-border)] bg-white"}`}>
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p>
-                <p className="truncate text-xs text-[var(--c-muted-fg)]">{r.email}</p>
+    <div className="prepare-panels box-border w-full max-w-full min-w-0 space-y-4 overflow-x-hidden p-3 xl:p-4">
+      {env?.document?.file_type === "docx" && (mode === "all" || mode === "fields") && (
+        <div
+          className="rounded-xl border-l-4 bg-[var(--status-sent-bg)] px-3 py-2.5 text-xs leading-relaxed text-[var(--c-ink)]"
+          style={{ borderLeftColor: "var(--c-primary)" }}
+        >
+          Word document — signers can add <strong>signatures only</strong>, not edit text.
+        </div>
+      )}
+
+      {(mode === "all" || mode === "recipients") && (
+        <PanelCard title="Recipients" icon={Users}>
+          <div className="space-y-2">
+            {recipients.map((r) => (
+              <div
+                key={r.recipient_id}
+                onClick={() => setActiveRecipient(r.recipient_id)}
+                data-testid="recipient-row"
+                className={`flex min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-xl border p-2.5 transition-all ${
+                  activeRecipient === r.recipient_id
+                    ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] shadow-sm"
+                    : "border-[var(--c-border)] bg-[var(--c-portal-card)] hover:bg-[var(--c-paper-2)]"
+                }`}
+              >
+                <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white" style={{ background: r.color }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p>
+                  <p className="truncate text-xs text-[var(--c-muted-fg)]">{r.email}</p>
+                </div>
+                <span className="rounded-full bg-[var(--c-paper-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--c-muted-fg)]">#{r.order}</span>
+                <button type="button" onClick={(e) => { e.stopPropagation(); removeRecipient(r.recipient_id); }} className="text-[var(--c-muted-fg)] hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
-              <span className="text-xs text-[var(--c-muted-fg)]">#{r.order}</span>
-              <button onClick={(e) => { e.stopPropagation(); removeRecipient(r.recipient_id); }} className="text-[var(--c-muted-fg)] hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+            ))}
+          </div>
+          <div className="relative mt-3 space-y-2 rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--c-paper)] p-3">
+            <Input
+              value={newRec.name}
+              onChange={(e) => {
+                const v = e.target.value;
+                setNewRec({ ...newRec, name: v });
+                fetchContactSuggestions(v);
+              }}
+              onFocus={() => fetchContactSuggestions(newRec.name)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              placeholder="Recipient name"
+              className="h-9 rounded-lg bg-[var(--c-portal-card)]"
+              data-testid="recipient-name-input"
+            />
+            <Input
+              value={newRec.email}
+              onChange={(e) => setNewRec({ ...newRec, email: e.target.value })}
+              placeholder="email@company.com"
+              className="h-9 rounded-lg bg-[var(--c-portal-card)]"
+              data-testid="recipient-email-input"
+            />
+            {showSuggestions && contactSuggestions.length > 0 && (
+              <ul className="absolute left-3 right-3 top-12 z-20 max-h-36 overflow-y-auto rounded-xl border border-[var(--c-border)] bg-[var(--card)] shadow-lg" data-testid="recipient-suggestions">
+                {contactSuggestions.map((c) => (
+                  <li key={c.email}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-[var(--c-paper-2)]"
+                      onMouseDown={() => {
+                        setNewRec({ name: c.name, email: c.email });
+                        setShowSuggestions(false);
+                      }}
+                    >
+                      <span className="font-medium text-[var(--c-ink)]">{c.name || c.email}</span>
+                      {c.name && <span className="text-xs text-[var(--c-muted-fg)]">{c.email}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button variant="outline" className="w-full rounded-xl" onClick={addRecipient} data-testid="recipient-add-button">
+              <UserPlus className="mr-1.5 h-4 w-4" /> Add recipient
+            </Button>
+          </div>
+          {features.recipient_auth && activeRecipient && (
+            <div className="mt-4 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] p-3" data-testid="recipient-auth-panel">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
+                <ShieldCheck className="h-3.5 w-3.5" /> Recipient authentication
+              </div>
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">Verify identity before signing (Business).</p>
+              <div
+                className="mt-2 flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px]"
+              >
+                {[["", "None"], ...(features.recipient_auth_sms ? [["sms", "SMS"]] : []), ["kba", "KBA"]].map(([v, l]) => {
+                  const active = (recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method || "") === v;
+                  return (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
+                        ? { ...r, auth_method: v || null, auth_phone: v === "sms" ? r.auth_phone : null,
+                            auth_kba_postcode: v === "kba" ? r.auth_kba_postcode : null }
+                        : r))}
+                      className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                      style={active ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
+                    >
+                      {l}
+                    </button>
+                  );
+                })}
+              </div>
+              {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "sms" && (
+                <Input className="mt-2 h-9 rounded-lg" placeholder="+44 7700 900123"
+                  value={recipients.find((r) => r.recipient_id === activeRecipient)?.auth_phone || ""}
+                  onChange={(e) => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
+                    ? { ...r, auth_phone: e.target.value } : r))}
+                  data-testid="recipient-auth-phone" />
+              )}
+              {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "kba" && (
+                <Input className="mt-2 h-9 rounded-lg" placeholder="Postcode on file (e.g. SW1A 1AA)"
+                  value={recipients.find((r) => r.recipient_id === activeRecipient)?.auth_kba_postcode || ""}
+                  onChange={(e) => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
+                    ? { ...r, auth_kba_postcode: e.target.value } : r))}
+                  data-testid="recipient-auth-postcode" />
+              )}
             </div>
-          ))}
-        </div>
-        <div className="relative mt-3 space-y-2 rounded-lg border border-dashed border-[var(--c-border)] p-3">
-          <Input
-            value={newRec.name}
-            onChange={(e) => {
-              const v = e.target.value;
-              setNewRec({ ...newRec, name: v });
-              fetchContactSuggestions(v);
-            }}
-            onFocus={() => fetchContactSuggestions(newRec.name)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Recipient name"
-            className="h-9"
-            data-testid="recipient-name-input"
-          />
-          <Input value={newRec.email} onChange={(e) => setNewRec({ ...newRec, email: e.target.value })} placeholder="email@company.com" className="h-9" data-testid="recipient-email-input" />
-          {showSuggestions && contactSuggestions.length > 0 && (
-            <ul className="absolute left-3 right-3 top-12 z-20 max-h-36 overflow-y-auto rounded-lg border border-[var(--c-border)] bg-white shadow-lg" data-testid="recipient-suggestions">
-              {contactSuggestions.map((c) => (
-                <li key={c.email}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-[var(--c-paper-2)]"
-                    onMouseDown={() => {
-                      setNewRec({ name: c.name, email: c.email });
-                      setShowSuggestions(false);
-                    }}
-                  >
-                    <span className="font-medium text-[var(--c-ink)]">{c.name || c.email}</span>
-                    {c.name && <span className="text-xs text-[var(--c-muted-fg)]">{c.email}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
           )}
-          <Button variant="outline" className="w-full" onClick={addRecipient} data-testid="recipient-add-button"><UserPlus className="mr-1.5 h-4 w-4" /> Add recipient</Button>
-        </div>
-        {features.recipient_auth && activeRecipient && (
-          <div className="mt-4 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-3" data-testid="recipient-auth-panel">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
-              <ShieldCheck className="h-3.5 w-3.5" /> Recipient authentication
-            </div>
-            <p className="mt-1 text-xs text-[var(--c-muted-fg)]">Business plan, verify identity before signing.</p>
-            <div className="mt-2 grid grid-cols-3 gap-1">
-              {[["", "None"], ["sms", "SMS"], ["kba", "KBA"]].map(([v, l]) => (
-                <button key={l} type="button"
-                  onClick={() => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
-                    ? { ...r, auth_method: v || null, auth_phone: v === "sms" ? r.auth_phone : null,
-                        auth_kba_postcode: v === "kba" ? r.auth_kba_postcode : null }
-                    : r))}
-                  className={`rounded-md border px-2 py-1.5 text-xs font-medium ${
-                    (recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method || "") === v
-                      ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)]" : "border-[var(--c-border)] bg-white"
-                  }`}>{l}</button>
-              ))}
-            </div>
-            {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "sms" && (
-              <Input className="mt-2 h-9" placeholder="+44 7700 900123"
-                value={recipients.find((r) => r.recipient_id === activeRecipient)?.auth_phone || ""}
-                onChange={(e) => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
-                  ? { ...r, auth_phone: e.target.value } : r))}
-                data-testid="recipient-auth-phone" />
-            )}
-            {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "kba" && (
-              <Input className="mt-2 h-9" placeholder="Postcode on file (e.g. SW1A 1AA)"
-                value={recipients.find((r) => r.recipient_id === activeRecipient)?.auth_kba_postcode || ""}
-                onChange={(e) => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
-                  ? { ...r, auth_kba_postcode: e.target.value } : r))}
-                data-testid="recipient-auth-postcode" />
-            )}
-          </div>
-        )}
-      </section>}
+        </PanelCard>
+      )}
 
-      {/* Signing order */}
-      {(mode === "all" || mode === "recipients") && <section className="min-w-0">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]"><ListOrdered className="h-3.5 w-3.5" /> Signing order</div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {[["sequential", "Sequential"], ["parallel", "Parallel"]].map(([v, l]) => (
-            <button key={v} onClick={() => setSigningOrder(v)} data-testid={`order-${v}`}
-              className={`rounded-lg border px-2 py-2 text-sm font-medium ${signingOrder === v ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--c-muted-fg)]"}`}>{l}</button>
-          ))}
-        </div>
-      </section>}
-
-      {/* Fields palette */}
-      {(mode === "all" || mode === "fields") && <section className="min-w-0">
-        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Fields</div>
-        <p className="mt-1 break-words text-xs leading-snug text-[var(--c-muted-fg)]">Pick a field, then click the document to place it for <b className="break-words" style={{ color: colorFor(activeRecipient) }}>{recipients.find((r) => r.recipient_id === activeRecipient)?.name || "select recipient"}</b>.</p>
-        <div className="mt-3 max-h-[min(55vh,28rem)] overflow-y-auto overflow-x-hidden cs-scroll" data-testid="prepare-fields-palette">
-          <div className="grid grid-cols-2 gap-1.5">
-          {FIELD_ORDER.map((t) => {
-            const m = FIELD_TYPES[t]; const Icon = m.icon; const active = tool === t;
-            return (
-              <button key={t}
-                onClick={() => { setTool(active ? null : t); onPick && onPick(); }}
-                data-testid={`field-chip-${t}`}
-                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-2 text-center text-[10px] font-medium leading-tight transition-colors sm:text-[11px] ${active ? "border-[var(--c-primary)] bg-[var(--status-sent-bg)] text-[var(--c-ink)]" : "border-[var(--c-border)] bg-white text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"}`}>
-                <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
-                <span className="w-full min-w-0 truncate px-0.5">{m.label}</span>
+      {(mode === "all" || mode === "recipients") && (
+        <PanelCard title="Signing order" icon={ListOrdered}>
+          <div className="flex rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px]">
+            {[["sequential", "Sequential"], ["parallel", "Parallel"]].map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setSigningOrder(v)}
+                data-testid={`order-${v}`}
+                className="flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all"
+                style={signingOrder === v ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
+              >
+                {l}
               </button>
-            );
-          })}
+            ))}
           </div>
-        </div>
-        {selected && (() => {
-          const sf = fields.find((f) => f.field_id === selected);
-          if (!sf || !["dropdown", "radio"].includes(sf.type)) return null;
-          return (
-            <div className="mt-3 rounded-lg border border-[var(--c-border)] bg-white p-3" data-testid="field-options-editor">
-              <Label className="text-xs">Options (one per line)</Label>
-              <Textarea
-                className="mt-1 font-mono text-xs"
-                rows={4}
-                value={(sf.options || []).join("\n")}
-                onChange={(e) => {
-                  const opts = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
-                  updateField(sf.field_id, { options: opts.length ? opts : null });
-                }}
-                placeholder={"Option A\nOption B\nOption C"}
-              />
+        </PanelCard>
+      )}
+
+      {(mode === "all" || mode === "fields") && (
+        <PanelCard title="Fields" icon={LayoutGrid}>
+          <p className="text-xs leading-relaxed text-[var(--c-muted-fg)]">
+            Pick a field, then click the document for{" "}
+            <b style={{ color: colorFor(activeRecipient) }}>
+              {recipients.find((r) => r.recipient_id === activeRecipient)?.name || "selected recipient"}
+            </b>.
+          </p>
+          <div className="mt-3 max-h-[min(55vh,28rem)] overflow-y-auto overflow-x-hidden cs-scroll" data-testid="prepare-fields-palette">
+            <div className="grid grid-cols-2 gap-2">
+              {FIELD_ORDER.map((t) => {
+                const m = FIELD_TYPES[t];
+                const Icon = m.icon;
+                const active = tool === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => { setTool(active ? null : t); onPick && onPick(); }}
+                    data-testid={`field-chip-${t}`}
+                    className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2.5 text-center text-[10px] font-semibold leading-tight transition-all sm:text-[11px]"
+                    style={active
+                      ? { borderColor: "var(--c-primary)", background: "var(--status-sent-bg)", color: "var(--c-ink)", boxShadow: "0 0 0 1px var(--c-primary)" }
+                      : { borderColor: "var(--c-border)", background: "var(--c-portal-card)", color: "var(--c-ink)" }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
+                    <span className="w-full min-w-0 truncate px-0.5">{m.label}</span>
+                  </button>
+                );
+              })}
             </div>
-          );
-        })()}
-      </section>}
+          </div>
+          {selected && (() => {
+            const sf = fields.find((f) => f.field_id === selected);
+            if (!sf || !["dropdown", "radio"].includes(sf.type)) return null;
+            return (
+              <div className="mt-3 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-3" data-testid="field-options-editor">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Options (one per line)</Label>
+                <Textarea
+                  className="mt-1.5 rounded-lg font-mono text-xs"
+                  rows={4}
+                  value={(sf.options || []).join("\n")}
+                  onChange={(e) => {
+                    const opts = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
+                    updateField(sf.field_id, { options: opts.length ? opts : null });
+                  }}
+                  placeholder={"Option A\nOption B\nOption C"}
+                />
+              </div>
+            );
+          })()}
+        </PanelCard>
+      )}
     </div>
   );
 
   const activeRec = recipients.find((r) => r.recipient_id === activeRecipient);
+  const isWordDoc = env?.document?.file_type === "docx";
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--c-paper)]">
-      {/* Top toolbar */}
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--c-border)] bg-[var(--card)] px-3 sm:gap-3 sm:px-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} data-testid="prepare-back-button"><ArrowLeft className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" className="sm:hidden" onClick={saveAndExit} disabled={saving} data-testid="prepare-mobile-save-button" aria-label="Save and exit">
+    <div className="cs-portal-main-panel flex h-screen flex-col">
+      {/* Header — Dashboard / New Envelope style */}
+      <header className="shrink-0 border-b border-[var(--c-border)] bg-[var(--c-portal-card)]">
+        <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} data-testid="prepare-back-button" className="shrink-0 rounded-xl">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="shrink-0 rounded-xl sm:hidden" onClick={saveAndExit} disabled={saving} data-testid="prepare-mobile-save-button" aria-label="Save and exit">
             <Save className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="sm:hidden" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-mobile-template-button" aria-label="Save as template">
+          <Button variant="ghost" size="icon" className="shrink-0 rounded-xl sm:hidden" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-mobile-template-button" aria-label="Save as template">
             <LayoutTemplate className="h-4 w-4" />
           </Button>
-        <Logo to="/dashboard" className="shrink-0" />
-        <span className="min-w-0 flex-1 font-heading text-sm font-semibold leading-tight text-[var(--c-ink)] line-clamp-2 sm:line-clamp-1 sm:flex-none sm:truncate sm:text-base">{env?.title}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="hidden items-center gap-1 rounded-lg border border-[var(--c-border)] p-0.5 sm:flex">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))} data-testid="prepare-zoom-out-button"><ZoomOut className="h-4 w-4" /></Button>
-            <span className="w-10 text-center text-xs text-[var(--c-muted-fg)]">{Math.round(zoom * 100)}%</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(1.6, z + 0.1))} data-testid="prepare-zoom-in-button"><ZoomIn className="h-4 w-4" /></Button>
+          <div className="min-w-0 flex-1">
+            <p
+              className="hidden text-[22px] font-semibold leading-none sm:block"
+              style={{ fontFamily: "'Caveat', cursive", color: "var(--c-primary-hover)" }}
+            >
+              Step 2 of 3
+            </p>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--badge-teal-bg)]">
+                <FileText className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+              </span>
+              <h1 className="min-w-0 truncate font-heading text-base font-bold tracking-tight text-[var(--c-ink)] sm:text-lg">
+                {env?.title}
+              </h1>
+            </div>
           </div>
-          <Button variant="ghost" className="hidden sm:inline-flex" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-save-template-button">
-            <LayoutTemplate className="mr-1.5 h-4 w-4" /> Save as template
-          </Button>
-          <Button variant="outline" onClick={saveAndExit} disabled={saving} data-testid="prepare-save-button" className="hidden sm:inline-flex">Save & exit</Button>
-          <Button type="button" onClick={continueToSend} disabled={saving} data-testid="prepare-send-button" style={{ background: "var(--c-primary)", color: "#fff" }} className="px-3 sm:px-4">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <Send className="h-4 w-4 sm:mr-1.5" />}
-            <span className="hidden sm:inline">Continue to send</span>
-            <span className="ml-1 sm:hidden">Send</span>
-          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="hidden items-center gap-0.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] p-0.5 sm:flex">
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))} data-testid="prepare-zoom-out-button"><ZoomOut className="h-4 w-4" /></Button>
+              <span className="w-10 text-center text-xs font-semibold text-[var(--c-muted-fg)]">{Math.round(zoom * 100)}%</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setZoom((z) => Math.min(1.6, z + 0.1))} data-testid="prepare-zoom-in-button"><ZoomIn className="h-4 w-4" /></Button>
+            </div>
+            <Button variant="outline" className="hidden rounded-xl sm:inline-flex" onClick={openTemplateDialog} disabled={saving} data-testid="prepare-save-template-button">
+              <LayoutTemplate className="mr-1.5 h-4 w-4" /> Save as template
+            </Button>
+            <Button variant="outline" onClick={saveAndExit} disabled={saving} data-testid="prepare-save-button" className="hidden rounded-xl sm:inline-flex">
+              Save & exit
+            </Button>
+            <button
+              type="button"
+              onClick={continueToSend}
+              disabled={saving}
+              data-testid="prepare-send-button"
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white transition-all hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
+              style={{ background: "var(--c-ink-solid)", boxShadow: saving ? "none" : "0 8px 20px rgba(18,33,32,.18)" }}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <span className="hidden sm:inline">Continue to send</span>
+              <span className="sm:hidden">Send</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="hidden flex-wrap items-center justify-between gap-3 border-t border-[var(--c-border)] px-5 py-2.5 sm:flex">
+          <div
+            className="flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-paper)] p-[3px]"
+            data-testid="prepare-steps"
+          >
+            {PREPARE_STEPS.map((step) => {
+              const Icon = step.icon;
+              const active = step.active;
+              const done = step.done;
+              return (
+                <span
+                  key={step.id}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+                  style={
+                    active
+                      ? { background: "var(--c-ink-solid)", color: "#fff" }
+                      : done
+                        ? { color: "var(--c-primary)" }
+                        : { color: "var(--c-muted-fg)" }
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {step.label}
+                </span>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[var(--c-muted-fg)]">
+            <span className="rounded-full bg-[var(--c-paper-2)] px-2.5 py-1">{recipients.length} recipient{recipients.length === 1 ? "" : "s"}</span>
+            <span className="rounded-full bg-[var(--c-paper-2)] px-2.5 py-1">{fields.length} field{fields.length === 1 ? "" : "s"}</span>
+            <span className="rounded-full bg-[var(--c-paper-2)] px-2.5 py-1 capitalize">{signingOrder}</span>
+            {isWordDoc && <span className="rounded-full bg-[var(--status-sent-bg)] px-2.5 py-1 text-[var(--c-primary)]">Word · sign-only</span>}
+          </div>
         </div>
       </header>
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* Left control panel — xl+ only; below xl uses bottom sheet so PDF never overlaps panels */}
-        <aside className="relative z-10 hidden w-[24rem] max-w-[min(24rem,40vw)] min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--c-border)] bg-[var(--card)] xl:flex">
+        <aside className="relative z-10 hidden w-[26rem] max-w-[min(26rem,38vw)] min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--c-border)] bg-[var(--c-paper)] xl:flex">
           <ScrollArea className="prepare-sidebar-scroll h-0 min-h-0 w-full max-w-full flex-1 cs-scroll">
             {renderPanels({ mode: "all" })}
           </ScrollArea>
         </aside>
 
-        {/* Document canvas */}
         <div ref={canvasAreaRef} className="relative z-0 min-h-0 min-w-0 flex-1 overflow-auto cs-scroll cs-grid-paper" data-testid="prepare-canvas">
           {pages.length > 3 && (
-            <div className="sticky top-0 z-20 flex flex-wrap items-center justify-center gap-2 border-b border-[var(--c-border)] bg-[var(--card)]/95 px-4 py-2 text-sm backdrop-blur-sm" data-testid="prepare-page-nav">
-              <span className="text-xs font-medium text-[var(--c-muted-fg)]">{pages.length} pages</span>
+            <div className="sticky top-0 z-20 flex flex-wrap items-center justify-center gap-2 border-b border-[var(--c-border)] bg-[var(--c-portal-card)]/95 px-4 py-2.5 backdrop-blur-sm" data-testid="prepare-page-nav">
+              <span className="rounded-full bg-[var(--c-paper-2)] px-2.5 py-1 text-xs font-semibold text-[var(--c-muted-fg)]">{pages.length} pages</span>
               {signingPageIndexes.map((idx) => (
-                <Button key={idx} size="sm" variant="outline" onClick={() => jumpToPage(idx)} data-testid={`prepare-jump-page-${idx + 1}`}>
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => jumpToPage(idx)}
+                  data-testid={`prepare-jump-page-${idx + 1}`}
+                  className="rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)] transition-colors hover:border-[var(--c-primary)]"
+                >
                   Jump to signing (p.{idx + 1})
-                </Button>
+                </button>
               ))}
             </div>
           )}
           {tool && (
-            <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-[var(--c-ink-solid)] px-4 py-2 text-sm text-white">
-              <Plus className="h-4 w-4" /> Placing <b>{FIELD_TYPES[tool].label}</b>, click on the document. <button className="ml-2 underline" onClick={() => setTool(null)}>Done</button>
+            <div className="sticky top-0 z-20 flex items-center justify-center gap-2 border-b border-[var(--c-border)] bg-[var(--c-ink-solid)] px-4 py-2.5 text-sm text-white shadow-md">
+              <Plus className="h-4 w-4" />
+              Placing <b>{FIELD_TYPES[tool].label}</b> — click on the document
+              <button type="button" className="ml-2 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold hover:bg-white/25" onClick={() => setTool(null)}>Done</button>
             </div>
           )}
           <div className="mx-auto flex w-full max-w-full flex-col items-center px-3 py-6 sm:px-4" onClick={() => setSelected(null)}>
@@ -558,11 +703,12 @@ export default function PrepareStudio() {
 
       {/* Mobile bottom toolbar, Zoho-style: open Recipients / Fields panels in a bottom sheet. */}
       <Sheet open={!!mobileSheet} onOpenChange={(o) => { if (!o) setMobileSheet(null); }}>
-        <div className="flex shrink-0 items-center gap-2 border-t border-[var(--c-border)] bg-[var(--card)] px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:hidden">
+        <div className="flex shrink-0 items-center gap-2 border-t border-[var(--c-border)] bg-[var(--c-portal-card)] px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:hidden">
           <button
+            type="button"
             onClick={() => setMobileSheet("recipients")}
             data-testid="mobile-open-recipients"
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--c-ink)]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper)] px-3 py-2.5 text-sm font-semibold text-[var(--c-ink)]"
           >
             <Users className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
             {activeRec ? (
@@ -575,10 +721,11 @@ export default function PrepareStudio() {
             )}
           </button>
           <button
+            type="button"
             onClick={() => setMobileSheet("fields")}
             data-testid="mobile-open-fields"
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white"
-            style={{ background: "var(--c-primary)" }}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-sm"
+            style={{ background: "var(--c-ink-solid)" }}
           >
             <LayoutGrid className="h-4 w-4" />
             {tool ? <>Placing <b className="font-bold">{FIELD_TYPES[tool].label}</b></> : <>Fields ({fields.length})</>}

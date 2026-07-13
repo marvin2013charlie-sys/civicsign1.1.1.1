@@ -37,9 +37,6 @@ function AuthBrandPanel({
       <div className="cs-auth-orb cs-auth-orb-c" aria-hidden />
 
       <div className="cs-auth-panel-inner">
-        <div className="cs-auth-panel-logo">
-          <Logo dark />
-        </div>
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -142,47 +139,75 @@ export function AuthLayout({
   reviewsLabel,
   reviewShowStars = true,
 }) {
+  const panel = (
+    <AuthBrandPanel
+      panelMarquee={panelMarquee}
+      showReviews={panelReviews}
+      reviewSlides={reviewSlides}
+      reviewsLabel={reviewsLabel}
+      reviewShowStars={reviewShowStars}
+      panelQuote={panelQuote}
+      panelBadge={panelBadge}
+      panelTitle={panelTitle}
+      panelSubtitle={panelSubtitle}
+      panelBullets={panelBullets}
+    />
+  );
+
+  const form = (
+    <div className="cs-auth-form-shell flex flex-1 justify-center px-4 py-6 sm:px-8 sm:py-10 lg:min-h-0 lg:overflow-y-auto lg:py-10">
+      <div className="cs-auth-form-glow cs-auth-form-glow-a" aria-hidden />
+      <div className="cs-auth-form-glow cs-auth-form-glow-b" aria-hidden />
+      <div className="w-full max-w-[440px] lg:my-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          className="space-y-6 sm:space-y-8"
+        >
+          {children}
+        </motion.div>
+
+        {showAssistant && <AuthAssistant context={authContext} />}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex min-h-dvh flex-col lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:overflow-hidden">
-      <AuthBrandPanel
-        panelMarquee={panelMarquee}
-        showReviews={panelReviews}
-        reviewSlides={reviewSlides}
-        reviewsLabel={reviewsLabel}
-        reviewShowStars={reviewShowStars}
-        panelQuote={panelQuote}
-        panelBadge={panelBadge}
-        panelTitle={panelTitle}
-        panelSubtitle={panelSubtitle}
-        panelBullets={panelBullets}
-      />
-
-      <div className="cs-auth-form-shell flex min-h-dvh flex-1 justify-center px-5 py-8 sm:px-8 sm:py-10 lg:min-h-0 lg:h-dvh lg:overflow-y-auto lg:py-12">
-        <div className="cs-auth-form-glow cs-auth-form-glow-a" aria-hidden />
-        <div className="cs-auth-form-glow cs-auth-form-glow-b" aria-hidden />
-        <div className="w-full max-w-[440px] lg:my-auto">
-          <div className="mb-6 flex justify-end sm:mb-7">
-            <Link
-              to={backTo}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1.5 text-sm text-[var(--c-muted-fg)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-ink)]"
-              data-testid="auth-back-link"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              {backLabel}
-            </Link>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.05 }}
-            className="space-y-8"
+    <div className="flex min-h-dvh flex-col bg-[var(--c-paper)] lg:h-dvh lg:overflow-hidden">
+      {/* Auth v3 top bar */}
+      <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-[max(1rem,env(safe-area-inset-top))] sm:gap-3 sm:px-8 lg:px-10">
+        <Logo to="/" />
+        <div className="flex items-center gap-2">
+          <span className="cs-auth-topbar-chip hidden sm:inline-flex">🇬🇧 UK-hosted · UK GDPR</span>
+          <Link
+            to={backTo}
+            className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--c-muted-fg)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-ink)]"
+            data-testid="auth-back-link"
           >
-            {children}
-          </motion.div>
-
-          {showAssistant && <AuthAssistant context={authContext} />}
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">{backLabel}</span>
+            <span className="sm:hidden">Back</span>
+          </Link>
         </div>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-lg flex-wrap justify-center gap-2 px-4 pb-2 lg:hidden">
+        {PANEL_STATS.map(({ icon: Icon, value, label }) => (
+          <div
+            key={label}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--card)] px-2.5 py-1.5 text-xs"
+          >
+            <Icon className="h-3 w-3 shrink-0" style={{ color: "var(--c-primary)" }} />
+            <span className="font-bold text-[var(--c-ink)]">{value}</span>
+            <span className="text-[var(--c-muted-fg)]">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        {panel}
+        {form}
       </div>
     </div>
   );

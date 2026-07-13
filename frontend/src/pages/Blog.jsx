@@ -1,23 +1,65 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { BookOpen, Calendar, Clock, ArrowRight, Tag, Search, X as XIcon } from "lucide-react";
+import { ArrowRight, BookOpen, Search, X as XIcon } from "lucide-react";
+import { MarketingGradient } from "@/components/MarketingGradient";
+import { MarketingCtaBanner } from "@/components/MarketingDarkBand";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { POSTS as STATIC_POSTS, CATEGORIES, fetchAllPosts } from "@/lib/blogPosts";
-import { greenHoverLg, greenHoverTitle } from "@/lib/greenHover";
-import { BrandAccent } from "@/components/BrandText";
+import {
+  BlogEditorialStandards,
+  BlogFeaturedCard,
+  BlogHeroVisual,
+  BlogInlineHeader,
+  BlogMarquee,
+  BlogPostCard,
+  BlogSectionHeader,
+  BlogStartHere,
+  BlogTopicCollection,
+  BlogVerifiedPillars,
+  BLOG_CAVEAT_STYLE,
+  BLOG_SURFACE_CARD,
+} from "@/components/BlogShared";
+import { POSTS as STATIC_POSTS, CATEGORIES, fetchAllPosts, sortPostsByDateDesc, normalizeBlogPost } from "@/lib/blogPosts";
+import {
+  CIVICSIGN_PRODUCT_FACTS,
+  EDITORIAL_STANDARDS,
+  START_HERE,
+  TOPIC_COLLECTIONS,
+  VERIFIED_PILLARS,
+} from "@/lib/blogVerifiedContent";
+import {
+  CTA_ACTIONS_CLASS,
+  CTA_HEADLINE_CLASS,
+  CTA_PRIMARY_BTN,
+  CTA_PRIMARY_BTN_STYLE,
+  CTA_SCRIPT_STYLE,
+  CTA_SECONDARY_BTN,
+  CTA_SECTION,
+  CTA_SUBTEXT_CLASS,
+  H_FONT,
+  PAPER_TEXT,
+  PRIMARY_CTA,
+  PRIMARY_CTA_STYLE,
+  SECONDARY_CTA,
+  TRUST_BULLETS,
+} from "@/lib/marketingUi";
+
+const MARQUEE_TOPICS = [
+  "Electronic Communications Act 2000", "UK eIDAS", "Law Commission 2019", "HM Land Registry PG 82",
+  "HMRC Gift Aid", "Home Office RTW", "ICO UK GDPR", "AST agreements", "Audit trails",
+  "SES · AES · QES", "Employment contracts", "Settlement agreements",
+];
 
 export default function Blog() {
-  const [activeCategory, setActiveCategory] = React.useState("All");
-  const [posts, setPosts] = React.useState(STATIC_POSTS);
-  const [query, setQuery] = React.useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [posts, setPosts] = useState(() => sortPostsByDateDesc(STATIC_POSTS.map((p) => normalizeBlogPost(p))));
+  const [query, setQuery] = useState("");
+  const [showCollections, setShowCollections] = useState(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
     let cancelled = false;
     fetchAllPosts().then((data) => { if (!cancelled) setPosts(data); });
     return () => { cancelled = true; };
@@ -25,46 +67,108 @@ export default function Blog() {
 
   const byCategory = activeCategory === "All" ? posts : posts.filter((p) => p.category === activeCategory);
   const q = query.trim().toLowerCase();
-  const visible = q
-    ? byCategory.filter((p) => {
-        const hay = `${p.title} ${p.excerpt} ${p.category} ${(p.tags || []).join(" ")}`.toLowerCase();
-        return hay.includes(q);
-      })
-    : byCategory;
+  const isFiltering = q.length > 0 || activeCategory !== "All";
+
+  const visible = useMemo(() => {
+    if (!q) return byCategory;
+    return byCategory.filter((p) => {
+      const hay = `${p.title} ${p.excerpt} ${p.category} ${(p.tags || []).join(" ")}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [byCategory, q]);
+
+  useEffect(() => {
+    setShowCollections(!isFiltering);
+  }, [isFiltering]);
+
   const [featured, ...rest] = visible;
 
+  const resultLabel = visible.length === 0
+    ? "No matching articles"
+    : `${visible.length} ${visible.length === 1 ? "article" : "articles"}${q ? " match your search" : activeCategory !== "All" ? ` in ${activeCategory}` : ""}`;
+
   return (
-    <div className="min-h-screen bg-[var(--c-paper)] text-[var(--c-ink)]">
+    <div className="min-h-screen bg-[var(--c-paper)] text-[var(--c-ink)]" data-testid="blog-page">
+      <style>{`
+        @keyframes blog-fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+        @keyframes blog-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @media (prefers-reduced-motion: reduce){.blog-anim{animation:none !important}}
+      `}</style>
       <SiteHeader />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10" style={{ background: "linear-gradient(180deg, #FFF7F0 0%, var(--c-paper) 60%)" }} />
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--c-paper)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-              <BookOpen className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Resources · Blog
+      <section className="relative overflow-hidden border-b border-[var(--c-border)]">
+        <MarketingGradient />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-20">
+          <div className="blog-anim" style={{ animation: "blog-fadeUp .7s ease both" }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
+              <BookOpen className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} aria-hidden />
+              Resources · Blog
             </span>
-            <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-              UK e-signature insights, <BrandAccent>without the legalese.</BrandAccent>
+            <div className="mt-4" style={{ ...BLOG_CAVEAT_STYLE, fontSize: "28px" }}>
+              Verified at source
+            </div>
+            <h1 className="mt-1 font-heading text-3xl font-bold leading-[1.05] tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl lg:text-5xl" style={H_FONT}>
+              UK e-signature insights<span style={{ color: "var(--c-accent)" }}>.</span>
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-[var(--c-muted-fg)]">
-              Honest, UK-grounded writing on electronic signatures, GDPR, sector compliance and the boring back-office paperwork we&rsquo;re here to fix.
+            <p className="mt-5 max-w-lg text-lg leading-relaxed text-[var(--c-muted-fg)]">
+              Honest, UK-grounded writing on electronic signatures, sector compliance and the back-office paperwork we&apos;re here to fix — every major claim linked to legislation or official guidance.
             </p>
-          </motion.div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to="/register" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
+                Start free <ArrowRight className="h-4 w-4" style={{ color: "#2DD4BF" }} />
+              </Link>
+              <Link to="/solutions" className={SECONDARY_CTA}>
+                Industry solutions
+              </Link>
+            </div>
+            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[13px] font-medium text-[var(--c-muted-fg)]">
+              {TRUST_BULLETS.map((t) => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <span className="font-bold" style={{ color: "var(--c-primary)" }}>✓</span>{t}
+                </span>
+              ))}
+            </div>
+          </div>
+          <BlogHeroVisual facts={CIVICSIGN_PRODUCT_FACTS} />
         </div>
       </section>
 
-      {/* Search + Category filter */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mb-4 relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--c-muted-fg)]" />
-          <Input
+      <BlogMarquee items={MARQUEE_TOPICS} />
+      <BlogVerifiedPillars pillars={VERIFIED_PILLARS} />
+      <BlogStartHere items={START_HERE} posts={posts} />
+
+      {showCollections && (
+        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6 lg:pb-20" data-testid="blog-topic-collections">
+          <BlogSectionHeader
+            eyebrow="Collections"
+            title="Browse by topic"
+            sub="Curated reading paths for UK law, property, HR, compliance and charities — with links to matching CivicSign solutions."
+          />
+          <div className="mt-12 space-y-14">
+            {TOPIC_COLLECTIONS.map((collection) => (
+              <BlogTopicCollection key={collection.category} collection={collection} posts={posts} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <BlogEditorialStandards standards={EDITORIAL_STANDARDS} />
+
+      <section className="mx-auto max-w-6xl px-4 pt-14 sm:px-6 lg:pt-20">
+        <BlogSectionHeader
+          eyebrow="Archive"
+          title="All articles"
+          sub="Search the full library or filter by category."
+        />
+
+        <div className={`relative mt-8 rounded-2xl p-1.5 ${BLOG_SURFACE_CARD}`}>
+          <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--c-muted-fg)]" aria-hidden />
+          <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search articles by title, topic or category…"
-            className="pl-9 pr-9 bg-[var(--card)]"
+            className="h-11 w-full rounded-xl border-0 bg-transparent py-3 pl-10 pr-10 text-sm text-[var(--c-ink)] outline-none placeholder:text-[var(--c-muted-fg)] focus:ring-0"
             data-testid="blog-search-input"
           />
           {query && (
@@ -73,117 +177,108 @@ export default function Blog() {
               onClick={() => setQuery("")}
               aria-label="Clear search"
               data-testid="blog-search-clear"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]"
+              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]"
             >
               <XIcon className="h-4 w-4" />
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2" data-testid="blog-categories">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setActiveCategory(c)}
-              data-testid={`blog-category-${c.toLowerCase().replace(/\s|&/g, "-")}`}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                activeCategory === c
-                  ? "border-[var(--c-ink)] bg-[var(--c-ink-solid)] text-white"
-                  : "border-[var(--c-border)] bg-[var(--c-paper)] text-[var(--c-ink)] hover:bg-[var(--c-paper-2)]"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
+
+        <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px] w-fit" data-testid="blog-categories">
+          {CATEGORIES.map((c) => {
+            const active = activeCategory === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setActiveCategory(c)}
+                data-testid={`blog-category-${c.toLowerCase().replace(/\s|&/g, "-")}`}
+                className="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all sm:px-4"
+                style={active ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
+              >
+                {c}
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* Featured + grid */}
-      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:py-20">
         {visible.length === 0 ? (
-          <p className="py-16 text-center text-sm text-[var(--c-muted-fg)]" data-testid="blog-empty-state">
-            {q
-              ? <>No articles match &ldquo;<b>{query}</b>&rdquo;, try a different keyword or clear the search.</>
-              : "No posts in this category yet, try another filter."}
-          </p>
+          <div className={`rounded-2xl border border-dashed py-16 text-center ${BLOG_SURFACE_CARD}`} data-testid="blog-empty-state">
+            <span
+              className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ background: "var(--badge-teal-bg)" }}
+            >
+              <BookOpen className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+            </span>
+            <p className="mt-4 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+              {q
+                ? <>No articles match &ldquo;<b className="text-[var(--c-ink)]">{query}</b>&rdquo; — try another keyword.</>
+                : "No posts in this category yet — try another filter."}
+            </p>
+          </div>
         ) : (
           <>
-            {/* Featured */}
-            <Link
-              to={`/blog/${featured.slug}`}
-              className={`block overflow-hidden bg-[var(--c-paper)] ${greenHoverLg}`}
-              data-testid="blog-featured-card"
-            >
-              <div className="grid items-stretch gap-0 lg:grid-cols-5">
-                <div className="lg:col-span-3">
-                  <img src={featured.image} alt={featured.title} loading="lazy"
-                    className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] lg:h-full" />
+            {featured && (
+              <>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <BlogInlineHeader
+                    eyebrow={isFiltering ? "Results" : "Latest"}
+                    title={activeCategory === "All" && !q ? "Featured article" : activeCategory}
+                    sub={q ? resultLabel : undefined}
+                  />
                 </div>
-                <div className="flex flex-col justify-center p-7 lg:col-span-2 lg:p-10">
-                  <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--c-primary)]/12 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--c-primary)" }}>
-                    <Tag className="h-3 w-3" /> {featured.category}
-                  </span>
-                  <h2 className={`mt-3 font-heading text-2xl font-bold leading-tight text-[var(--c-ink)] sm:text-3xl ${greenHoverTitle}`}>
-                    {featured.title}
-                  </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--c-muted-fg)]">{featured.excerpt}</p>
-                  <div className="mt-5 flex items-center gap-4 text-xs text-[var(--c-muted-fg)]">
-                    <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {featured.date}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {featured.readTime}</span>
-                  </div>
-                  <span className="mt-6 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--c-primary)" }}>
-                    Read article <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </span>
+                <div className="mt-8">
+                  <BlogFeaturedCard post={featured} />
                 </div>
-              </div>
-            </Link>
-
-            {/* Rest */}
+              </>
+            )}
             {rest.length > 0 && (
-              <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {rest.map((p) => (
-                  <Link
-                    key={p.slug}
-                    to={`/blog/${p.slug}`}
-                    data-testid="blog-card"
-                    className={`flex flex-col overflow-hidden bg-[var(--c-paper)] ${greenHoverLg}`}
-                  >
-                    <div className="overflow-hidden">
-                      <img src={p.image} alt={p.title} loading="lazy"
-                        className="aspect-[16/10] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
-                    </div>
-                    <div className="flex flex-1 flex-col p-5">
-                      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--c-ink)]">
-                        {p.category}
-                      </span>
-                      <h3 className={`mt-3 font-heading text-lg font-bold leading-snug text-[var(--c-ink)] ${greenHoverTitle}`}>{p.title}</h3>
-                      <p className="mt-2 line-clamp-3 flex-1 text-sm text-[var(--c-muted-fg)]">{p.excerpt}</p>
-                      <div className="mt-4 flex items-center gap-3 text-[11px] text-[var(--c-muted-fg)]">
-                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {p.date}</span>
-                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {p.readTime}</span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <>
+                <div className="mt-16 flex flex-wrap items-end justify-between gap-4">
+                  <BlogInlineHeader eyebrow="More" title="Keep reading" />
+                  <p className="text-sm text-[var(--c-muted-fg)]">{rest.length} article{rest.length === 1 ? "" : "s"}</p>
+                </div>
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {rest.map((p) => (
+                    <BlogPostCard key={p.slug} post={p} />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
       </section>
 
-      {/* Newsletter CTA */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
-          <h2 className="font-heading text-3xl font-bold sm:text-4xl">Get UK e-signature insights, monthly.</h2>
-          <p className="mx-auto mt-3 max-w-xl text-white/80">No spam, no fluff, just clear takes on UK e-signature law, product updates and tips for paperless British businesses.</p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/contact">
-              <Button size="lg" data-testid="blog-newsletter-cta" style={{ background: "var(--c-primary)", color: "#fff" }}>
-                Subscribe to the newsletter <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </Link>
+      <section className={CTA_SECTION}>
+        <MarketingCtaBanner>
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(480px 220px at 50% 110%, rgba(45,212,191,.2), transparent)" }} />
+          <svg viewBox="0 0 800 60" className="pointer-events-none absolute bottom-3 left-0 right-0 w-full opacity-25" fill="none" aria-hidden="true">
+            <path d="M20 45 C 120 5, 220 55, 320 30 S 520 10, 620 40 S 740 50, 790 25" stroke="#FF7A5C" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          <div className="relative">
+            <div className="font-semibold" style={CTA_SCRIPT_STYLE}>Stay in the loop</div>
+            <h2 className={CTA_HEADLINE_CLASS} style={{ ...H_FONT, color: PAPER_TEXT }}>
+              UK e-signature insights, monthly<span style={{ color: "#FF7A5C" }}>.</span>
+            </h2>
+            <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>
+              No spam, no fluff — clear takes on UK law, product updates and tips for paperless British businesses.
+            </p>
+            <div className={CTA_ACTIONS_CLASS}>
+              <Link to="/contact" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE} data-testid="blog-newsletter-cta">
+                Subscribe via Contact →
+              </Link>
+              <Link
+                to="/register"
+                className={CTA_SECONDARY_BTN}
+                style={{ borderColor: "rgba(248,247,242,.28)", color: PAPER_TEXT }}
+              >
+                Start free
+              </Link>
+            </div>
           </div>
-        </div>
+        </MarketingCtaBanner>
       </section>
 
       <SiteFooter />

@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ENVELOPE_PAGE_SIZE } from "@/lib/envelopes";
+import { ListPagination, paginateItems } from "@/components/ListPagination";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { downloadFile, formatApiError } from "@/lib/api";
 import { isManagePdfEnvelope, MANAGE_PDF_TOOL_LABELS } from "@/lib/savePdfToDocuments";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +22,7 @@ import {
   FileText,
   MoreVertical,
   Pencil,
-  Search,
+
   Send,
   Trash2,
 } from "lucide-react";
@@ -28,9 +33,17 @@ function fmtDate(iso) {
     : "—";
 }
 
-export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
+export function DocumentsManagePdfPanel({ envelopes, loading, onReload, query: queryProp, onQueryChange }) {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
+  const [localQuery, setLocalQuery] = useState("");
+  const query = queryProp ?? localQuery;
+  const setQuery = onQueryChange ?? setLocalQuery;
+  const [toolFilter, setToolFilter] = useState("all");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, toolFilter]);
 
   const saved = useMemo(
     () => (envelopes || []).filter(isManagePdfEnvelope),
@@ -39,12 +52,19 @@ export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return saved;
-    return saved.filter((e) =>
-      (e.title || "").toLowerCase().includes(q)
-      || (MANAGE_PDF_TOOL_LABELS[e.manage_pdf_tool] || "").toLowerCase().includes(q),
-    );
-  }, [saved, query]);
+    return saved.filter((e) => {
+      const okQ = !q
+        || (e.title || "").toLowerCase().includes(q)
+        || (MANAGE_PDF_TOOL_LABELS[e.manage_pdf_tool] || "").toLowerCase().includes(q);
+      const okT = toolFilter === "all" || e.manage_pdf_tool === toolFilter;
+      return okQ && okT;
+    });
+  }, [saved, query, toolFilter]);
+
+  const paged = useMemo(
+    () => paginateItems(filtered, page, ENVELOPE_PAGE_SIZE),
+    [filtered, page],
+  );
 
   const remove = async (id) => {
     if (!window.confirm(
@@ -69,23 +89,28 @@ export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
   };
 
   return (
-    <div data-testid="documents-manage-pdf-panel">
-      <p className="mb-4 text-sm text-[var(--c-muted-fg)]">
-        Files you saved from Manage PDF — edit, compress, watermark, protect, unlock, merge, split, or convert — ready to open in Prepare Studio and send for signature.
-      </p>
-
-      <div className="relative mb-4 max-w-md">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search saved PDFs…"
-          className="pl-9"
-          data-testid="documents-manage-pdf-search"
-        />
+    <div data-testid="documents-manage-pdf-panel" className="cs-portal-surface-card overflow-hidden rounded-2xl">
+      <div className="flex flex-col gap-3 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">From Manage PDF</h3>
+          <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+            Saved PDFs ready to open in Prepare Studio and send for signature.
+          </p>
+        </div>
+        <Select value={toolFilter} onValueChange={setToolFilter}>
+          <SelectTrigger className="h-9 w-full rounded-xl sm:w-44" data-testid="documents-manage-pdf-tool-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tools</SelectItem>
+            {Object.entries(MANAGE_PDF_TOOL_LABELS).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
+      <div>
         {loading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -104,7 +129,7 @@ export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
             <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">
               {saved.length === 0
                 ? "Use any Manage PDF tool, then choose Save to Documents."
-                : "No documents match your search."}
+                : "No documents match your search or tool filter."}
             </p>
             {saved.length === 0 && (
               <Button
@@ -126,7 +151,7 @@ export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
               <div className="col-span-2">Saved</div>
               <div className="col-span-1" />
             </div>
-            {filtered.map((e) => (
+            {paged.map((e) => (
               <div
                 key={e.envelope_id}
                 data-testid="documents-manage-pdf-row"
@@ -175,6 +200,13 @@ export function DocumentsManagePdfPanel({ envelopes, loading, onReload }) {
                 </div>
               </div>
             ))}
+            <ListPagination
+              page={page}
+              total={filtered.length}
+              pageSize={ENVELOPE_PAGE_SIZE}
+              onPageChange={setPage}
+              testId="manage-pdf-pagination"
+            />
           </div>
         )}
       </div>

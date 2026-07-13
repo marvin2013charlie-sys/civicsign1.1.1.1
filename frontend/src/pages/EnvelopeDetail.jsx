@@ -4,7 +4,7 @@ import { Document, Page } from "react-pdf";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
 import api, { formatApiError, fetchPdfBlobUrl, downloadFile } from "@/lib/api";
-import { getAccessToken } from "@/lib/tokenStore";
+
 import { copyToClipboard } from "@/lib/clipboard";
 import { getAppOrigin } from "@/lib/appOrigin";
 import { AppShell } from "@/components/AppShell";
@@ -62,9 +62,7 @@ function EnvelopeComments({ envelopeId }) {
 
   useEffect(() => {
     if (!features.comments) return undefined;
-    const token = getAccessToken();
-    const qs = token ? `?access_token=${encodeURIComponent(token)}` : "";
-    const es = new EventSource(`/api/envelopes/${envelopeId}/comments/stream${qs}`, { withCredentials: true });
+    const es = new EventSource(`/api/envelopes/${envelopeId}/comments/stream`, { withCredentials: true });
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
@@ -341,7 +339,7 @@ export default function EnvelopeDetail() {
                 {(env.recipients || []).sort((a, b) => a.order - b.order).map((r) => {
                   const signUrl = `${getAppOrigin()}/sign/${r.access_token}`;
                   return (
-                    <div key={r.recipient_id} className="rounded-lg border border-[var(--c-border)] bg-white p-3">
+                    <div key={r.recipient_id} className="rounded-lg border border-[var(--c-border)] bg-[var(--card)] p-3">
                       <div className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: r.color }}>{r.order}</span>
                         <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p><p className="truncate text-xs text-[var(--c-muted-fg)]">{r.email}</p></div>

@@ -35,7 +35,7 @@ import stripe
 from db import db
 from auth import get_current_user, _public_user
 from security_utils import validate_redirect_base
-from models import CheckoutRequest, DocumentCheckoutRequest
+from models import BillingPortalRequest, CancelSubscriptionRequest, CheckoutRequest, DocumentCheckoutRequest
 from tax import UK_VAT_PERCENT, tax_breakdown
 
 logger = logging.getLogger("civicsign.billing")
@@ -138,6 +138,7 @@ def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_
 # (past_due, unpaid, canceled, incomplete, incomplete_expired) revokes the
 # plan — so a failed renewal payment stops the service.
 ACTIVE_SUBSCRIPTION_STATES = frozenset({"active", "trialing"})
+RETENTION_COUPON_ID = "civicsign_retention_50_1m"
 
 
 def extra_document_price_label(*, include_tax: bool = True) -> str:
@@ -280,18 +281,47 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
     now_ts = _now()
     await db.users.update_one(
         {"user_id": user_id},
-        {"$set": {
-            "plan": "free",
-            "plan_updated_at": now_ts,
-            "plan_signature": None,
-            "plan_upgraded_via_payment": False,
-            "subscription_status": subscription_status,
-            "monthly_envelope_limit": None,
-            "enterprise_unlimited": False,
-            "updated_at": now_ts,
-        }},
+        {
+            "$set": {
+                "plan": "free",
+                "plan_updated_at": now_ts,
+                "plan_signature": None,
+                "plan_upgraded_via_payment": False,
+                "subscription_status": subscription_status,
+                "subscription_cancel_at_period_end": False,
+                "monthly_envelope_limit": None,
+                "enterprise_unlimited": False,
+                "updated_at": now_ts,
+            },
+            "$unset": {
+                "stripe_subscription_id": "",
+                "subscription_current_period_end": "",
+            },
+        },
     )
     logger.info(f"[billing] downgraded user={user_id} to free ({reason}, status={subscription_status})")
+
+
+async def downgrade_user_for_plan_refund(user_id: str, *, reason: str, cancel_stripe: bool = True) -> bool:
+    """Immediately revoke a paid plan after a plan-payment refund (do not wait for period end)."""
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        logger.warning(f"[billing] plan refund downgrade: user {user_id} not found")
+        return False
+    sub_id = user.get("stripe_subscription_id")
+    if cancel_stripe and sub_id:
+        try:
+            _require_stripe_key()
+            await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
+            logger.info(f"[billing] cancelled Stripe subscription {sub_id} after plan refund for {user_id}")
+        except Exception as e:
+            logger.warning(f"[billing] could not cancel sub {sub_id} on refund for {user_id}: {e}")
+    await _downgrade_user_to_free(user_id, reason=reason, subscription_status="canceled")
+    return True
+
+
+def _is_plan_purchase_tx(tx: dict) -> bool:
+    return bool(tx.get("plan_id")) and tx.get("purchase_type", "plan") != "extra_document"
 
 
 async def _user_for_subscription_event(subscription: dict) -> dict | None:
@@ -310,6 +340,83 @@ async def _user_for_subscription_event(subscription: dict) -> dict | None:
     if customer_id:
         return await db.users.find_one({"stripe_customer_id": customer_id}, {"_id": 0})
     return None
+
+
+async def _resolve_charge_refund_state(charge_id: str) -> tuple[str | None, int, int]:
+    """Return (payment_intent_id, amount_cents, amount_refunded_cents) for a Stripe charge."""
+    _require_stripe_key()
+    charge = await asyncio.to_thread(stripe.Charge.retrieve, charge_id)
+    if isinstance(charge, dict):
+        payment_intent = charge.get("payment_intent")
+        amount = int(charge.get("amount") or 0)
+        amount_refunded = int(charge.get("amount_refunded") or 0)
+    else:
+        payment_intent = getattr(charge, "payment_intent", None)
+        amount = int(getattr(charge, "amount", 0) or 0)
+        amount_refunded = int(getattr(charge, "amount_refunded", 0) or 0)
+    if isinstance(payment_intent, dict):
+        payment_intent = payment_intent.get("id")
+    return payment_intent, amount, amount_refunded
+
+
+async def _handle_refund_event(obj: dict) -> None:
+    """Downgrade immediately when a plan payment is fully refunded."""
+    payment_intent = None
+    amount_cents = 0
+    amount_refunded_cents = 0
+
+    if obj.get("object") == "charge":
+        payment_intent = obj.get("payment_intent")
+        if isinstance(payment_intent, dict):
+            payment_intent = payment_intent.get("id")
+        amount_cents = int(obj.get("amount") or 0)
+        amount_refunded_cents = int(obj.get("amount_refunded") or 0)
+    elif obj.get("object") == "refund":
+        charge_id = obj.get("charge")
+        if not charge_id:
+            return
+        try:
+            payment_intent, amount_cents, amount_refunded_cents = await _resolve_charge_refund_state(charge_id)
+        except Exception as e:
+            logger.warning(f"[billing] refund webhook could not resolve charge {charge_id}: {e}")
+            return
+    else:
+        return
+
+    if not payment_intent:
+        return
+
+    tx = await db.payment_transactions.find_one({"payment_intent_id": payment_intent}, {"_id": 0})
+    if not tx:
+        return
+    if not _is_plan_purchase_tx(tx):
+        return
+
+    is_full = amount_cents > 0 and amount_refunded_cents >= amount_cents
+    now_ts = _now()
+    await db.payment_transactions.update_one(
+        {"payment_intent_id": payment_intent},
+        {"$set": {
+            "refund_status": "refunded" if is_full else "partial",
+            "refund_amount": round(amount_refunded_cents / 100, 2),
+            "last_refund_at": now_ts,
+            "updated_at": now_ts,
+        }},
+    )
+
+    if not is_full:
+        return
+
+    user_id = tx.get("user_id")
+    if not user_id:
+        return
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "plan": 1})
+    if user and (user.get("plan") or "free") == "free":
+        return
+    await downgrade_user_for_plan_refund(
+        user_id,
+        reason=f"plan payment refunded (pi={payment_intent})",
+    )
 
 
 async def _handle_subscription_state(subscription: dict) -> None:
@@ -332,6 +439,15 @@ async def _handle_subscription_state(subscription: dict) -> None:
             billing_interval=interval,
             subscription_status=status,
             period_end_iso=_sub_period_end_iso(subscription),
+        )
+        # Keep paid access until period end when user scheduled cancellation.
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {
+                "subscription_cancel_at_period_end": bool(subscription.get("cancel_at_period_end")),
+                "subscription_current_period_end": _sub_period_end_iso(subscription),
+                "updated_at": _now(),
+            }},
         )
     else:
         await _downgrade_user_to_free(
@@ -723,7 +839,12 @@ async def stripe_webhook(request: Request):
         await _handle_subscription_state(obj)
         return {"received": True}
 
-    # 3) Failed renewal — revoke immediately rather than waiting for the status sync.
+    # 3) Plan refund — downgrade immediately (do not wait for billing period end).
+    if event_type in ("charge.refunded", "refund.created"):
+        await _handle_refund_event(obj)
+        return {"received": True}
+
+    # 4) Failed renewal — revoke immediately rather than waiting for the status sync.
     if event_type == "invoice.payment_failed":
         sub_id = obj.get("subscription")
         if sub_id:
@@ -738,9 +859,138 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 
+async def _get_or_create_retention_coupon() -> str:
+    """50% off for one billing month — idempotent coupon id for retention offers."""
+    env_id = os.environ.get("STRIPE_RETENTION_COUPON_ID")
+    if env_id:
+        return env_id
+    _require_stripe_key()
+    try:
+        existing = await asyncio.to_thread(stripe.Coupon.retrieve, RETENTION_COUPON_ID)
+        return existing.id
+    except stripe.error.InvalidRequestError:
+        pass
+    coupon = await asyncio.to_thread(
+        stripe.Coupon.create,
+        id=RETENTION_COUPON_ID,
+        percent_off=50,
+        duration="repeating",
+        duration_in_months=1,
+        name="CivicSign retention — 50% off next month",
+    )
+    return coupon.id
+
+
+async def _record_cancellation_feedback(user: dict, reason: str, feedback: str) -> None:
+    reason = (reason or "").strip()[:200]
+    feedback = (feedback or "").strip()[:2000]
+    if not reason and not feedback:
+        return
+    await db.cancellation_feedback.insert_one({
+        "feedback_id": f"cf_{uuid.uuid4().hex[:16]}",
+        "user_id": user["user_id"],
+        "email": user.get("email"),
+        "plan": user.get("plan"),
+        "reason": reason,
+        "feedback": feedback,
+        "created_at": _now(),
+    })
+
+
+@billing_router.post("/billing/retention-offer")
+@limiter.limit("5/hour")
+async def apply_retention_offer(request: Request, user: dict = Depends(get_current_user)):
+    """Apply a one-time 50% discount on the subscriber's next billing month."""
+    if is_organisation_member(user):
+        raise HTTPException(
+            status_code=400,
+            detail="Organisation plans are managed by your account manager, not self-serve billing.",
+        )
+    plan = (user.get("plan") or "free").lower().strip()
+    if plan not in PLANS or plan == "free":
+        raise HTTPException(status_code=400, detail="No paid subscription to discount.")
+    if user.get("retention_offer_used_at"):
+        raise HTTPException(status_code=400, detail="Retention offer already used on this account.")
+
+    sub_id = user.get("stripe_subscription_id")
+    status = (user.get("subscription_status") or "").lower()
+    now_ts = _now()
+    patch = {
+        "retention_offer_used_at": now_ts,
+        "subscription_cancel_at_period_end": False,
+        "updated_at": now_ts,
+    }
+
+    if sub_id and status in ACTIVE_SUBSCRIPTION_STATES:
+        try:
+            coupon_id = await _get_or_create_retention_coupon()
+            subscription = await asyncio.to_thread(
+                stripe.Subscription.modify,
+                sub_id,
+                discounts=[{"coupon": coupon_id}],
+                cancel_at_period_end=False,
+            )
+            period_end = _sub_period_end_iso(dict(subscription))
+            if period_end:
+                patch["subscription_current_period_end"] = period_end
+        except Exception as e:
+            logger.error(f"[billing] retention_offer failed for {sub_id}: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail="Could not apply the retention discount. Please try again or contact support.",
+            )
+    else:
+        logger.info(f"[billing] retention_offer recorded locally for user={user['user_id']} (no live Stripe sub)")
+
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": patch})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {
+        "applied": True,
+        "message": "50% off your next month has been applied. Thanks for staying with CivicSign!",
+        "user": _public_user(fresh) if fresh else None,
+    }
+
+
+@billing_router.post("/billing/portal")
+@limiter.limit("20/hour")
+async def billing_portal(body: BillingPortalRequest, request: Request,
+                         user: dict = Depends(get_current_user)):
+    """Open Stripe Customer Portal for payment method, invoices, and cancellation."""
+    if is_organisation_member(user):
+        raise HTTPException(
+            status_code=400,
+            detail="Organisation plans are managed by your account manager, not self-serve billing.",
+        )
+    plan = (user.get("plan") or "free").lower().strip()
+    if plan not in PLANS or plan == "free":
+        raise HTTPException(status_code=400, detail="Subscribe to a paid plan before managing billing.")
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        raise HTTPException(
+            status_code=400,
+            detail="No billing account on file. Contact support if you have an active subscription.",
+        )
+    origin = validate_redirect_base(body.origin_url or "")
+    _require_stripe_key()
+    try:
+        session = await asyncio.to_thread(
+            stripe.billing_portal.Session.create,
+            customer=customer_id,
+            return_url=f"{origin}/settings?tab=subscription",
+        )
+    except Exception as e:
+        logger.error(f"[billing] billing_portal failed for {customer_id}: {e}")
+        raise HTTPException(status_code=502, detail="Could not open billing portal. Please try again.")
+    return {"url": session.url}
+
+
 @billing_router.post("/billing/cancel")
 @limiter.limit("10/hour")
-async def cancel_subscription(request: Request, user: dict = Depends(get_current_user)):
+async def cancel_subscription(
+    request: Request,
+    body: CancelSubscriptionRequest = CancelSubscriptionRequest(),
+    user: dict = Depends(get_current_user),
+):
     """Cancel the user's paid subscription.
 
     If a live Stripe subscription exists, schedule cancellation at the end of the
@@ -752,6 +1002,8 @@ async def cancel_subscription(request: Request, user: dict = Depends(get_current
             status_code=400,
             detail="Organisation plans are managed by your account manager, not self-serve billing.",
         )
+
+    await _record_cancellation_feedback(user, body.reason, body.feedback)
 
     sub_id = user.get("stripe_subscription_id")
     status = (user.get("subscription_status") or "").lower()

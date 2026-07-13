@@ -9,7 +9,6 @@ import {
   AuthTextInput,
 } from "@/components/auth/AuthFormPrimitives";
 import { AuthLayout } from "@/components/AuthLayout";
-import { BrandAccent } from "@/components/BrandText";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -79,29 +78,30 @@ export default function ForgotPassword() {
     <AuthLayout
       showAssistant={false}
       panelMarquee
-      panelReviews
       backTo={loginHref}
       backLabel="Back to sign in"
-      panelTitle={
-        <>
-          Reset your <BrandAccent>password</BrandAccent>.
-        </>
+      panelBadge={
+        <span style={{ fontFamily: "'Caveat', cursive", fontSize: "2.3rem", fontWeight: 600, color: "#2DD4BF", lineHeight: 1.1 }}>
+          Safe hands
+        </span>
       }
-      panelSubtitle="We'll email you a secure, single-use link. Reset links expire one hour after they're issued."
+      panelSubtitle="How CivicSign protects your account during a reset:"
       panelBullets={[
-        { icon: Lock, text: "Encrypted account recovery" },
-        { icon: KeyRound, text: "One-time, single-use reset links" },
+        { icon: KeyRound, text: "Single-use reset links — every link dies after first use" },
         { icon: Clock, text: "Links expire after 60 minutes for your security" },
+        { icon: Lock, text: "Encrypted account recovery — didn't request it? Just ignore the email; your password stays unchanged" },
       ]}
     >
       <AuthFormCard
         testId="forgot-password-card"
-        icon={result ? MailCheck : KeyRound}
-        title={result ? "Check your inbox" : "Forgot your password?"}
+        script={result ? undefined : "Happens to everyone"}
+        icon={result ? MailCheck : undefined}
+        title={result ? "Check your inbox" : "Reset your password"}
+        titleDot={result ? "teal" : "coral"}
         subtitle={
           result
             ? "If an account exists for that email, you'll receive reset instructions shortly."
-            : "Enter the email on your CivicSign account and we'll send reset instructions."
+            : "Enter the email you signed up with and we'll send a secure reset link."
         }
         footer="Single-use links · Encrypted in transit"
       >

@@ -199,6 +199,17 @@ def _public_user(doc: dict) -> dict:
         "subscription_status": doc.get("subscription_status"),
         "subscription_cancel_at_period_end": bool(doc.get("subscription_cancel_at_period_end")),
         "subscription_current_period_end": doc.get("subscription_current_period_end"),
+        "can_manage_billing": bool(
+            doc.get("stripe_customer_id")
+            and (doc.get("plan") or "free").lower() in ("pro", "business")
+            and not doc.get("org_id")
+        ),
+        "retention_offer_available": bool(
+            not doc.get("org_id")
+            and (doc.get("plan") or "free").lower() in ("pro", "business")
+            and not doc.get("retention_offer_used_at")
+        ),
+        "retention_offer_used_at": doc.get("retention_offer_used_at"),
         "plan_features": plan_features(doc),
         "tours_completed": doc.get("tours_completed", []),
     }
@@ -273,14 +284,15 @@ def _verification_response(email: str, code: str) -> dict:
 
 
 def _access_token_from_request(request: Request, query_token: str | None = None) -> str | None:
-    """Bearer header → query param (SSE) → HttpOnly cookie."""
-    token = (query_token or "").strip() or None
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
+    """Bearer header → HttpOnly cookie → query param (legacy SSE fallback only)."""
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
     if not token:
         token = request.cookies.get("access_token")
+    if not token and query_token:
+        token = query_token.strip()
     return token or None
 
 
@@ -492,6 +504,11 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
         )
         await db.email_verifications.delete_one({"email": email})
         await _fulfill_team_invites(email, user["user_id"], user.get("name", ""))
+        try:
+            from organizations import fulfill_org_invites_for_user
+            await fulfill_org_invites_for_user(email, user["user_id"])
+        except Exception as e:
+            logger.warning(f"[auth] org invite fulfill failed: {e}")
 
         # Welcome email (best-effort; skip-mode logs only)
         try:

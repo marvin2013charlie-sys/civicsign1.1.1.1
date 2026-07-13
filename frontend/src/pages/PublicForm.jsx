@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { publicApi, formatApiError } from "@/lib/api";
 import { getAppOrigin } from "@/lib/appOrigin";
+import { assignSignRedirect } from "@/lib/safeUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +43,7 @@ export default function PublicForm() {
         ...form,
         base_url: getAppOrigin(),
       });
-      window.location.href = data.sign_url;
+      assignSignRedirect(data.sign_url);
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -72,7 +73,7 @@ export default function PublicForm() {
   return (
     <div className="min-h-screen bg-[var(--c-paper)] px-4 py-10" data-testid="public-form">
       <div className="mx-auto max-w-lg">
-        <div className="mb-8 flex justify-center"><Logo to="/" /></div>
+        <div className="mb-8 flex justify-center"><Logo /></div>
         <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8 shadow-sm">
           <div className="flex items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}22` }}>

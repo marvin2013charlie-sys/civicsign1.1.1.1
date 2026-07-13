@@ -1,7 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/context/AuthContext";
+import { PortalDashboardGreeting } from "@/components/portal/PortalPrimitives";
+import {
+  AdminStatCard, AdminSurfaceCard, AdminEmptyState, slugAdminTestId,
+} from "@/components/portal/AdminPrimitives";
 import {
   AreaChart, Area, BarChart, Bar, ResponsiveContainer, Tooltip, XAxis, Cell,
 } from "recharts";
@@ -9,20 +16,8 @@ import {
   Users, FileText, CheckCircle2, Inbox, LayoutTemplate, UserCheck, TrendingUp,
 } from "lucide-react";
 
-const KPI = ({ icon: Icon, label, value, accent }) => (
-  <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`kpi-${label.toLowerCase().replace(/\\s+/g, "-")}`}>
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
-        <Icon className="h-4 w-4" style={{ color: accent }} />
-      </span>
-    </div>
-    <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{value}</p>
-  </div>
-);
-
 const MiniStat = ({ label, value }) => (
-  <div className="rounded-lg bg-[var(--c-paper-2)] p-3 text-center">
+  <div className="rounded-xl bg-[var(--c-paper-2)] p-3 text-center">
     <p className="font-heading text-xl font-bold text-[var(--c-ink)]">{value}</p>
     <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">{label}</p>
   </div>
@@ -34,55 +29,125 @@ const STATUS_COLORS = {
 };
 
 export default function AdminOverview() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [m, setM] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await api.get("/admin/metrics");
-        setM(data);
-      } catch (err) {
-        toast.error(formatApiError(err));
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const loadMetrics = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const { data } = await api.get("/admin/metrics", { signal: controller.signal });
+      setM(data);
+    } catch (err) {
+      const timedOut = err?.code === "ECONNABORTED" || err?.name === "CanceledError";
+      const message = timedOut
+        ? "Metrics request timed out — check that the backend is running on port 8001."
+        : (formatApiError(err) || "Could not load platform metrics");
+      setLoadError(message);
+      setM(null);
+      toast.error(message);
+    } finally {
+      clearTimeout(timer);
+      setLoading(false);
+    }
   }, []);
 
-  if (loading || !m) {
+  useEffect(() => {
+    loadMetrics();
+  }, [loadMetrics]);
+
+  if (loading) {
     return (
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Platform overview</h1>
-        <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+      <div data-testid="admin-overview">
+        <PortalDashboardGreeting user={user} subtitle="Loading metrics…" testId="admin-overview-greeting" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+        </div>
       </div>
     );
   }
 
-  const t = m.totals;
-  const statusData = Object.entries(m.status_counts).map(([k, v]) => ({ name: k, count: v }));
-  const planData = Object.entries(m.plan_counts).map(([k, v]) => ({ name: k, count: v }));
+  if (loadError || !m) {
+    return (
+      <div data-testid="admin-overview">
+        <PortalDashboardGreeting user={user} subtitle="Metrics could not be loaded." testId="admin-overview-greeting" />
+        <AdminSurfaceCard>
+          <AdminEmptyState
+            icon={TrendingUp}
+            title="Overview unavailable"
+            description={loadError || "The metrics service did not return data. Check that the backend is running and you are signed in as a super-admin."}
+            action={(
+              <Button onClick={loadMetrics} className="rounded-xl" style={{ background: "var(--c-ink-solid)", color: "#fff" }}>
+                Retry
+              </Button>
+            )}
+          />
+        </AdminSurfaceCard>
+      </div>
+    );
+  }
+
+  const t = m.totals || {};
+  const statusData = Object.entries(m.status_counts || {}).map(([k, v]) => ({ name: k, count: v }));
+  const planData = Object.entries(m.plan_counts || {}).map(([k, v]) => ({ name: k, count: v }));
 
   return (
     <div data-testid="admin-overview">
-      <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Platform overview</h1>
-      <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">A live snapshot of CivicSign usage across all accounts.</p>
+      <PortalDashboardGreeting
+        user={user}
+        subtitle="A live snapshot of CivicSign usage across all accounts."
+        testId="admin-overview-greeting"
+      />
 
-      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KPI icon={Users} label="Total Users" value={t.users} accent="#14B8A6" />
-        <KPI icon={UserCheck} label="Active Users" value={t.active_users} accent="#0284C7" />
-        <KPI icon={FileText} label="Envelopes" value={t.envelopes} accent="#FF7A5C" />
-        <KPI icon={TrendingUp} label="Completion" value={`${t.completion_rate}%`} accent="#16A34A" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <AdminStatCard
+          icon={Users} label="Total users" value={t.users} tone="teal"
+          onClick={() => navigate("/admin/users")} testId={`kpi-${slugAdminTestId("total users")}`}
+          hint="Browse all users"
+        />
+        <AdminStatCard
+          icon={UserCheck} label="Active users" value={t.active_users} tone="info"
+          onClick={() => navigate("/admin/users")} testId={`kpi-${slugAdminTestId("active users")}`}
+          hint="Browse active users"
+        />
+        <AdminStatCard
+          icon={FileText} label="Envelopes" value={t.envelopes} tone="accent"
+          testId={`kpi-${slugAdminTestId("envelopes")}`}
+        />
+        <AdminStatCard
+          icon={TrendingUp} label="Completion" value={`${t.completion_rate}%`} tone="success"
+          testId={`kpi-${slugAdminTestId("completion")}`}
+        />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KPI icon={CheckCircle2} label="Completed" value={t.completed} accent="#16A34A" />
-        <KPI icon={LayoutTemplate} label="Templates" value={t.templates} accent="#0284C7" />
-        <KPI icon={Inbox} label="Messages" value={t.contacts} accent="#FF7A5C" />
-        <KPI icon={Inbox} label="Unhandled" value={t.contacts_unhandled} accent="#B45309" />
+        <AdminStatCard
+          icon={CheckCircle2} label="Completed" value={t.completed} tone="success"
+          testId={`kpi-${slugAdminTestId("completed")}`}
+        />
+        <AdminStatCard
+          icon={LayoutTemplate} label="Templates" value={t.templates} tone="info"
+          onClick={() => navigate("/admin/users")} testId={`kpi-${slugAdminTestId("templates")}`}
+          hint="Browse users with templates"
+        />
+        <AdminStatCard
+          icon={Inbox} label="Messages" value={t.contacts} tone="accent"
+          onClick={() => navigate("/admin/contacts")} testId={`kpi-${slugAdminTestId("messages")}`}
+          hint="Open contact inbox"
+        />
+        <AdminStatCard
+          icon={Inbox} label="Unhandled" value={t.contacts_unhandled} tone="warning"
+          onClick={() => navigate("/admin/contacts")} testId={`kpi-${slugAdminTestId("unhandled")}`}
+          hint="Triage new contact messages"
+        />
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+        <AdminSurfaceCard>
           <p className="text-sm font-semibold text-[var(--c-ink)]">New signups · last 14 days</p>
           <div className="mt-3 h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -94,8 +159,8 @@ export default function AdminOverview() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+        </AdminSurfaceCard>
+        <AdminSurfaceCard>
           <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes created · last 14 days</p>
           <div className="mt-3 h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -107,11 +172,11 @@ export default function AdminOverview() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </AdminSurfaceCard>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+        <AdminSurfaceCard>
           <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes by status</p>
           <div className="mt-3 h-44">
             <ResponsiveContainer width="100%" height="100%">
@@ -124,10 +189,15 @@ export default function AdminOverview() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+        </AdminSurfaceCard>
+        <button
+          type="button"
+          onClick={() => navigate("/admin/users")}
+          className="cs-portal-surface-card w-full cursor-pointer rounded-2xl p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
+          title="Browse users by plan"
+        >
           <p className="text-sm font-semibold text-[var(--c-ink)]">Users by plan</p>
-          <div className="mt-3 h-44">
+          <div className="mt-3 h-44 pointer-events-none">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={planData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5C6B73" }} axisLine={false} tickLine={false} />
@@ -136,12 +206,12 @@ export default function AdminOverview() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </button>
       </div>
 
       {m.analytics && (
         <div className="mt-5 grid gap-4 lg:grid-cols-3" data-testid="admin-analytics">
-          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5 lg:col-span-2">
+          <AdminSurfaceCard className="lg:col-span-2">
             <p className="text-sm font-semibold text-[var(--c-ink)]">Signing funnel</p>
             <div className="mt-4 space-y-3">
               {m.analytics.funnel.map((f) => {
@@ -160,21 +230,30 @@ export default function AdminOverview() {
               <MiniStat label="Decline rate" value={`${m.analytics.decline_rate}%`} />
               <MiniStat label="Expired rate" value={`${m.analytics.expired_rate}%`} />
             </div>
-          </div>
-          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-top-users">
+          </AdminSurfaceCard>
+          <AdminSurfaceCard testId="admin-top-users">
             <p className="text-sm font-semibold text-[var(--c-ink)]">Most active users</p>
             <div className="mt-3 space-y-2.5">
               {m.analytics.top_users.length === 0 ? (
                 <p className="text-sm text-[var(--c-muted-fg)]">No data yet.</p>
-              ) : m.analytics.top_users.map((u, i) => (
-                <div key={u.email || u.user_id || `top-user-${i}`} className="flex items-center gap-3">
+              ) : (m.analytics.top_users || []).map((u, i) => (
+                <button
+                  key={u.email || u.user_id || `top-user-${i}`}
+                  type="button"
+                  onClick={() => u.user_id && navigate(`/admin/users/${u.user_id}`)}
+                  disabled={!u.user_id}
+                  className="flex w-full items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-[var(--c-paper-2)] disabled:cursor-default"
+                >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--c-paper-2)] text-xs font-bold text-[var(--c-ink)]">{i + 1}</span>
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p><p className="truncate text-xs text-[var(--c-muted-fg)]">{u.email}</p></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--c-ink)]">{u.name}</p>
+                    <p className="truncate text-xs text-[var(--c-muted-fg)]">{u.email}</p>
+                  </div>
                   <span className="text-sm font-semibold" style={{ color: "var(--c-primary)" }}>{u.count}</span>
-                </div>
+                </button>
               ))}
             </div>
-          </div>
+          </AdminSurfaceCard>
         </div>
       )}
     </div>

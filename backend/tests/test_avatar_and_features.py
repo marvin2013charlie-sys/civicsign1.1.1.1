@@ -18,8 +18,8 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 # Track whatever accounts the backend seeds (see backend/.env).
-USER_EMAIL = os.environ.get("TEST_USER_EMAIL", os.environ.get("ADMIN_EMAIL", "free@civicbot.co.uk"))
-USER_PASS = os.environ.get("TEST_USER_PASSWORD", os.environ.get("ADMIN_PASSWORD", "FreePass123!"))
+USER_EMAIL = (os.environ.get("TEST_USER_EMAIL") or "").strip() or "free@civicbot.co.uk"
+USER_PASS = (os.environ.get("TEST_USER_PASSWORD") or "").strip() or "CivicSign2026!Free"
 ADMIN_EMAIL = os.environ.get("INTERNAL_ADMIN_EMAIL", "admin@civicbot.co.uk")
 ADMIN_PASS = os.environ.get("INTERNAL_ADMIN_PASSWORD", "CivicSign2026!Admin")
 

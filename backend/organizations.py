@@ -5,22 +5,29 @@ import uuid
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import Response as FastResponse
 from rate_limits import limiter, poll_limit
 
 from db import db, upload_file, download_file, delete_file
-from auth import get_current_user, require_admin, hash_password, _validate_password_strength
+from auth import (
+    get_current_user, require_admin, hash_password, _validate_password_strength,
+    verify_password, user_from_access_token, create_access_token, create_refresh_token,
+    set_auth_cookies, _public_user,
+)
 from plan_signing import generate_plan_signature as _generate_plan_signature
 from models import (
     OrganizationCreate, OrganizationUpdate,
     OrgMemberCreate, OrgMemberPasswordReset, OrgMemberStatusUpdate,
-    OrgMemberQuotaUpdate,
+    OrgMemberQuotaUpdate, OrgInviteCreate, OrgInviteAccept,
 )
 from plan_features import (
     current_month_envelope_count, get_hourly_burst_limit,
     PLAN_MONTHLY_QUOTA, _effective_plan, BUSINESS_FAIR_USE_DEFAULT,
+    ORG_MEMBER_CONFIGURABLE_FEATURES, default_org_member_feature_flags,
+    normalize_org_member_feature_flags,
 )
+import email_service
 
 logger = logging.getLogger("civicsign.organizations")
 
@@ -28,6 +35,7 @@ org_router = APIRouter(prefix="/api", tags=["organizations"])
 admin_org_router = APIRouter(prefix="/api/admin", tags=["admin-organizations"])
 
 ORG_SEAT_MONTHLY_LIMIT = 500
+ORG_INVITE_TTL_DAYS = 7
 ORG_CONTRACT_MAX_BYTES = 25 * 1024 * 1024
 ORG_PRICING_NOTE = (
     "Organisation plan: custom document pools and pricing per contract. "
@@ -283,7 +291,7 @@ def _owner_quota_note(
     member_count: int,
 ) -> str:
     return (
-        f"Your seat: {personal_used:,} / {seat_limit:,} documents this month. "
+        f"Your seat: {personal_used:,} / {seat_limit:,} documents this billing period. "
         f"Organisation «{org_name}» pool: {org_used:,}"
         f"{'' if org_unlimited else f' / {org_limit:,}'} across {member_count} seat"
         f"{'s' if member_count != 1 else ''}. {ORG_PRICING_NOTE}"
@@ -349,6 +357,145 @@ async def _provision_org_user(
     return user
 
 
+def _public_org_invite(doc: dict) -> dict:
+    return {
+        "invite_id": doc["invite_id"],
+        "email": doc["email"],
+        "name": doc.get("name", ""),
+        "org_id": doc["org_id"],
+        "org_name": doc.get("org_name", ""),
+        "org_role": doc.get("org_role", "member"),
+        "status": doc.get("status", "pending"),
+        "monthly_seat_limit": doc.get("monthly_seat_limit"),
+        "feature_flags": doc.get("feature_flags") or default_org_member_feature_flags(),
+        "invited_by_email": doc.get("invited_by_email"),
+        "created_at": doc.get("created_at"),
+        "expires_at": doc.get("expires_at"),
+    }
+
+
+async def _valid_org_invite_token(token: str) -> dict:
+    if not token or len(token) > 256:
+        raise HTTPException(status_code=400, detail="Invalid invitation link")
+    invite = await db.org_invites.find_one({"token": token}, {"_id": 0})
+    if not invite or invite.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="This invitation is invalid or has already been used")
+    try:
+        expired = datetime.fromisoformat(invite["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        raise HTTPException(status_code=400, detail="This invitation has expired. Ask your organisation admin to send a new one.")
+    return invite
+
+
+async def _assert_email_available_for_org_invite(email: str, org_id: str) -> None:
+    existing = await db.users.find_one({"email": email}, {"_id": 0, "org_id": 1, "org_role": 1})
+    if not existing:
+        return
+    if existing.get("org_id") == org_id:
+        raise HTTPException(status_code=400, detail="This person is already on your organisation team")
+    if existing.get("org_id"):
+        raise HTTPException(status_code=409, detail="This email belongs to another organisation account")
+
+
+def _org_invite_accept_url(base_url: str | None, token: str) -> str:
+    origin = (base_url or os.environ.get("APP_ORIGIN") or "http://localhost:3000").rstrip("/")
+    return f"{origin}/accept-invite?token={token}"
+
+
+async def _apply_org_invite_to_user(user: dict, invite: dict) -> dict:
+    """Attach organisation membership from a pending invite."""
+    org_id = invite["org_id"]
+    org_name = invite.get("org_name") or ""
+    plan_updated_at = _now()
+    updates: dict = {
+        "org_id": org_id,
+        "org_role": invite.get("org_role", "member"),
+        "plan": "business",
+        "company": org_name[:120],
+        "active": True,
+        "email_verified": True,
+        "plan_upgraded_via_payment": True,
+        "plan_updated_at": plan_updated_at,
+        "plan_signature": _generate_plan_signature(user["user_id"], "business", plan_updated_at),
+        "updated_at": plan_updated_at,
+        "org_feature_flags": normalize_org_member_feature_flags(invite.get("feature_flags")),
+    }
+    seat_limit = invite.get("monthly_seat_limit")
+    if isinstance(seat_limit, int) and seat_limit > 0:
+        updates["monthly_seat_limit"] = seat_limit
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return fresh or user
+
+
+async def _create_user_from_org_invite(invite: dict, name: str, password: str) -> dict:
+    email = invite["email"].lower().strip()
+    is_valid, err = _validate_password_strength(password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=err)
+    user_id = f"user_{secrets.token_hex(8)}"
+    plan_updated_at = _now()
+    user = {
+        "user_id": user_id,
+        "email": email,
+        "name": name.strip(),
+        "password_hash": hash_password(password),
+        "auth_provider": "password",
+        "role": "user",
+        "plan": "business",
+        "org_id": invite["org_id"],
+        "org_role": invite.get("org_role", "member"),
+        "active": True,
+        "email_verified": True,
+        "plan_upgraded_via_payment": True,
+        "plan_updated_at": plan_updated_at,
+        "plan_signature": _generate_plan_signature(user_id, "business", plan_updated_at),
+        "created_at": plan_updated_at,
+        "created_by": invite.get("invited_by"),
+        "company": (invite.get("org_name") or "")[:120],
+        "picture": None,
+        "org_feature_flags": normalize_org_member_feature_flags(invite.get("feature_flags")),
+    }
+    seat_limit = invite.get("monthly_seat_limit")
+    if isinstance(seat_limit, int) and seat_limit > 0:
+        user["monthly_seat_limit"] = seat_limit
+    await db.users.insert_one(user)
+    return user
+
+
+async def _mark_org_invite_accepted(invite: dict) -> None:
+    await db.org_invites.update_one(
+        {"invite_id": invite["invite_id"]},
+        {"$set": {"status": "accepted", "accepted_at": _now()}},
+    )
+
+
+async def fulfill_org_invites_for_user(email: str, user_id: str) -> bool:
+    """Auto-join organisation when a user verifies an email that has a pending invite."""
+    email = email.lower().strip()
+    invite = await db.org_invites.find_one(
+        {"email": email, "status": "pending"},
+        {"_id": 0},
+    )
+    if not invite:
+        return False
+    try:
+        expired = datetime.fromisoformat(invite["expires_at"]) < datetime.now(timezone.utc)
+    except Exception:
+        expired = True
+    if expired:
+        return False
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user or user.get("org_id"):
+        return False
+    await _apply_org_invite_to_user(user, invite)
+    await _mark_org_invite_accepted(invite)
+    logger.info(f"[org] invite auto-fulfilled user={user_id} org={invite['org_id']}")
+    return True
+
+
 async def org_member_ids(org_id: str) -> list[str]:
     users = await db.users.find(
         {"org_id": org_id, "active": {"$ne": False}},
@@ -374,7 +521,7 @@ async def hourly_org_envelope_count(org_id: str) -> int:
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     return await db.envelopes.count_documents({
         "owner_id": {"$in": members},
-        "created_at": {"$gte": one_hour_ago},
+        "sent_at": {"$gte": one_hour_ago},
     })
 
 
@@ -423,6 +570,7 @@ def purchase_options_for_plan(plan: str, at_limit: bool, scope: str = "user") ->
     if plan == "free":
         options["upgrade_pro"] = True
         options["upgrade_pro_amount_gbp"] = 15.0
+        options["upgrade_business"] = True
     elif plan == "pro":
         options["upgrade_business"] = True
     else:
@@ -730,7 +878,7 @@ async def enforce_quota(user: dict, count: int = 1) -> int:
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     recent = await db.envelopes.count_documents({
         "owner_id": user["user_id"],
-        "created_at": {"$gte": one_hour_ago},
+        "sent_at": {"$gte": one_hour_ago},
     })
     if recent + count > hourly_cap:
         raise HTTPException(
@@ -870,8 +1018,14 @@ async def org_portal(request: Request, user: dict = Depends(get_current_user)):
             _public_org_member(m, org=org, seat_used=usage_map.get(m["user_id"], 0))
             for m in roster
         ]
+        pending = await db.org_invites.find(
+            {"org_id": org["org_id"], "status": "pending"},
+            {"_id": 0, "token": 0},
+        ).sort("created_at", -1).to_list(200)
+        payload["pending_invites"] = [_public_org_invite(i) for i in pending]
     else:
         payload["team"] = []
+        payload["pending_invites"] = []
     return payload
 
 
@@ -1054,6 +1208,247 @@ async def reset_org_member_password(
         {"$set": {"password_hash": hash_password(body.password), "updated_at": _now()}},
     )
     return {"ok": True, "email": target["email"]}
+
+
+@org_router.get("/org/invites")
+@limiter.limit(poll_limit())
+async def list_org_invites(request: Request, owner: dict = Depends(require_org_admin)):
+    org_id = owner["org_id"]
+    invites = await db.org_invites.find(
+        {"org_id": org_id, "status": "pending"},
+        {"_id": 0, "token": 0},
+    ).sort("created_at", -1).to_list(200)
+    return [_public_org_invite(i) for i in invites]
+
+
+@org_router.post("/org/invites")
+@limiter.limit("20/minute")
+async def create_org_invite(
+    request: Request,
+    body: OrgInviteCreate,
+    owner: dict = Depends(require_org_admin),
+):
+    org = owner["_org"]
+    email = body.email.lower().strip()
+    if email == owner["email"].lower():
+        raise HTTPException(status_code=400, detail="You cannot invite yourself")
+    await _assert_email_available_for_org_invite(email, org["org_id"])
+
+    org_cap = org_seat_monthly_limit(org)
+    seat_limit = body.monthly_seat_limit
+    if seat_limit is not None and seat_limit > org_cap:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Per-member limit cannot exceed your organisation allowance of {org_cap:,} documents per seat",
+        )
+
+    member_count = await db.users.count_documents({"org_id": org["org_id"]})
+    pending_count = await db.org_invites.count_documents({"org_id": org["org_id"], "status": "pending"})
+    if member_count + pending_count >= 500:
+        raise HTTPException(status_code=400, detail="Organisation member limit reached (500)")
+
+    prior = await db.org_invites.find_one(
+        {"org_id": org["org_id"], "email": email},
+        {"_id": 0, "invite_id": 1},
+    )
+    token = secrets.token_urlsafe(32)
+    expires_dt = datetime.now(timezone.utc) + timedelta(days=ORG_INVITE_TTL_DAYS)
+    invite_id = prior["invite_id"] if prior else f"oinv_{uuid.uuid4().hex[:12]}"
+    name = (body.name or "").strip()
+    feature_flags = normalize_org_member_feature_flags(body.feature_flags)
+    invite = {
+        "invite_id": invite_id,
+        "token": token,
+        "org_id": org["org_id"],
+        "org_name": org["name"],
+        "email": email,
+        "name": name,
+        "org_role": "member",
+        "status": "pending",
+        "monthly_seat_limit": seat_limit,
+        "feature_flags": feature_flags,
+        "invited_by": owner["user_id"],
+        "invited_by_email": owner["email"],
+        "created_at": _now(),
+        "expires_at": expires_dt.isoformat(),
+        "expire_at": expires_dt,
+    }
+    await db.org_invites.update_one(
+        {"org_id": org["org_id"], "email": email},
+        {"$set": invite},
+        upsert=True,
+    )
+    fresh = await db.org_invites.find_one({"invite_id": invite_id}, {"_id": 0, "token": 0})
+    if not fresh:
+        fresh = await db.org_invites.find_one(
+            {"org_id": org["org_id"], "email": email, "status": "pending"},
+            {"_id": 0, "token": 0},
+        )
+
+    accept_url = _org_invite_accept_url(body.base_url, token)
+    display_limit = seat_limit if seat_limit else org_cap
+    try:
+        email_service.send_org_invite(
+            email,
+            name or email,
+            org["name"],
+            owner.get("name") or owner["email"],
+            accept_url,
+            monthly_limit=display_limit,
+        )
+    except Exception as exc:
+        logger.warning(f"[org] invite email failed to={email}: {exc}")
+
+    logger.info(f"[org] invite sent {email} org={org['org_id']} by {owner['email']}")
+    return _public_org_invite(fresh or invite)
+
+
+@org_router.post("/org/invites/{invite_id}/resend")
+@limiter.limit("10/minute")
+async def resend_org_invite(
+    request: Request,
+    invite_id: str,
+    owner: dict = Depends(require_org_admin),
+):
+    org = owner["_org"]
+    invite = await db.org_invites.find_one(
+        {"invite_id": invite_id, "org_id": org["org_id"], "status": "pending"},
+        {"_id": 0},
+    )
+    if not invite:
+        raise HTTPException(status_code=404, detail="Pending invitation not found")
+
+    token = secrets.token_urlsafe(32)
+    expires_dt = datetime.now(timezone.utc) + timedelta(days=ORG_INVITE_TTL_DAYS)
+    await db.org_invites.update_one(
+        {"invite_id": invite_id},
+        {"$set": {
+            "token": token,
+            "expires_at": expires_dt.isoformat(),
+            "expire_at": expires_dt,
+            "invited_by": owner["user_id"],
+            "invited_by_email": owner["email"],
+        }},
+    )
+    accept_url = _org_invite_accept_url(None, token)
+    org_cap = org_seat_monthly_limit(org)
+    display_limit = invite.get("monthly_seat_limit") or org_cap
+    try:
+        email_service.send_org_invite(
+            invite["email"],
+            invite.get("name") or invite["email"],
+            org["name"],
+            owner.get("name") or owner["email"],
+            accept_url,
+            monthly_limit=display_limit,
+        )
+    except Exception as exc:
+        logger.warning(f"[org] invite resend failed to={invite['email']}: {exc}")
+    fresh = await db.org_invites.find_one({"invite_id": invite_id}, {"_id": 0, "token": 0})
+    return _public_org_invite(fresh or invite)
+
+
+@org_router.delete("/org/invites/{invite_id}")
+@limiter.limit("20/minute")
+async def revoke_org_invite(
+    request: Request,
+    invite_id: str,
+    owner: dict = Depends(require_org_admin),
+):
+    result = await db.org_invites.update_one(
+        {"invite_id": invite_id, "org_id": owner["org_id"], "status": "pending"},
+        {"$set": {"status": "revoked", "revoked_at": _now()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Pending invitation not found")
+    return {"ok": True}
+
+
+@org_router.get("/org/invite-info")
+@limiter.limit("30/hour")
+async def org_invite_info(request: Request, token: str = Query(..., min_length=16, max_length=256)):
+    invite = await _valid_org_invite_token(token)
+    existing = await db.users.find_one(
+        {"email": invite["email"]},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "org_id": 1},
+    )
+    requires_registration = existing is None
+    requires_login = existing is not None
+    if existing and existing.get("org_id") == invite["org_id"]:
+        requires_registration = False
+        requires_login = False
+    return {
+        "email": invite["email"],
+        "name": invite.get("name") or (existing or {}).get("name", ""),
+        "org_name": invite.get("org_name", ""),
+        "invited_by": invite.get("invited_by_email", ""),
+        "expires_at": invite["expires_at"],
+        "requires_registration": requires_registration,
+        "requires_login": requires_login,
+        "monthly_seat_limit": invite.get("monthly_seat_limit"),
+        "feature_flags": invite.get("feature_flags") or default_org_member_feature_flags(),
+    }
+
+
+@org_router.post("/org/accept-invite")
+@limiter.limit("10/hour")
+async def accept_org_invite(
+    request: Request,
+    response: Response,
+    body: OrgInviteAccept,
+):
+    invite = await _valid_org_invite_token(body.token)
+    email = invite["email"].lower().strip()
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+
+    if existing and existing.get("org_id") == invite["org_id"]:
+        await _mark_org_invite_accepted(invite)
+        tv = int(existing.get("token_version") or 0)
+        access = create_access_token(existing["user_id"], email, token_version=tv)
+        refresh = create_refresh_token(existing["user_id"], token_version=tv)
+        set_auth_cookies(response, access, refresh)
+        fresh = await db.users.find_one({"user_id": existing["user_id"]}, {"_id": 0, "password_hash": 0})
+        return {"user": _public_user(fresh or existing), "access_token": access, "already_member": True}
+
+    if existing and existing.get("org_id") and existing["org_id"] != invite["org_id"]:
+        raise HTTPException(status_code=409, detail="This account already belongs to another organisation")
+
+    if not existing:
+        name = (body.name or invite.get("name") or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+        if not body.password:
+            raise HTTPException(status_code=400, detail="Password is required")
+        user = await _create_user_from_org_invite(invite, name, body.password)
+    else:
+        session_user = None
+        access_cookie = request.cookies.get("access_token")
+        if access_cookie:
+            try:
+                session_user = await user_from_access_token(access_cookie)
+            except HTTPException:
+                session_user = None
+
+        if session_user and session_user.get("email", "").lower() == email:
+            user = existing
+        elif body.password and existing.get("password_hash") and verify_password(body.password, existing["password_hash"]):
+            user = existing
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail="Sign in with the invited email address to accept this invitation",
+            )
+        if not existing.get("email_verified", True):
+            raise HTTPException(status_code=403, detail="Verify your email before accepting this invitation")
+        user = await _apply_org_invite_to_user(user, invite)
+
+    await _mark_org_invite_accepted(invite)
+    tv = int(user.get("token_version") or 0)
+    access = create_access_token(user["user_id"], email, token_version=tv)
+    refresh = create_refresh_token(user["user_id"], token_version=tv)
+    set_auth_cookies(response, access, refresh)
+    logger.info(f"[org] invite accepted user={user['user_id']} org={invite['org_id']}")
+    return {"user": _public_user(user), "access_token": access}
 
 
 @admin_org_router.get("/organizations")

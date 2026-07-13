@@ -5,9 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -18,21 +15,26 @@ import {
   AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import {
-  Search, PoundSterling, RefreshCcw, ShieldCheck, TrendingUp, ReceiptText, AlertCircle, CheckCircle2,
+  Search, PoundSterling, RefreshCcw, TrendingUp, ReceiptText, AlertCircle, CheckCircle2,
 } from "lucide-react";
+import {
+  AdminPageIntro,
+  AdminStatCard,
+  AdminSurfaceCard,
+  AdminSectionHeader,
+  AdminPillTabs,
+  AdminEmptyState,
+  AdminStaffBadge,
+  slugAdminTestId,
+} from "@/components/portal/AdminPrimitives";
 
-const KPI = ({ icon: Icon, label, value, accent, sub }) => (
-  <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`billing-kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
-        <Icon className="h-4 w-4" style={{ color: accent }} />
-      </span>
-    </div>
-    <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{value}</p>
-    {sub ? <p className="mt-1 text-xs text-[var(--c-muted-fg)]">{sub}</p> : null}
-  </div>
-);
+const STATUS_TABS = [
+  { id: "all", label: "All statuses" },
+  { id: "paid", label: "Paid" },
+  { id: "pending", label: "Pending" },
+  { id: "refunded", label: "Refunded" },
+  { id: "failed", label: "Failed" },
+];
 
 const fmtMoney = (n, currency = "gbp") => {
   const num = Number(n || 0);
@@ -154,6 +156,7 @@ export default function AdminBilling() {
   const [metrics, setMetrics] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState(false);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [picked, setPicked] = useState(null);
@@ -161,14 +164,24 @@ export default function AdminBilling() {
   const load = useCallback(async (query, st) => {
     setLoading(true);
     try {
-      const [m, list] = await Promise.all([
+      const [mRes, listRes] = await Promise.allSettled([
         api.get("/admin/billing/metrics"),
         api.get("/admin/transactions", { params: { q: query, status: st } }),
       ]);
-      setMetrics(m.data);
-      setItems(list.data);
-    } catch (err) {
-      toast.error(formatApiError(err));
+      if (mRes.status === "fulfilled") {
+        setMetrics(mRes.value.data);
+        setMetricsError(false);
+      } else {
+        setMetrics(null);
+        setMetricsError(true);
+        toast.error(formatApiError(mRes.reason));
+      }
+      if (listRes.status === "fulfilled") {
+        setItems(listRes.value.data);
+      } else {
+        setItems([]);
+        toast.error(formatApiError(listRes.reason));
+      }
     } finally {
       setLoading(false);
     }
@@ -181,7 +194,6 @@ export default function AdminBilling() {
 
   const onRefunded = (fresh) => {
     setItems((prev) => prev.map((t) => (t.tx_id === fresh.tx_id ? { ...t, ...fresh } : t)));
-    // Reload metrics so KPIs reflect the refund.
     api.get("/admin/billing/metrics")
       .then(({ data }) => setMetrics(data))
       .catch((err) => toast.error(formatApiError(err) || "Could not refresh billing metrics"));
@@ -191,35 +203,62 @@ export default function AdminBilling() {
 
   return (
     <div data-testid="admin-billing">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Billing &amp; Refunds</h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Stripe transactions across the platform. Super-admins can issue refunds here.</p>
-        </div>
-        <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
-          <ShieldCheck className="h-3.5 w-3.5" /> Super-admin only
-        </Badge>
-      </div>
+      <AdminPageIntro
+        caveat="Super-admin tools"
+        title="Billing & Refunds"
+        subtitle="Stripe transactions across the platform. Super-admins can issue refunds here."
+        actions={<AdminStaffBadge label="Super-admin only" />}
+      />
 
-      {/* KPIs */}
-      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {loading || !metrics ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
+        ) : metricsError || !metrics ? (
+          <AdminSurfaceCard className="col-span-full">
+            <p className="text-sm text-[var(--c-muted-fg)]">Billing KPIs unavailable — transaction list may still load below.</p>
+          </AdminSurfaceCard>
         ) : (
           <>
-            <KPI icon={PoundSterling} label="Gross revenue" value={fmtMoney(metrics.totals.gross, currency)} accent="#16A34A" sub={`${metrics.totals.paid_count} paid`} />
-            <KPI icon={RefreshCcw} label="Refunded" value={fmtMoney(metrics.totals.refunded, currency)} accent="#DC2626" sub={`${metrics.totals.refunded_count} refund(s)`} />
-            <KPI icon={TrendingUp} label="Net revenue" value={fmtMoney(metrics.totals.net, currency)} accent="#14B8A6" sub="Gross − refunded" />
-            <KPI icon={ReceiptText} label="Transactions" value={metrics.totals.transactions} accent="#0284C7" sub="All time" />
+            <AdminStatCard
+              icon={PoundSterling}
+              label="Gross revenue"
+              value={fmtMoney(metrics.totals.gross, currency)}
+              tone="success"
+              sub={`${metrics.totals.paid_count} paid`}
+              testId={`billing-kpi-${slugAdminTestId("Gross revenue")}`}
+            />
+            <AdminStatCard
+              icon={RefreshCcw}
+              label="Refunded"
+              value={fmtMoney(metrics.totals.refunded, currency)}
+              tone="warning"
+              sub={`${metrics.totals.refunded_count} refund(s)`}
+              testId={`billing-kpi-${slugAdminTestId("Refunded")}`}
+            />
+            <AdminStatCard
+              icon={TrendingUp}
+              label="Net revenue"
+              value={fmtMoney(metrics.totals.net, currency)}
+              tone="teal"
+              sub="Gross − refunded"
+              testId={`billing-kpi-${slugAdminTestId("Net revenue")}`}
+            />
+            <AdminStatCard
+              icon={ReceiptText}
+              label="Transactions"
+              value={metrics.totals.transactions}
+              tone="info"
+              sub="All time"
+              testId={`billing-kpi-${slugAdminTestId("Transactions")}`}
+            />
           </>
         )}
       </div>
 
-      {/* 30-day revenue chart */}
       {metrics?.series?.length ? (
-        <div className="mt-5 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+        <AdminSurfaceCard className="mt-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-heading text-base font-semibold text-[var(--c-ink)]">Revenue, last 30 days</h2>
+            <p className="text-sm font-semibold text-[var(--c-ink)]">Revenue, last 30 days</p>
             <span className="text-xs text-[var(--c-muted-fg)]">Gross vs refunded</span>
           </div>
           <div className="mt-3 h-56 w-full">
@@ -244,73 +283,67 @@ export default function AdminBilling() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </AdminSurfaceCard>
       ) : null}
 
-      {/* By-plan breakdown */}
       {metrics?.by_plan && Object.keys(metrics.by_plan).length > 0 && (
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {Object.entries(metrics.by_plan).map(([plan, p]) => (
-            <div key={plan} className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{plan}</p>
-              <p className="mt-1 font-heading text-2xl font-bold text-[var(--c-ink)]">{fmtMoney(p.net, currency)}</p>
-              <div className="mt-1 text-xs text-[var(--c-muted-fg)]">
+            <AdminSurfaceCard key={plan}>
+              <p className="text-[11px] font-semibold uppercase tracking-[1px] text-[var(--c-muted-fg)]">{plan}</p>
+              <p className="mt-1 font-heading text-2xl font-bold tracking-[-0.02em] text-[var(--c-ink)]">{fmtMoney(p.net, currency)}</p>
+              <div className="mt-1 text-[11.5px] font-medium text-[var(--c-muted-fg)]">
                 {p.count} paid · gross {fmtMoney(p.gross, currency)} · refunded {fmtMoney(p.refunded, currency)}
               </div>
-            </div>
+            </AdminSurfaceCard>
           ))}
         </div>
       )}
 
-      {/* Filters */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by email or session ID…" className="pl-9" data-testid="billing-search" />
         </div>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-full sm:w-44" data-testid="billing-status-filter"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="refunded">Refunded</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-          </SelectContent>
-        </Select>
+        <AdminPillTabs
+          tabs={STATUS_TABS}
+          value={status}
+          onChange={setStatus}
+          testId="billing-status-filter"
+        />
       </div>
 
-      {/* Transactions table */}
-      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">
-              <tr>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-4 py-3"><Skeleton className="h-6 w-full" /></td></tr>
-                ))
-              ) : items.length === 0 ? (
+      <AdminSurfaceCard flush className="mt-4 overflow-hidden">
+        <AdminSectionHeader
+          title="Transactions"
+          subtitle="Stripe checkout payments and refund history"
+          icon={ReceiptText}
+        />
+        {loading ? (
+          <div className="space-y-3 p-5">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-6 w-full rounded-lg" />)}
+          </div>
+        ) : items.length === 0 ? (
+          <AdminEmptyState
+            icon={AlertCircle}
+            title="No transactions found"
+            description="When users upgrade via Stripe Checkout, the payments will appear here."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center">
-                    <div className="mx-auto flex flex-col items-center gap-2 text-[var(--c-muted-fg)]">
-                      <AlertCircle className="h-6 w-6" />
-                      <p className="text-sm">No transactions found.</p>
-                      <p className="text-xs">When users upgrade via Stripe Checkout, the payments will appear here.</p>
-                    </div>
-                  </td>
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Plan</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3 text-right">Action</th>
                 </tr>
-              ) : (
-                items.map((tx) => {
+              </thead>
+              <tbody>
+                {items.map((tx) => {
                   const refundable = tx.payment_status === "paid" && tx.refund_status !== "refunded";
                   return (
                     <tr key={tx.tx_id} className="border-t border-[var(--c-border)]" data-testid={`tx-row-${tx.tx_id}`}>
@@ -340,12 +373,12 @@ export default function AdminBilling() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminSurfaceCard>
 
       <RefundDialog tx={picked} onClose={() => setPicked(null)} onRefunded={onRefunded} />
     </div>

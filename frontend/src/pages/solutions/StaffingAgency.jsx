@@ -5,13 +5,46 @@ import {
   Users, FileText, ShieldCheck, Clock, CheckCircle2, ArrowRight,
   Briefcase, FileSignature, ScrollText, UserPlus, Sparkles, Globe,
 } from "lucide-react";
+import { MarketingGradient } from "@/components/MarketingGradient";
+import { MarketingCtaBanner } from "@/components/MarketingDarkBand";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
-import { Button } from "@/components/ui/button";
-import { greenHoverMd, greenHoverTitle, greenHoverIcon } from "@/lib/greenHover";
 import { BrandAccent } from "@/components/BrandText";
+import { SolutionIndustryBadge } from "@/components/SolutionIndustryBadge";
+import { RelatedSolutionsSection, SolutionMarquee } from "@/components/SolutionSharedSections";
+import {
+  SolutionFaqSection,
+  SolutionSecuritySection,
+  SolutionTestimonial,
+  SolutionWorkflowSection,
+} from "@/components/SolutionExtras";
+import { getSolutionExtras } from "@/lib/solutionContent";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
+import {
+  CTA_ACTIONS_CLASS,
+  CTA_BANNER,
+  CTA_HEADLINE_CLASS,
+  CTA_PRIMARY_BTN,
+  CTA_PRIMARY_BTN_STYLE,
+  CTA_SCRIPT_STYLE,
+  CTA_SECONDARY_BTN,
+  CTA_SECTION,
+  CTA_SUBTEXT_CLASS,
+  HERO_GRID,
+  HERO_IMAGE,
+  HERO_IMAGE_FRAME,
+  H_FONT,
+  INK,
+  MARKETING_CARD,
+  PAPER_TEXT,
+  PRIMARY_CTA,
+  PRIMARY_CTA_STYLE,
+  SECONDARY_CTA,
+  SECTION_EYEBROW,
+  TRUST_BULLETS,
+} from "@/lib/marketingUi";
 
 const DOCS = [
   { icon: Briefcase, title: "Permanent and temporary employment contracts", body: "Send IR35-aware contracts to candidates with pre-placed signature, initials and start-date fields. Tamper-evident audit trail on every page." },
@@ -36,50 +69,53 @@ const STATS = [
 ];
 
 export default function StaffingAgency() {
+  const extras = getSolutionExtras("/solutions/staffing-agency");
   return (
     <div className="min-h-screen bg-[var(--c-paper)] text-[var(--c-ink)]">
       <SiteHeader />
 
       {/* HERO */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10" style={{ background: "linear-gradient(180deg, #F1FBF7 0%, var(--c-paper) 60%)" }} />
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-20">
+        <MarketingGradient />
+        <div className={HERO_GRID}>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-              <Users className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} /> Solutions · Staffing Agencies
-            </span>
-            <h1 className="mt-4 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+            <SolutionIndustryBadge label="Staffing Agencies" Icon={Users} />
+            <h1 className="mt-2 font-heading text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               Place candidates. <BrandAccent>Sign contracts.</BrandAccent> Done.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--c-muted-fg)]">
               CivicSign is the UK-built e-signature platform for recruitment agencies, staffing firms and umbrella companies. Get terms of business, employment contracts and Right to Work forms signed, legally binding, UK GDPR compliant, in minutes.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="staff-cta-start">
-                Start free <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button></Link>
-              <Link to="/#pricing"><Button size="lg" variant="outline">See pricing</Button></Link>
+              <Link to="/register" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE} data-testid="staff-cta-start">
+                Start free <ArrowRight className="h-4 w-4" style={{ color: "var(--c-logo-dot)" }} />
+              </Link>
+              <Link to="/pricing" className={SECONDARY_CTA}>See pricing</Link>
             </div>
-            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--c-muted-fg)]">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Free 5 docs / month</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> No card required</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> UK GDPR compliant</span>
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] font-medium text-[var(--c-muted-fg)]">
+              {TRUST_BULLETS.map((t) => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <span className="font-bold" style={{ color: "var(--c-primary)" }}>✓</span>{t}
+                </span>
+              ))}
             </div>
           </motion.div>
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="relative">
-            <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--card)] shadow-xl">
+            <div className={HERO_IMAGE_FRAME}>
               <img
                 src="https://images.unsplash.com/photo-1521791136064-7986c2920216?crop=entropy&cs=srgb&fm=jpg&q=85"
                 alt="UK recruiter shaking hands with candidate after signing a contract"
-                className="aspect-[4/3] w-full object-cover"
+                className={HERO_IMAGE}
               />
             </div>
           </motion.div>
         </div>
       </section>
 
+      <SolutionMarquee />
+
       {/* STATS strip */}
-      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]">
+      <section className="border-b border-[var(--c-border)] bg-[var(--card)]">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-10 sm:grid-cols-3 sm:px-6">
           {STATS.map((s) => (
             <div key={s.label} className="text-center">
@@ -93,16 +129,19 @@ export default function StaffingAgency() {
       {/* WHY */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center">
-          <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Why UK recruiters choose CivicSign</h2>
+          <div className={SECTION_EYEBROW}>Why CivicSign</div>
+          <h2 className="mt-3 font-heading text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+            Why UK recruiters choose CivicSign<span style={{ color: "var(--c-accent)" }}>.</span>
+          </h2>
           <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">Designed around the way British staffing agencies actually work, from perm contracts to umbrella schedules, not adapted from an American product.</p>
         </div>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {WHY.map((w) => (
-            <div key={w.title} className={`bg-[var(--card)] p-5 ${greenHoverMd}`}>
-              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-primary)22" }}>
-                <w.icon className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+            <div key={w.title} className={`p-6 ${MARKETING_CARD}`}>
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px]" style={{ background: "var(--badge-teal-bg)" }}>
+                <w.icon className="h-5 w-5" style={{ color: "var(--badge-teal-fg)" }} />
               </span>
-              <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{w.title}</h3>
+              <h3 className="mt-4 font-heading text-base font-semibold text-[var(--c-ink)]">{w.title}</h3>
               <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{w.body}</p>
             </div>
           ))}
@@ -110,19 +149,22 @@ export default function StaffingAgency() {
       </section>
 
       {/* DOCUMENTS */}
-      <section className="bg-[var(--c-paper-2)] py-16">
+      <section className="border-y border-[var(--c-border)] bg-[var(--card)] py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="text-center">
-            <h2 className="font-heading text-3xl font-bold text-[var(--c-ink)] sm:text-4xl">Every recruitment document, signed in minutes</h2>
+            <div className={SECTION_EYEBROW}>Documents</div>
+            <h2 className="mt-3 font-heading text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              Every recruitment document, signed in minutes<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
             <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[var(--c-muted-fg)]">Pre-built workflows for the documents you send most. Save them once as templates, reuse them every placement, every renewal.</p>
           </div>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {DOCS.map((d) => (
-              <div key={d.title} className={`bg-[var(--card)] p-5 ${greenHoverMd}`}>
-                <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${greenHoverIcon}`} style={{ background: "var(--c-accent)22" }}>
-                  <d.icon className="h-4 w-4" style={{ color: "var(--c-accent)" }} />
+              <div key={d.title} className={`p-6 ${MARKETING_CARD}`}>
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px]" style={{ background: "var(--badge-coral-bg)" }}>
+                  <d.icon className="h-5 w-5" style={{ color: "var(--badge-coral-fg)" }} />
                 </span>
-                <h3 className={`mt-3 font-heading font-semibold text-[var(--c-ink)] ${greenHoverTitle}`}>{d.title}</h3>
+                <h3 className="mt-4 font-heading text-base font-semibold text-[var(--c-ink)]">{d.title}</h3>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{d.body}</p>
               </div>
             ))}
@@ -130,18 +172,47 @@ export default function StaffingAgency() {
         </div>
       </section>
 
+      {extras && (
+        <SolutionWorkflowSection
+          headline={extras.workflowHeadline}
+          subhead={extras.workflowSubhead}
+          workflows={extras.workflows}
+        />
+      )}
+      <SolutionSecuritySection />
+      {extras?.testimonial && <SolutionTestimonial testimonial={extras.testimonial} />}
+      {extras?.faqs && <SolutionFaqSection faqs={extras.faqs} testIdPrefix="staffing" />}
+      <RelatedSolutionsSection solutionPath="/solutions/staffing-agency" />
+
       {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <div className="overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-10 text-center text-white sm:p-14">
-          <h2 className="font-heading text-3xl font-bold sm:text-4xl">Ready to place faster?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-white/80">Get your first contract signed today. Free for 2 documents a month, no card required, UK GDPR compliant from day one.</p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/register"><Button size="lg" style={{ background: "var(--c-primary)", color: "#fff" }} data-testid="staff-cta-bottom">
-              Start free for recruiters <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button></Link>
-            <Link to="/contact"><Button size="lg" variant="outline" className="border-white/30 bg-transparent text-white hover:bg-white/10">Talk to us</Button></Link>
+      <section className={CTA_SECTION}>
+        <MarketingCtaBanner>
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(480px 220px at 50% 110%, rgba(45,212,191,.2), transparent)" }} />
+          <svg viewBox="0 0 800 60" className="pointer-events-none absolute bottom-3 left-0 right-0 w-full opacity-25" fill="none" aria-hidden="true">
+            <path d="M20 45 C 120 5, 220 55, 320 30 S 520 10, 620 40 S 740 50, 790 25" stroke="#FF7A5C" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          <div className="relative">
+            <div className="font-semibold" style={CTA_SCRIPT_STYLE}>Ready when you are</div>
+            <h2 className={CTA_HEADLINE_CLASS} style={{ ...H_FONT, color: PAPER_TEXT }}>
+              Ready to place faster<span style={{ color: "#FF7A5C" }}>.</span>
+            </h2>
+            <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>
+              Get your first contract signed today. {formatFreePlanSignupPitch()}, UK GDPR compliant from day one.
+            </p>
+            <div className={CTA_ACTIONS_CLASS}>
+              <Link to="/register" data-testid="staff-cta-bottom" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>
+                Start free for recruiters →
+              </Link>
+              <Link
+                to="/contact"
+                className={CTA_SECONDARY_BTN}
+                style={{ borderColor: "rgba(248,247,242,.28)", color: PAPER_TEXT }}
+              >
+                Talk to us
+              </Link>
+            </div>
           </div>
-        </div>
+        </MarketingCtaBanner>
       </section>
 
       <SiteFooter />

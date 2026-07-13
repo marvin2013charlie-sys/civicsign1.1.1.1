@@ -1,7 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { PortalDashboardGreeting } from "@/components/portal/PortalPrimitives";
+import { AdminSurfaceCard } from "@/components/portal/AdminPrimitives";
 import { BookOpen, Users, Inbox, ArrowRight, Briefcase } from "lucide-react";
+
 const PERM_CARDS = {
   blog: {
     label: "Manage blog posts",
@@ -35,20 +38,18 @@ export default function StaffLanding() {
   const perms = user?.permissions || [];
   return (
     <div data-testid="staff-landing">
-      <div>
-        <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">
-          Welcome, {user?.name || "team member"}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
-          Staff console. You can access the areas a super-admin has granted to you.
-        </p>
-      </div>
+      <PortalDashboardGreeting
+        user={user}
+        fallback="team member"
+        subtitle="Access the areas a super-admin has granted to you."
+        testId="staff-landing-greeting"
+      />
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {perms.length === 0 ? (
-          <div className="col-span-full rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--c-muted-fg)]">
+          <AdminSurfaceCard className="col-span-full border border-dashed text-center text-sm text-[var(--c-muted-fg)]">
             No permissions granted yet. Ask a super-admin to grant access from <span className="font-mono">/admin/team</span>.
-          </div>
+          </AdminSurfaceCard>
         ) : (
           perms.map((p) => {
             const card = PERM_CARDS[p];
@@ -59,11 +60,11 @@ export default function StaffLanding() {
                 key={p}
                 to={card.href}
                 data-testid={`staff-card-${p}`}
-                className="group rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5 transition-colors hover:border-[var(--c-primary)]/40"
+                className="cs-portal-surface-card group rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
               >
                 <div className="flex items-start gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--c-paper-2)]">
-                    <Icon className="h-5 w-5 text-[var(--c-primary)]" />
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px]" style={{ background: "var(--badge-teal-bg)" }}>
+                    <Icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
                   </span>
                   <div className="flex-1">
                     <p className="font-semibold text-[var(--c-ink)]">{card.label}</p>

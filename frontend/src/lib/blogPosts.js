@@ -22,14 +22,14 @@ export const POSTS = [
       { type: "h2", content: "The three tiers under UK eIDAS" },
       { type: "ul", content: [
         "Simple Electronic Signature (SES): any data attached to or logically associated with the document that the signer uses to sign. A typed name, drawn signature or click-to-agree all count. UK eIDAS Article 3(11).",
-        "Advanced Electronic Signature (AES): uniquely linked to the signer, capable of identifying them, created under their sole control, and detects subsequent changes to the document. UK eIDAS Article 26. On CivicSign, AES is available on Pro (selectable when sending) and is the default on Business, especially when combined with SMS or knowledge-based recipient authentication.",
+        "Advanced Electronic Signature (AES): uniquely linked to the signer, capable of identifying them, created under their sole control, and detects subsequent changes to the document. UK eIDAS Article 26. On CivicSign, AES is available on Pro (selectable when sending) and is the default on Business, especially when combined with knowledge-based (postcode) recipient authentication.",
         "Qualified Electronic Signature (QES): an AES backed by a qualified certificate from a Qualified Trust Service Provider (QTSP). UK eIDAS Article 3(12). Required only for a narrow set of high-value transactions (e.g. some EU cross-border deeds). CivicSign offers QES on request for Business customers via a QTSP partner, contact us to enable it.",
       ]},
       { type: "h3", content: "How CivicSign maps tiers to plans" },
       { type: "ul", content: [
         "Free: electronic signatures with consent, attribution, audit trail and SHA-256 seal (aligned with the Electronic Communications Act 2000).",
         "Pro: SES by default; AES selectable on Review & Send when you need stronger Art. 26 evidence.",
-        "Business: AES by default, strengthened with optional SMS/KBA recipient authentication; QES available on request.",
+        "Business: AES by default, strengthened with optional knowledge-based (postcode) recipient authentication; QES available on request.",
       ]},
       { type: "h2", content: "What the Law Commission said in 2019" },
       { type: "p", content: "The Law Commission's 2019 report on Electronic Execution of Documents was the watershed moment. It confirmed that electronic signatures are valid for documents that are required to be 'in writing' or 'signed' under English law, including most commercial contracts. The Commission also confirmed that deeds can be signed electronically provided the witnessing requirement is satisfied, the witness must see the signatory apply their electronic signature. For property deeds lodged with HM Land Registry, Practice Guide 82 requires the witness to be physically present at the moment of signing, not watching over a video call." },
@@ -378,7 +378,7 @@ export const POSTS = [
       { type: "p", content: "An advanced electronic signature must be uniquely linked to the signer, capable of identifying them, created under their sole control, and linked to the data in a way that detects subsequent changes. UK eIDAS Article 26 sets the standard. AES is not magic, it is SES plus stronger identity binding and tamper detection built into the process." },
       { type: "ul", content: [
         "Best for: employment contracts, settlement agreements, high-value B2B contracts, regulated-industry paperwork, and any agreement where you expect a serious dispute.",
-        "Extra assurance: stronger signer attribution, platform-level tamper detection, and optional SMS or knowledge-based authentication on Business plans.",
+        "Extra assurance: stronger signer attribution, platform-level tamper detection, and optional knowledge-based (postcode) authentication on Business plans.",
         "CivicSign: Pro users can select AES on Review & Send; Business defaults to AES with optional recipient authentication.",
       ]},
       { type: "callout", content: "Choosing AES is not an admission that SES is weak. It is a risk decision. If the cost of a dispute exceeds the cost of stronger evidence, AES is the sensible default, not because a judge demanded it upfront, but because your file needs to speak for itself." },
@@ -463,7 +463,7 @@ export const POSTS = [
       { type: "p", content: "SHA-256 sealing means any byte-level change to the completed PDF produces a different hash. You do not need a judge who understands cryptography, you need a report that says 'this file matches the sealed version' or 'this file has been altered.' CivicSign computes the hash at completion and references it on the Certificate of Completion appended to the document." },
       { type: "callout", content: "Export the Certificate of Completion at the moment of signing, not when litigation is threatened. Platforms log events in real time; your case file should mirror that discipline." },
       { type: "h2", content: "Identity: email is not enough on its own, but it is the foundation" },
-      { type: "p", content: "Most UK SME workflows rely on verified email invitation plus IP and timestamp correlation. That is sufficient for thousands of contracts daily. For higher-risk agreements, layer SMS one-time codes or knowledge-based authentication (available on CivicSign Business) so the audit trail shows a second factor at signing time." },
+      { type: "p", content: "Most UK SME workflows rely on verified email invitation plus IP and timestamp correlation. That is sufficient for thousands of contracts daily. For higher-risk agreements, layer knowledge-based authentication such as a postcode check (available on CivicSign Business) so the audit trail shows a second factor at signing time." },
       { type: "h2", content: "Presenting evidence to a solicitor or tribunal" },
       { type: "ul", content: [
         "Provide the final PDF with the Certificate of Completion attached, not a screenshot of the signing page.",
@@ -650,17 +650,59 @@ export const POSTS = [
   },
 ];
 
-export const CATEGORIES = ["All", "UK Law", "Real Estate", "Charities", "HR & People", "Compliance", "Product Updates"];
+export const CATEGORIES = [
+  "All", "UK Law", "Real Estate", "Charities", "HR & People", "Compliance", "Product Updates", "Customer Stories",
+];
 
-export const getPost = (slug) => POSTS.find((p) => p.slug === slug);
+function estimateReadTime(body) {
+  let words = 0;
+  for (const block of body) {
+    if (typeof block?.content === "string") {
+      words += block.content.split(/\s+/).filter(Boolean).length;
+    } else if (Array.isArray(block?.content)) {
+      words += block.content.join(" ").split(/\s+/).filter(Boolean).length;
+    }
+  }
+  return `${Math.max(1, Math.round(words / 220))} min read`;
+}
+
+function parseBlogDate(dateStr) {
+  if (!dateStr) return 0;
+  const t = Date.parse(dateStr);
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** Normalise any post (static or API) so public components always receive the same shape. */
+export function normalizeBlogPost(raw) {
+  if (!raw) return null;
+  const body = Array.isArray(raw.body) ? raw.body : [];
+  return {
+    ...raw,
+    slug: String(raw.slug || "").trim(),
+    title: String(raw.title || "").trim(),
+    excerpt: String(raw.excerpt || "").trim(),
+    category: String(raw.category || "UK Law").trim(),
+    image: String(raw.image || "").trim(),
+    author: String(raw.author || "CivicSign Editorial").trim(),
+    date: raw.date || "",
+    readTime: raw.readTime || raw.read_time || estimateReadTime(body),
+    body,
+  };
+}
+
+export function sortPostsByDateDesc(posts) {
+  return [...posts].sort((a, b) => parseBlogDate(b.date) - parseBlogDate(a.date));
+}
+
+export const getPost = (slug) => normalizeBlogPost(POSTS.find((p) => p.slug === slug));
 
 /** Merge API payload over static fallback so new bundled posts work before DB seed. */
 export function mergeStaticPost(slug, apiPost) {
   const fallback = getPost(slug);
   if (!apiPost) return fallback ?? null;
-  if (!fallback) return apiPost;
+  if (!fallback) return normalizeBlogPost(apiPost);
   const body = Array.isArray(apiPost.body) && apiPost.body.length > 0 ? apiPost.body : fallback.body;
-  return {
+  return normalizeBlogPost({
     ...fallback,
     ...apiPost,
     slug: apiPost.slug || fallback.slug,
@@ -672,31 +714,49 @@ export function mergeStaticPost(slug, apiPost) {
     date: apiPost.date || fallback.date,
     readTime: apiPost.readTime || apiPost.read_time || fallback.readTime,
     body,
-  };
+  });
 }
 
 export const getRelatedPosts = (slug, limit = 2, posts = POSTS) => {
   const current = posts.find((p) => p.slug === slug);
   if (!current) return [];
-  return posts
-    .filter((p) => p.slug !== slug)
-    .sort((a, b) => (a.category === current.category ? -1 : 1) - (b.category === current.category ? -1 : 1))
+  return sortPostsByDateDesc(
+    posts.filter((p) => p.slug !== slug),
+  )
+    .sort((a, b) => {
+      const aMatch = a.category === current.category ? 1 : 0;
+      const bMatch = b.category === current.category ? 1 : 0;
+      return bMatch - aMatch;
+    })
     .slice(0, limit);
 };
 
-// API-merged list: returns static posts with admin-created posts overlaid.
-// Used by the public /blog and /blog/:slug pages.
+// API-merged list: static fallbacks + staff-published posts, newest first.
 export async function fetchAllPosts() {
   try {
     const { data } = await api.get("/blog/posts");
     const apiBySlug = new Map(data.map((p) => [p.slug, p]));
-    const merged = [...POSTS.map((p) => mergeStaticPost(p.slug, apiBySlug.get(p.slug)) || p)];
+    const seen = new Set();
+    const merged = [];
+
     for (const p of data) {
-      if (!merged.find((x) => x.slug === p.slug)) merged.unshift(mergeStaticPost(p.slug, p) || p);
+      const post = normalizeBlogPost(mergeStaticPost(p.slug, p) || p);
+      if (post?.slug && !seen.has(post.slug)) {
+        seen.add(post.slug);
+        merged.push(post);
+      }
     }
-    return merged;
+    for (const p of POSTS) {
+      if (seen.has(p.slug)) continue;
+      const post = normalizeBlogPost(mergeStaticPost(p.slug, apiBySlug.get(p.slug)) || p);
+      if (post?.slug) {
+        seen.add(post.slug);
+        merged.push(post);
+      }
+    }
+    return sortPostsByDateDesc(merged);
   } catch {
-    return POSTS;
+    return sortPostsByDateDesc(POSTS.map((p) => normalizeBlogPost(p)));
   }
 }
 
@@ -704,7 +764,7 @@ export async function fetchPost(slug) {
   const fallback = getPost(slug);
   try {
     const { data } = await api.get(`/blog/posts/${slug}`);
-    return mergeStaticPost(slug, data) || fallback || null;
+    return normalizeBlogPost(mergeStaticPost(slug, data) || fallback) || null;
   } catch {
     return fallback ?? null;
   }

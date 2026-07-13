@@ -1,5 +1,7 @@
 /** Plan feature flags, mirrors backend plan_features.py */
 
+import { BUSINESS_MONTHLY_DOCS, FREE_MONTHLY_DOCS } from "@/lib/pricing";
+
 const PLAN_RANK = { free: 0, pro: 1, business: 2 };
 
 /** Minimum plan required to use each feature (matches backend _BUSINESS_ONLY + pro flags). */
@@ -21,7 +23,7 @@ export const FEATURE_MIN_PLAN = {
 
 const DEFAULT_FEATURES = {
   plan: "free",
-  monthly_quota: 2,
+  monthly_quota: FREE_MONTHLY_DOCS,
   max_recipients: 2,
   manage_pdf: false,
   ses_signatures: false,
@@ -42,7 +44,7 @@ const DEFAULT_FEATURES = {
 /** Full Business tier — organisation contract accounts receive the same feature set. */
 const BUSINESS_FEATURES = {
   plan: "business",
-  monthly_quota: 600,
+  monthly_quota: BUSINESS_MONTHLY_DOCS,
   max_recipients: null,
   manage_pdf: true,
   ses_signatures: true,
@@ -64,14 +66,16 @@ export function resolvePlanFeatures(user) {
   if (user?.role === "admin" || user?.role === "staff") {
     return { ...BUSINESS_FEATURES, plan: "business", internal_team: true };
   }
-  const base = { ...DEFAULT_FEATURES, ...(user?.plan_features || {}) };
+  const apiFeatures = user?.plan_features || {};
   if (user?.org_id) {
     const isOwner = user.org_role === "owner";
+    // Organisation accounts get Business-tier tools by default; API plan_features
+    // (incl. org_feature_flags) overrides per member — e.g. manage_pdf off for one seat.
+    const orgFeats = { ...BUSINESS_FEATURES, ...apiFeatures };
     return {
-      ...base,
-      ...BUSINESS_FEATURES,
+      ...orgFeats,
       organisation_plan: true,
-      api_webhooks: isOwner,
+      api_webhooks: isOwner && !!orgFeats.api_webhooks,
       ...(isOwner
         ? {
             pricing_note:
@@ -80,7 +84,7 @@ export function resolvePlanFeatures(user) {
         : {}),
     };
   }
-  return base;
+  return { ...DEFAULT_FEATURES, ...apiFeatures };
 }
 
 export function planRank(plan) {

@@ -15,16 +15,44 @@ export const CookieBanner = () => {
   };
   if (!show) return null;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4" data-testid="cookie-banner">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-ink-solid)] p-4 text-white shadow-2xl sm:flex-row">
-        <Cookie className="h-6 w-6 shrink-0" style={{ color: "#7fe9dd" }} />
-        <p className="flex-1 text-sm text-white/85">
-          We use cookies to keep you signed in and to improve CivicSign. See our{" "}
-          <Link to="/legal/cookies" className="underline" style={{ color: "#7fe9dd" }}>Cookie Policy</Link>.
-        </p>
-        <div className="flex gap-2">
-          <Button variant="ghost" className="text-white hover:bg-white/10" onClick={() => accept("essential")} data-testid="cookie-essential-button">Essential only</Button>
-          <Button onClick={() => accept("all")} data-testid="cookie-accept-button" style={{ background: "var(--c-primary)", color: "#fff" }}>Accept all</Button>
+    <div className="fixed inset-x-0 bottom-0 z-50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] safe-right sm:p-4" data-testid="cookie-banner">
+      <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-4 shadow-[0_20px_48px_rgba(18,33,32,.16)] sm:flex-row sm:items-center">
+        <div className="flex items-start gap-3 sm:flex-1">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "var(--c-primary)", color: "#fff" }}
+          >
+            <Cookie className="h-5 w-5" />
+          </span>
+          <p className="text-sm leading-relaxed text-[var(--c-muted-fg)]">
+            We use essential cookies to keep you signed in and optional cookies to improve CivicSign.
+            Read our{" "}
+            <Link to="/legal/cookies" className="font-semibold text-[var(--c-primary)] hover:underline">
+              Cookie Policy
+            </Link>{" "}
+            and{" "}
+            <Link to="/legal/privacy" className="font-semibold text-[var(--c-primary)] hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2 sm:flex-col lg:flex-row">
+          <Button
+            variant="outline"
+            className="border-[var(--c-border)] text-[var(--c-ink)]"
+            onClick={() => accept("essential")}
+            data-testid="cookie-essential-button"
+          >
+            Essential only
+          </Button>
+          <Button
+            onClick={() => accept("all")}
+            data-testid="cookie-accept-button"
+            style={{ background: "var(--c-primary)", color: "#fff" }}
+          >
+            Accept all
+          </Button>
         </div>
       </div>
     </div>

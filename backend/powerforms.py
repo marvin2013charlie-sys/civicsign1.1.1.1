@@ -35,7 +35,8 @@ class PublicFormSubmit(BaseModel):
 
 
 def _slug() -> str:
-    return secrets.token_urlsafe(8).replace("-", "").replace("_", "")[:10]
+    # ~128 bits of entropy — resist guessing/enumeration on public form URLs.
+    return secrets.token_urlsafe(16).replace("-", "").replace("_", "")
 
 
 async def _get_template_by_slug(slug: str) -> tuple[dict, dict]:

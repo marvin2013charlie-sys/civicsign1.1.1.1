@@ -4,12 +4,14 @@ import {
   Stethoscope, FileSignature, ScrollText, ClipboardList, UserCheck, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function Healthcare() {
   return (
     <SolutionPageLayout
       testidSlug="healthcare"
+      solutionPath="/solutions/healthcare"
       industry="Solutions · Healthcare & Care Providers"
       IndustryIcon={HeartPulse}
       headline={<>Consent forms and care plans, <BrandAccent>signed without the paperwork risk.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function Healthcare() {
         { icon: ShieldCheck, title: "Confidentiality undertakings", body: "Patient confidentiality acknowledgements for locums, students and visiting clinicians." },
       ]}
       ctaHeadline="Ready to stop chasing consent forms across reception?"
-      ctaSubhead="Send your first patient consent today. Free for 2 documents a month, UK GDPR strict, NHS DSPT aligned."
+      ctaSubhead={`Send your first patient consent today. ${formatFreePlanSignupPitch({ includeNoCard: false })}, UK GDPR strict, NHS DSPT aligned.`}
       ctaButton="Start free for care providers"
     />
   );

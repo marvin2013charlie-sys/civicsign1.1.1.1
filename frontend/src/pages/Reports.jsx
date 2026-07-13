@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { envelopeFilterPath, envelopeStatusToDashboardFilter } from "@/lib/envelopeFilters";
 import { AppShell } from "@/components/AppShell";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -8,30 +10,40 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
-  Files, Clock, CheckCircle2, TrendingUp, Send, Eye, XCircle, FileWarning,
+  Files, Send, Eye, XCircle, FileWarning, FilePlus2, BarChart3, CheckCircle2,
 } from "lucide-react";
 
-const StatCard = ({ icon: Icon, label, value, accent }) => (
-  <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid={`report-kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">{label}</span>
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: accent + "22" }}>
-        <Icon className="h-4 w-4" style={{ color: accent }} />
-      </span>
-    </div>
-    <p className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">{value}</p>
-  </div>
-);
+const StatCard = ({ emoji, bg, label, value, sub, onClick, testId, hint }) => {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      data-testid={testId}
+      aria-label={onClick ? hint || label : undefined}
+      title={onClick ? hint || label : undefined}
+      className={`cs-portal-surface-card rounded-2xl p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg ${onClick ? "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink-solid)]" : ""}`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-[1px] text-[var(--c-muted-fg)]">{label}</span>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-sm" style={{ background: bg }}>{emoji}</span>
+      </div>
+      <p className="mt-2 font-heading text-3xl font-bold tracking-[-0.02em] text-[var(--c-ink)]">{value}</p>
+      {sub && <p className="mt-1 text-[11.5px] font-medium text-[var(--c-muted-fg)]">{sub}</p>}
+    </Tag>
+  );
+};
 
 const STATUS_META = [
-  { key: "draft", label: "Draft", icon: FileWarning, color: "#B45309" },
-  { key: "sent", label: "Sent", icon: Send, color: "#0284C7" },
-  { key: "viewed", label: "Viewed", icon: Eye, color: "#6366F1" },
-  { key: "completed", label: "Completed", icon: CheckCircle2, color: "#16A34A" },
-  { key: "declined", label: "Declined", icon: XCircle, color: "#DC2626" },
+  { key: "draft", label: "Draft", icon: FileWarning, color: "#B45309", bg: "var(--badge-coral-bg)" },
+  { key: "sent", label: "Sent", icon: Send, color: "#0284C7", bg: "var(--badge-info-bg)" },
+  { key: "viewed", label: "Viewed", icon: Eye, color: "#6366F1", bg: "var(--badge-info-bg)" },
+  { key: "completed", label: "Completed", icon: CheckCircle2, color: "#16A34A", bg: "var(--badge-success-bg)" },
+  { key: "declined", label: "Declined", icon: XCircle, color: "#DC2626", bg: "var(--badge-coral-bg)" },
 ];
 
 export default function Reports() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
@@ -53,26 +65,73 @@ export default function Reports() {
     .filter((d) => d.value > 0) : [];
 
   return (
-    <AppShell title="Reports">
+    <AppShell>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div
+            style={{ fontFamily: "'Caveat', cursive", fontSize: "24px", fontWeight: 600, color: "var(--c-primary-hover)" }}
+          >
+            Insights
+          </div>
+          <h2 className="mt-0.5 font-heading text-3xl font-bold tracking-[-0.02em] text-[var(--c-ink)]">
+            Reports
+            <span style={{ color: "var(--c-accent)" }}>.</span>
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-[var(--c-muted-fg)]">
+            Track envelopes sent, completion rate, and status mix across your workspace.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/new")}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-[13px] font-semibold text-white transition-all hover:-translate-y-px"
+          style={{ background: "var(--c-ink-solid)", boxShadow: "0 4px 14px rgba(18,33,32,.16)" }}
+        >
+          <FilePlus2 className="h-4 w-4" />
+          <span className="hidden sm:inline">New envelope</span>
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {loading || !stats ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
         ) : (
           <>
-            <StatCard icon={Files} label="Total" value={stats.total} accent="#14B8A6" />
-            <StatCard icon={Clock} label="Awaiting" value={stats.pending} accent="#0284C7" />
-            <StatCard icon={CheckCircle2} label="Completed" value={stats.counts.completed} accent="#16A34A" />
-            <StatCard icon={TrendingUp} label="Completion" value={`${stats.completion_rate}%`} accent="#FF7A5C" />
+            <StatCard
+              emoji="📤" bg="var(--badge-teal-bg)" label="Sent" value={stats.total} sub="envelopes sent for signature"
+              onClick={() => navigate(envelopeFilterPath("all"))} testId="report-kpi-sent" hint="View all envelopes on dashboard"
+            />
+            <StatCard
+              emoji="⏳" bg="var(--badge-info-bg)" label="Awaiting" value={stats.pending} sub="pending signature"
+              onClick={() => navigate(envelopeFilterPath("awaiting"))} testId="report-kpi-awaiting" hint="View awaiting envelopes on dashboard"
+            />
+            <StatCard
+              emoji="✅" bg="var(--badge-success-bg)" label="Completed" value={stats.counts.completed} sub={`of ${stats.total} sent`}
+              onClick={() => navigate(envelopeFilterPath("completed"))} testId="report-kpi-completed" hint="View completed envelopes on dashboard"
+            />
+            <StatCard
+              emoji="📈" bg="var(--badge-coral-bg)" label="Completion" value={`${stats.completion_rate}%`} sub="completed ÷ sent"
+              onClick={() => navigate(envelopeFilterPath("completed"))} testId="report-kpi-completion" hint="View completed envelopes on dashboard"
+            />
           </>
         )}
       </div>
 
       {!loading && stats && (
-        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5 lg:col-span-2" data-testid="report-trend-chart">
-            <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes created · last 7 days</p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:items-stretch">
+          <button
+            type="button"
+            onClick={() => navigate(envelopeFilterPath("all"))}
+            className="cs-portal-surface-card w-full cursor-pointer rounded-2xl p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink-solid)]"
+            data-testid="report-trend-chart"
+            title="View all envelopes on dashboard"
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+              <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">Envelopes sent · last 7 days</p>
+            </div>
             {stats.total > 0 ? (
-              <div className="mt-3 h-64">
+              <div className="mt-3 h-64 pointer-events-none">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={stats.series} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                     <defs>
@@ -89,12 +148,15 @@ export default function Reports() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-[var(--c-muted-fg)]">Send your first document to see trends.</p>
+              <div className="mt-8 flex flex-col items-center py-8 text-center">
+                <Files className="h-10 w-10 text-[var(--c-muted-fg)]" />
+                <p className="mt-3 text-sm text-[var(--c-muted-fg)]">Send your first document to see trends.</p>
+              </div>
             )}
-          </div>
+          </button>
 
-          <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="report-status-breakdown">
-            <p className="text-sm font-semibold text-[var(--c-ink)]">Status breakdown</p>
+          <div className="cs-portal-surface-card rounded-2xl p-5" data-testid="report-status-breakdown">
+            <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">Status breakdown</p>
             {pieData.length > 0 ? (
               <div className="mt-3 h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -108,27 +170,43 @@ export default function Reports() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-[var(--c-muted-fg)]">No envelopes yet. Send one to see the status mix.</p>
+              <p className="mt-8 text-center text-sm text-[var(--c-muted-fg)]">No envelopes yet.</p>
             )}
           </div>
         </div>
       )}
 
       {!loading && stats && (
-        <div className="mt-4 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="report-status-rows">
-          <p className="text-sm font-semibold text-[var(--c-ink)]">By status</p>
-          <div className="mt-3 divide-y divide-[var(--c-border)]">
-            {STATUS_META.map((m) => (
-              <div key={m.key} className="flex items-center justify-between py-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-md" style={{ background: m.color + "22" }}>
-                    <m.icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+        <div className="cs-portal-surface-card mt-4 overflow-hidden rounded-2xl" data-testid="report-status-rows">
+          <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
+            <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">By status</h3>
+          </div>
+          <div className="divide-y divide-[var(--c-border)] px-5">
+            {STATUS_META.map((m) => {
+              const count = stats.counts[m.key] || 0;
+              const filter = envelopeStatusToDashboardFilter(m.key);
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => navigate(envelopeFilterPath(filter))}
+                  disabled={count === 0}
+                  data-testid={`report-status-row-${m.key}`}
+                  title={count > 0 ? `View ${m.label.toLowerCase()} envelopes on dashboard` : undefined}
+                  className="flex w-full items-center justify-between py-3.5 text-left transition-colors hover:bg-[var(--c-paper-2)] disabled:cursor-default disabled:opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ background: m.bg }}>
+                      <m.icon className="h-4 w-4" style={{ color: m.color }} />
+                    </span>
+                    <span className="text-sm font-medium text-[var(--c-ink)]">{m.label}</span>
+                  </div>
+                  <span className="rounded-full bg-[var(--c-paper-2)] px-2.5 py-0.5 font-heading text-base font-bold text-[var(--c-ink)]">
+                    {count}
                   </span>
-                  <span className="text-sm font-medium text-[var(--c-ink)]">{m.label}</span>
-                </div>
-                <span className="font-heading text-base font-bold text-[var(--c-ink)]">{stats.counts[m.key] || 0}</span>
-              </div>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

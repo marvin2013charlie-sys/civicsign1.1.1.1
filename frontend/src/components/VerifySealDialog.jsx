@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export const POST_SIGN_EDIT_WARNING =
   + "Re-saving or changing the file can shift text alignment, reflow layouts, and break the tamper-evident seal.";
 
 export function VerifySealDialog({ open, onOpenChange, envelopeId, docHash, onSealUpdated }) {
-  const fileInputId = useId();
+  const fileInputRef = useRef(null);
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState(null);
 
@@ -126,7 +126,7 @@ export function VerifySealDialog({ open, onOpenChange, envelopeId, docHash, onSe
             Verify stored copy
           </Button>
           <input
-            id={fileInputId}
+            ref={fileInputRef}
             type="file"
             accept="application/pdf,.pdf"
             className="sr-only"
@@ -137,7 +137,7 @@ export function VerifySealDialog({ open, onOpenChange, envelopeId, docHash, onSe
           <Button
             type="button"
             variant="outline"
-            asChild={!verifying}
+            onClick={() => fileInputRef.current?.click()}
             disabled={verifying}
             data-testid="verify-seal-upload-btn"
           >
@@ -147,10 +147,10 @@ export function VerifySealDialog({ open, onOpenChange, envelopeId, docHash, onSe
                 Upload PDF to verify
               </>
             ) : (
-              <label htmlFor={fileInputId} className="inline-flex cursor-pointer items-center">
+              <>
                 <Upload className="mr-1.5 h-4 w-4" />
                 Upload PDF to verify
-              </label>
+              </>
             )}
           </Button>
         </DialogFooter>

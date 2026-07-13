@@ -4,12 +4,14 @@ import {
   HandHeart, FileSignature, ScrollText, UserPlus, Banknote, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanFirstDocs } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function Charities() {
   return (
     <SolutionPageLayout
       testidSlug="charities"
+      solutionPath="/solutions/charities"
       industry="Solutions · Charities & Non-profits"
       IndustryIcon={Heart}
       headline={<>Gift Aid and trustee consents, <BrandAccent>signed before enthusiasm fades.</BrandAccent></>}
@@ -37,7 +39,7 @@ export default function Charities() {
         body: "HMRC's detailed guidance on Gift Aid (Chapter 3) confirms declarations can be made electronically, by tick-box, email or signed form, provided you retain the donor's name, address, gift details and the required confirmation. CivicSign captures all of it with a sealed audit trail. Your HMRC compliance review goes from a panic to a printout.",
       }}
       docsHeadline="Every charity document, signed in minutes"
-      docsSubhead="From trustee meetings to volunteer onboarding, paperless, audited and free for your first 2 documents a month."
+      docsSubhead={`From trustee meetings to volunteer onboarding, paperless, audited and free for ${formatFreePlanFirstDocs()}.`}
       docs={[
         { icon: Banknote, title: "Gift Aid declarations and sponsorship forms", body: "Capture donor name, address, gift details and the HMRC-required confirmation, at the door or via fundraising emails." },
         { icon: HandHeart, title: "Volunteer agreements and DBS undertakings", body: "Onboard volunteers with role descriptions, expectations and safeguarding undertakings signed before their first shift." },
@@ -47,7 +49,7 @@ export default function Charities() {
         { icon: ShieldCheck, title: "Data-sharing agreements", body: "Sign joint-working and data-sharing agreements with partner charities, UK GDPR Article 28 compliant." },
       ]}
       ctaHeadline="Ready to put more of every pound into your cause?"
-      ctaSubhead="Free forever for your first 2 documents a month, no card required, UK GDPR by default. Discounts for registered charities on paid plans."
+      ctaSubhead={`Free forever for ${formatFreePlanFirstDocs()}, no card required, UK GDPR by default. Discounts for registered charities on paid plans.`}
       ctaButton="Start free for your charity"
     />
   );

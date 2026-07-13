@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AdminPageIntro, AdminStatCard, AdminSurfaceCard, AdminEmptyState, AdminCallout,
+} from "@/components/portal/AdminPrimitives";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getAppOrigin } from "@/lib/appOrigin";
 import {
@@ -542,39 +545,74 @@ export default function AdminOrganizations() {
     }
   };
 
+  const totalMembers = orgs.reduce((sum, o) => sum + (o.member_count || 0), 0);
+  const withContract = orgs.filter((o) => o.has_contract).length;
+
   return (
     <div data-testid="admin-organizations" className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Organisations</h1>
-          <p className="mt-0.5 max-w-xl text-sm text-[var(--c-muted-fg)]">
-            Shared document pools for enterprise clients. Each organisation gets an owner login (email + temp password) who can add team accounts from Settings.
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} data-testid="org-create-button"
-          style={{ background: "var(--c-primary)", color: "#fff" }}>
-          <Plus className="mr-1.5 h-4 w-4" /> New organisation
-        </Button>
-      </div>
+      <AdminPageIntro
+        caveat="Enterprise"
+        title="Organisations"
+        subtitle="Shared document pools for enterprise clients. Each organisation gets an owner login (email + temp password) who invites team members by email from Organisation → Team."
+        actions={(
+          <Button onClick={() => setCreateOpen(true)} data-testid="org-create-button"
+            style={{ background: "var(--c-primary)", color: "#fff" }}>
+            <Plus className="mr-1.5 h-4 w-4" /> New organisation
+          </Button>
+        )}
+      />
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" data-testid="org-explainer">
-        <p className="font-semibold">How this protects you (bank example)</p>
-        <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
+      <AdminCallout tone="warning" testId="org-explainer">
+        <p className="font-semibold text-[var(--c-ink)]">How this protects you (bank example)</p>
+        <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-[var(--c-muted-fg)]">
           <li>Create one org with an owner email + temp password. Set monthly limits per contract (custom pools for each organisation).</li>
           <li>The owner adds branch logins from Settings → Organisation team.</li>
           <li>All logins share one pool. No single account can consume &quot;unlimited&quot; alone.</li>
         </ul>
+      </AdminCallout>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <AdminStatCard
+          icon={Building2}
+          label="Organisations"
+          value={loading ? "…" : orgs.length}
+          tone="teal"
+          testId="org-stat-total"
+        />
+        <AdminStatCard
+          icon={Users}
+          label="Total members"
+          value={loading ? "…" : totalMembers}
+          tone="info"
+          testId="org-stat-members"
+        />
+        <AdminStatCard
+          icon={FileText}
+          label="Contracts on file"
+          value={loading ? "…" : withContract}
+          tone="success"
+          sub={!loading && orgs.length > 0 ? `${orgs.length - withContract} missing` : undefined}
+          subColor={!loading && orgs.length - withContract > 0 ? "#B45309" : undefined}
+          testId="org-stat-contracts"
+        />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
+      <AdminSurfaceCard className="overflow-hidden" flush>
         {loading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 4 }, (_, i) => <Skeleton key={`orgs-skel-${i}`} className="h-16 w-full" />)}
           </div>
         ) : orgs.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">
-            No organisations yet. Create one for your first enterprise client.
-          </div>
+          <AdminEmptyState
+            icon={Building2}
+            title="No organisations yet"
+            description="Create one for your first enterprise client with a shared document pool."
+            action={(
+              <Button onClick={() => setCreateOpen(true)} data-testid="org-empty-create" style={{ background: "var(--c-primary)", color: "#fff" }}>
+                <Plus className="mr-1.5 h-4 w-4" /> New organisation
+              </Button>
+            )}
+          />
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             {orgs.map((org) => (
@@ -649,10 +687,10 @@ export default function AdminOrganizations() {
             ))}
           </div>
         )}
-      </div>
+      </AdminSurfaceCard>
 
       {(detail || detailLoading) && (
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="org-detail-panel">
+        <AdminSurfaceCard testId="org-detail-panel">
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Organisation details</h2>
           {detailLoading ? (
             <Skeleton className="mt-3 h-24 w-full" />
@@ -689,7 +727,7 @@ export default function AdminOrganizations() {
               <Button variant="ghost" size="sm" className="mt-3" onClick={() => setDetail(null)}>Close</Button>
             </>
           ) : null}
-        </div>
+        </AdminSurfaceCard>
       )}
 
       <OrgContractDialog

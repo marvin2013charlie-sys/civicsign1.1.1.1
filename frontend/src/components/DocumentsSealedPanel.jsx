@@ -1,4 +1,6 @@
-import React, { useId, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ENVELOPE_PAGE_SIZE } from "@/lib/envelopes";
+import { ListPagination, paginateItems } from "@/components/ListPagination";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
@@ -6,6 +8,9 @@ import { VerifySealDialog, POST_SIGN_EDIT_WARNING } from "@/components/VerifySea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   ShieldCheck, Search, Upload, Loader2, CheckCircle2, XCircle, HelpCircle,
   ExternalLink, AlertTriangle, Fingerprint,
@@ -31,15 +36,26 @@ function SealStatusBadge({ verification }) {
   );
 }
 
+function sealStatusKey(verification) {
+  if (!verification?.status) return "not_checked";
+  return verification.status;
+}
+
 export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
   const navigate = useNavigate();
-  const lookupInputId = useId();
+  const lookupInputRef = useRef(null);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState(null);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
   const [verifyTarget, setVerifyTarget] = useState(null);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter]);
 
   const completed = useMemo(
     () => (envelopes || []).filter((e) => e.status === "completed" && e.doc_hash),
@@ -48,13 +64,20 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return completed;
-    return completed.filter((e) =>
-      (e.title || "").toLowerCase().includes(q)
-      || (e.envelope_id || "").toLowerCase().includes(q)
-      || (e.doc_hash || "").toLowerCase().includes(q),
-    );
-  }, [completed, query]);
+    return completed.filter((e) => {
+      const okQ = !q
+        || (e.title || "").toLowerCase().includes(q)
+        || (e.envelope_id || "").toLowerCase().includes(q)
+        || (e.doc_hash || "").toLowerCase().includes(q);
+      const okS = statusFilter === "all" || sealStatusKey(e.seal_verification) === statusFilter;
+      return okQ && okS;
+    });
+  }, [completed, query, statusFilter]);
+
+  const paged = useMemo(
+    () => paginateItems(filtered, page, ENVELOPE_PAGE_SIZE),
+    [filtered, page],
+  );
 
   const onLookup = async (e) => {
     const file = e.target.files?.[0];
@@ -127,13 +150,14 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
   const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 
   return (
-    <div data-testid="documents-sealed-panel">
-      <p className="text-sm text-[var(--c-muted-fg)]">
-        Every completed document in your portal gets a SHA-256 tamper-evident seal. Verify any signed
-        document here — whether you have one envelope or thousands, all checks use your own stored copies.
-      </p>
+    <div data-testid="documents-sealed-panel" className="space-y-4">
+      <div className="cs-portal-surface-card rounded-2xl border-l-4 px-4 py-3.5" style={{ borderLeftColor: "var(--c-primary)" }}>
+        <p className="text-sm leading-relaxed text-[var(--c-ink)]">
+          Every completed document gets a <strong>SHA-256 tamper-evident seal</strong>. Verify any signed PDF here using your stored copies.
+        </p>
+      </div>
 
-      <div className="mt-5 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="verify-lookup-card">
+      <div className="cs-portal-surface-card rounded-2xl p-5" data-testid="verify-lookup-card">
         <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
           <Upload className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
           Find a document in your account
@@ -144,7 +168,7 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <input
-            id={lookupInputId}
+            ref={lookupInputRef}
             type="file"
             accept="application/pdf,.pdf"
             className="sr-only"
@@ -154,7 +178,7 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
           />
           <Button
             type="button"
-            asChild={!lookupLoading}
+            onClick={() => lookupInputRef.current?.click()}
             disabled={lookupLoading}
             data-testid="verify-lookup-upload-btn"
             style={{ background: "var(--c-primary)", color: "#fff" }}
@@ -165,10 +189,10 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
                 Upload PDF to find & verify
               </>
             ) : (
-              <label htmlFor={lookupInputId} className="inline-flex cursor-pointer items-center">
+              <>
                 <Upload className="mr-1.5 h-4 w-4" />
                 Upload PDF to find & verify
-              </label>
+              </>
             )}
           </Button>
         </div>
@@ -219,7 +243,7 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
         </p>
       </div>
 
-      <div className="mt-5 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="verify-library-card">
+      <div className="cs-portal-surface-card rounded-2xl p-5" data-testid="verify-library-card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
@@ -247,15 +271,28 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
           </Button>
         </div>
 
-        <div className="relative mt-4">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by title, envelope ID, or hash…"
-            className="pl-9"
-            data-testid="verify-library-search"
-          />
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by title, envelope ID, or hash…"
+              className="pl-9"
+              data-testid="verify-library-search"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-44" data-testid="verify-library-status-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All seal statuses</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="mismatch">Mismatch</SelectItem>
+              <SelectItem value="not_checked">Not checked</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="mt-4 overflow-hidden rounded-lg border border-[var(--c-border)]" data-testid="verify-library-table">
@@ -266,9 +303,13 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center px-6 py-14 text-center">
               <HelpCircle className="mb-3 h-8 w-8 text-[var(--c-muted-fg)]" />
-              <p className="font-medium text-[var(--c-ink)]">No sealed documents yet</p>
+              <p className="font-medium text-[var(--c-ink)]">
+                {completed.length === 0 ? "No sealed documents yet" : "No documents match your filters"}
+              </p>
               <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">
-                When signing finishes, documents appear here with a SHA-256 seal you can verify anytime.
+                {completed.length === 0
+                  ? "When signing finishes, documents appear here with a SHA-256 seal you can verify anytime."
+                  : "Try clearing the search or seal status filter."}
               </p>
             </div>
           ) : (
@@ -280,7 +321,7 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
                 <div className="col-span-2">Status</div>
                 <div className="col-span-1" />
               </div>
-              {filtered.map((e) => (
+              {paged.map((e) => (
                 <div
                   key={e.envelope_id}
                   className="grid grid-cols-1 items-center gap-2 px-4 py-3 lg:grid-cols-12"
@@ -313,6 +354,13 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
                   </div>
                 </div>
               ))}
+              <ListPagination
+                page={page}
+                total={filtered.length}
+                pageSize={ENVELOPE_PAGE_SIZE}
+                onPageChange={setPage}
+                testId="sealed-pagination"
+              />
             </div>
           )}
         </div>

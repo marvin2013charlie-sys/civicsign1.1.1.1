@@ -24,21 +24,16 @@ test-backend:
 smoke:
 	python3 scripts/smoke_test.py
 
-smoke-cert:
-	python3 scripts/generate_smoke_certificate.py
-
-build-report:
-	python3 scripts/generate_build_report.py
-
-weekly-roadmap:
-	python3 scripts/generate_weekly_roadmap.py
-
 verify-integrations:
 	python3 scripts/verify_integrations.py
 
 test-e2e:
 	npx playwright test
 
-test-e2e-all: smoke test-e2e
+mobile-preview:
+	MOBILE_LAN_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "") node scripts/mobile-preview.mjs
+
+launch-roadmap:
+	node scripts/generate_launch_roadmap.mjs
 
 test-all: test-backend smoke build

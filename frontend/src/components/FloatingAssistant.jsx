@@ -4,20 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { AssistantMessage } from "@/components/AssistantMessage";
 
 const GREETING = {
   role: "assistant",
   content:
-    "Hi! I'm your CivicSign copilot. Ask me about sending documents, Prepare Studio, plans & pricing, templates, bulk send, or UK e-signature law.",
+    "Hi! I'm your CivicSign copilot — e-signatures and Manage PDF in one platform.\n\nAsk about sending documents, Prepare Studio, plans, or UK e-signature law.",
 };
 
 const SUGGESTIONS = [
   "How do I send a document?",
+  "What is Manage PDF?",
   "What are the plan prices?",
-  "How do I place signature fields?",
   "Are e-signatures legal in the UK?",
-  "What happens when I hit my monthly limit?",
-  "How do templates work?",
+  "Which industries do you support?",
 ];
 
 export const FloatingAssistant = () => {
@@ -72,7 +72,7 @@ export const FloatingAssistant = () => {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close assistant" : "Open assistant"}
         data-testid="floating-assistant-toggle"
-        className={`fixed ${bannerVisible ? "bottom-[190px] sm:bottom-28" : "bottom-5"} right-5 z-[300] flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-[bottom,transform] duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
+        className={`fixed ${bannerVisible ? "bottom-[calc(11.5rem+env(safe-area-inset-bottom))] sm:bottom-28" : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"} right-[max(1.25rem,env(safe-area-inset-right))] z-[300] flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-[bottom,transform] duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
         style={{ background: "var(--c-primary)", boxShadow: "0 10px 30px rgba(20,184,166,0.4)" }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
@@ -82,7 +82,7 @@ export const FloatingAssistant = () => {
       {open && (
         <div
           data-testid="floating-assistant-panel"
-          className={`fixed ${bannerVisible ? "bottom-[270px] sm:bottom-[184px] h-[min(560px,calc(100vh-290px))] sm:h-[min(560px,calc(100vh-204px))]" : "bottom-24 h-[min(560px,75vh)]"} right-5 z-[300] flex w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-2xl`}
+          className={`fixed ${bannerVisible ? "bottom-[calc(16.5rem+env(safe-area-inset-bottom))] sm:bottom-[184px] h-[min(560px,calc(100dvh-18rem))] sm:h-[min(560px,calc(100dvh-13rem))]" : "bottom-[calc(6rem+env(safe-area-inset-bottom))] h-[min(560px,calc(100dvh-8rem))]"} right-[max(1.25rem,env(safe-area-inset-right))] z-[300] flex w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] shadow-2xl`}
           style={{ animation: "cs-pop 200ms ease-out" }}
         >
           <div className="flex items-center gap-2 border-b border-[var(--c-border)] px-4 py-3" style={{ background: "var(--c-ink-solid)" }}>
@@ -103,10 +103,10 @@ export const FloatingAssistant = () => {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${m.role === "user" ? "rounded-br-sm text-white" : "rounded-bl-sm text-[var(--c-ink)]"}`}
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${m.role === "user" ? "whitespace-pre-wrap rounded-br-sm text-white" : "rounded-bl-sm text-[var(--c-ink)]"}`}
                   style={m.role === "user" ? { background: "var(--c-primary)" } : { background: "var(--c-paper-2)" }}
                 >
-                  {m.content}
+                  {m.role === "assistant" ? <AssistantMessage content={m.content} /> : m.content}
                 </div>
               </div>
             ))}

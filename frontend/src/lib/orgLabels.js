@@ -20,7 +20,7 @@ export const ORG_STAFF_ESCALATION_NOTE =
   "Contact your organisation admin first. They manage your account and can escalate to CivicSign if needed.";
 
 export const ORG_STAFF_LIMIT_MESSAGE =
-  "You've reached your monthly allowance. Contact your organisation admin if you need more capacity.";
+  "You've reached your allowance for this billing period. Contact your organisation admin if you need more capacity.";
 
 export const ORG_STAFF_SEND_BLOCKED =
   "You cannot send more documents right now. Contact your organisation admin — they can resolve this with CivicSign if needed.";

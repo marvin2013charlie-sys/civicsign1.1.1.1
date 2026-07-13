@@ -192,6 +192,17 @@ def trust_proxy() -> bool:
     return os.environ.get("TRUST_PROXY", "").lower() in ("1", "true", "yes")
 
 
+def assert_document_encryption_key() -> None:
+    """Production must use a dedicated document encryption key, not JWT derivation."""
+    if is_dev_mode():
+        return
+    if not (os.environ.get("DOCUMENT_ENCRYPTION_KEY") or "").strip():
+        raise RuntimeError(
+            "DOCUMENT_ENCRYPTION_KEY must be set in production "
+            "(generate with: python -c \"import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())\")"
+        )
+
+
 def assert_safe_production() -> None:
     """Refuse to start with DEV_MODE enabled outside local development."""
     if not is_dev_mode():

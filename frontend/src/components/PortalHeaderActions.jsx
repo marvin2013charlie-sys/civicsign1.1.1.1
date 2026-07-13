@@ -14,7 +14,12 @@ export function PortalHeaderActions({
   className,
 }) {
   return (
-    <div className={cn("cs-portal-header-actions flex items-center gap-0.5", className)}>
+    <div
+      className={cn(
+        "cs-portal-header-actions inline-flex items-center rounded-xl border border-[var(--c-border)] bg-[var(--c-portal-card)] p-0.5 shadow-sm",
+        className,
+      )}
+    >
       {onReplayTour ? (
         <Button
           type="button"
@@ -23,26 +28,28 @@ export function PortalHeaderActions({
           onClick={onReplayTour}
           data-testid={tourReplayTestId}
           title="Product tour"
-          className="h-10 w-10 rounded-xl text-[var(--c-muted-fg)] hover:border hover:border-[var(--c-border)] hover:bg-[var(--card)] hover:text-[var(--c-ink)]"
+          className="h-8 w-8 rounded-lg text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]"
         >
-          <Compass className="h-[1.15rem] w-[1.15rem]" />
+          <Compass className="h-4 w-4" />
         </Button>
       ) : null}
+      {onReplayTour ? <span className="mx-0.5 h-4 w-px bg-[var(--c-border)]" aria-hidden /> : null}
       <NavLink
         to={settingsTo}
         data-testid={settingsTestId}
         title="Settings"
         className={({ isActive }) =>
           cn(
-            "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors",
+            "inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
             isActive
-              ? "border-[var(--c-primary)] bg-[var(--badge-teal-bg)] text-[var(--c-primary)]"
-              : "border-transparent text-[var(--c-muted-fg)] hover:border-[var(--c-border)] hover:bg-[var(--card)] hover:text-[var(--c-ink)]",
+              ? "bg-[var(--badge-teal-bg)] text-[var(--c-primary)]"
+              : "text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]",
           )
         }
       >
-        <Settings className="h-[1.15rem] w-[1.15rem]" />
+        <Settings className="h-4 w-4" />
       </NavLink>
+      <span className="mx-0.5 h-4 w-px bg-[var(--c-border)]" aria-hidden />
       <Button
         type="button"
         variant="ghost"
@@ -50,9 +57,9 @@ export function PortalHeaderActions({
         onClick={onLogout}
         data-testid={logoutTestId}
         title="Sign out"
-        className="h-10 w-10 rounded-xl text-[var(--c-muted-fg)] hover:border hover:border-[var(--c-border)] hover:bg-[var(--card)] hover:text-[var(--c-ink)]"
+        className="h-8 w-8 rounded-lg text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]"
       >
-        <LogOut className="h-[1.15rem] w-[1.15rem]" />
+        <LogOut className="h-4 w-4" />
       </Button>
     </div>
   );

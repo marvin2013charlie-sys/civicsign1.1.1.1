@@ -4,12 +4,14 @@ import {
   Gavel, FileSignature, ScrollText, BookOpen, Users, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function Legal() {
   return (
     <SolutionPageLayout
       testidSlug="legal"
+      solutionPath="/solutions/legal"
       industry="Solutions · Legal & Solicitors"
       IndustryIcon={Scale}
       headline={<>Sign engagement letters and deeds <BrandAccent>without breaking client privilege.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function Legal() {
         { icon: ShieldCheck, title: "AML and KYC declarations", body: "Capture source-of-funds declarations and PEP checks with timestamped IP, defensible under MLR 2017." },
       ]}
       ctaHeadline="Ready to take the post run off your trainee's desk?"
-      ctaSubhead="Start sending engagement letters today. Free for 2 documents a month, no card required, UK GDPR compliant from day one."
+      ctaSubhead={`Start sending engagement letters today. ${formatFreePlanSignupPitch()}, UK GDPR compliant from day one.`}
       ctaButton="Start free for legal teams"
     />
   );

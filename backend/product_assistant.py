@@ -23,7 +23,7 @@ except ImportError:
 try:
     from plan_features import PLAN_MONTHLY_QUOTA
 except ImportError:
-    PLAN_MONTHLY_QUOTA = {"free": 2, "pro": 100, "business": 500}
+    PLAN_MONTHLY_QUOTA = {"free": 2, "pro": 100, "business": 600}
 
 
 def _extra_doc_label() -> str:
@@ -38,8 +38,8 @@ def _extra_doc_label() -> str:
 EXTRA_DOC_LABEL = _extra_doc_label()
 
 PRODUCT_GREETING = (
-    "Hi! I'm your CivicSign copilot. I can walk you through sending documents, "
-    "Prepare Studio, templates, plans & billing, bulk send, and UK e-signature law."
+    "Hi! I'm your CivicSign copilot — e-signatures and Manage PDF in one platform.\n\n"
+    "Ask me about sending documents, Prepare Studio, plans, or UK e-signature law."
 )
 
 PRODUCT_FALLBACK = (
@@ -58,16 +58,16 @@ PRODUCT_SYSTEM_FACTS = (
     f"(annual: 1,200/year). "
     f"Business £{int(BUSINESS_MONTHLY_GBP)}/month — {PLAN_MONTHLY_QUOTA['business']} documents/month "
     f"(annual: {PLAN_MONTHLY_QUOTA['business'] * 12:,}/year). "
-    "Manage PDF (edit, merge, split) requires Pro or higher. "
+    "Manage PDF (edit, merge, split) is included on all paid plans (Pro, Business, Organisation); not on Free. "
     "(everything in Pro plus bulk send, API/webhooks, recipient authentication, priority support; self-serve). "
     "Organisation — custom multi-seat contracts (contact sales). "
-    f"When a user hits their monthly document limit on any self-serve plan, they can buy extra documents "
+    f"When a user hits their billing-period document limit on any self-serve plan, they can buy extra documents "
     f"for {EXTRA_DOC_LABEL} each via Settings → Subscription or the header Buy doc button (Free plan). "
     "Yearly billing: pay 10 months, get 12 (2 months free). "
     f"Support: {CONTACT_EMAIL} or Contact page. Always quote prices in pounds (£), never dollars. "
     "SIGNATURE TIERS BY PLAN: Free — electronic signatures with audit trail and SHA-256 seal (basic tier, ECA 2000). "
     "Pro — Simple Electronic Signatures (SES, UK eIDAS Art. 3(11)) by default, with Advanced Electronic Signatures "
-    "(AES, Art. 26) selectable when sending. Business — AES by default, strengthened with optional SMS/KBA recipient "
+    "(AES, Art. 26) selectable when sending. Business — AES by default, strengthened with optional postcode (KBA) recipient "
     "authentication; Qualified Electronic Signatures (QES, Art. 3(12)) available on request via a QTSP partner. "
     "Senders choose the level on Review & Send when their plan allows it."
 )
@@ -92,9 +92,9 @@ def _pricing_reply() -> str:
         f"• **Business** — **£{int(BUSINESS_MONTHLY_GBP)}/month excl. VAT** "
         f"(**£{biz_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT**), "
         f"**{PLAN_MONTHLY_QUOTA['business']} documents/month** (annual: **{PLAN_MONTHLY_QUOTA['business'] * 12:,}/year**), "
-        "everything in Pro plus bulk send, API/webhooks, recipient SMS/KBA auth, priority support\n"
+        "everything in Pro plus bulk send, API/webhooks, recipient postcode (KBA) auth, priority support\n"
         "• **Organisation** — custom multi-seat contracts (contact us)\n\n"
-        f"At your monthly limit? Buy extra documents for **{EXTRA_DOC_LABEL} excl. VAT** "
+        f"At your billing-period limit? Buy extra documents for **{EXTRA_DOC_LABEL} excl. VAT** "
         f"(**£{extra_tax['amount_inc_vat']:.2f} incl. VAT** each), or upgrade under "
         "**Settings → Subscription**. Yearly plans save 2 months."
     )
@@ -103,7 +103,7 @@ def _pricing_reply() -> str:
 def _extra_document_reply() -> str:
     extra_tax = tax_breakdown(EXTRA_DOCUMENT_PRICE_GBP)
     return (
-        f"When you've used your included documents this month, you can buy **extra documents for {EXTRA_DOC_LABEL} excl. VAT** "
+        f"When you've used your included documents for this billing period, you can buy **extra documents for {EXTRA_DOC_LABEL} excl. VAT** "
         f"(**£{extra_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT** each, one-off, no subscription change).\n\n"
         "How to buy:\n"
         "1. **Settings → Subscription** → Buy extra document(s)\n"
@@ -128,14 +128,13 @@ def _send_document_reply() -> str:
 
 def _prepare_studio_reply() -> str:
     return (
-        "Prepare Studio is where you place fields on your document:\n"
-        "• Open an envelope from Dashboard → **Prepare** (or right after upload)\n"
-        "• Drag fields from the left toolbar onto the PDF\n"
-        "• **Signature** — draw, type, or upload; **Initials**, **Date**, **Text**, **Checkbox** also available\n"
-        "• Click a field to assign it to a recipient and resize or reposition\n"
-        "• Use **Suggest fields** (AI) to auto-detect likely signature/date areas\n"
-        "• Save as you go — changes are stored before you send\n\n"
-        "Tip: place signature fields where ink would naturally go; add a Date field near signatures."
+        "Prepare Studio is where you place fields before sending.\n\n"
+        "• Dashboard → open your envelope → Prepare\n"
+        "• Drag Signature, Initials, Date, Text, or Checkbox from the left toolbar\n"
+        "• Click a field to assign it to a recipient, then resize if needed\n"
+        "• Optional: Suggest fields (AI) to auto-place signature areas\n"
+        "• Save when done — nothing is sent until you hit Send\n\n"
+        "Tip: put signatures where ink would go, with a Date field nearby."
     )
 
 
@@ -212,7 +211,7 @@ def _signature_tiers_reply() -> str:
         "Signature tiers on CivicSign:\n"
         "• **Free** — electronic signature + SHA-256 seal + audit trail (ECA 2000 basic tier)\n"
         "• **Pro** — **SES** by default; optionally choose **AES** on Review & Send\n"
-        "• **Business** — **AES** by default; optional **SMS/KBA** recipient authentication\n"
+        "• **Business** — **AES** by default; optional **postcode (KBA)** recipient authentication\n"
         "• **QES** (qualified) — on request via QTSP partner for regulated use cases\n\n"
         "Pick the tier when sending if your plan allows it. Higher tiers add stronger identity evidence."
     )
@@ -225,7 +224,7 @@ def _signer_experience_reply() -> str:
         "2. Review the document in the browser\n"
         "3. Complete assigned fields — draw, type, or upload a signature\n"
         "4. Submit — they receive a copy; you get a completion notification\n\n"
-        "Business plans can require **SMS or KBA** identity checks before signing."
+        "Business plans can require **postcode (KBA)** identity checks before signing."
     )
 
 
@@ -241,11 +240,11 @@ def _audit_trail_reply() -> str:
 
 def _api_reply() -> str:
     return (
-        "API & webhooks are available on the **Business** plan:\n"
-        "• Create and send envelopes programmatically\n"
-        "• Webhooks for status changes (sent, viewed, signed, completed)\n"
-        "• See developer docs or contact us for API keys\n\n"
-        f"Email {CONTACT_EMAIL} for integration help."
+        "API & webhooks are available on the **Business** plan (Settings → Integrations):\n"
+        "• **API keys** — `X-API-Key` header; list envelopes and poll status via `/api/v1/`\n"
+        "• **Webhooks** — HMAC-signed POSTs for sent, viewed, signed, completed, declined, voided\n"
+        "• **Test webhook** + delivery log in Settings; works with Zapier, Make, and custom HTTPS endpoints\n\n"
+        f"Email {CONTACT_EMAIL} for Salesforce/HubSpot connector help."
     )
 
 
@@ -340,6 +339,32 @@ def _word_pdf_reply() -> str:
     )
 
 
+def _manage_pdf_reply() -> str:
+    return (
+        "**Manage PDF** is included on every paid plan (Pro, Business, Organisation) — not on Free.\n\n"
+        "It's the other half of our 2-in-1 platform: prepare files, then sign without leaving CivicSign.\n\n"
+        "You can:\n"
+        "• **Edit** text, images, annotations and pages\n"
+        "• **Compress**, **watermark**, **protect** or **unlock** PDFs\n"
+        "• **Merge**, **split**, and convert **Word ↔ PDF**\n"
+        "• Run an **AI metadata** scan\n\n"
+        "Workflow: **Manage PDF** → **Save to Documents** → open in **Prepare Studio** → send for signature.\n\n"
+        "Upgrade under **Settings → Subscription** if you're on Free."
+    )
+
+
+def _solutions_reply() -> str:
+    return (
+        "CivicSign has **nine UK industry solution pages** at **/solutions**:\n\n"
+        "• **Property** — real estate, construction & trades\n"
+        "• **Professional** — legal, financial services, staffing agencies\n"
+        "• **People & care** — HR, healthcare, education\n"
+        "• **Non-profits** — charities (Gift Aid, trustees)\n\n"
+        "Each page lists typical documents, compliance notes, and workflows for that sector. "
+        "Pick your industry from the **Solutions** menu on the site."
+    )
+
+
 def _gdpr_reply() -> str:
     return (
         "CivicSign is built for UK GDPR compliance:\n"
@@ -361,6 +386,14 @@ def rule_based_product_reply(message: str) -> Optional[str]:
     if any(k in m for k in ("hello", "hi ", " hi", "hey", "good morning", "good afternoon")):
         if any(k in m for k in ("help", "start", "new", "how")) or len(m) < 20:
             return PRODUCT_GREETING
+
+    if any(k in m for k in ("manage pdf", "manage-pdf", "compress pdf", "watermark", "merge pdf", "split pdf", "edit pdf", "2-in-1", "2 in 1")):
+        return _manage_pdf_reply()
+
+    if any(k in m for k in ("solution", "industries", "industry page", "/solutions")):
+        return _solutions_reply()
+    if "industr" in m and any(k in m for k in ("which", "what", "support", "cover", "offer", "sector")):
+        return _solutions_reply()
 
     if any(k in m for k in ("extra doc", "extra document", "buy doc", "buy 1", "80p", "overage", "run out", "limit reached", "monthly limit")):
         if any(k in m for k in ("price", "cost", "how much", "buy", "extra", "limit", "quota", "run out")):
@@ -432,15 +465,16 @@ def rule_based_product_reply(message: str) -> Optional[str]:
     if any(k in m for k in ("gdpr", "privacy", "data protection", "ico")):
         return _gdpr_reply()
 
-    if any(k in m for k in ("contact", "support", "email you", "talk to", "help desk")):
+    if any(k in m for k in ("contact", "email you", "talk to", "help desk", "customer support", "reach support")):
         return _contact_reply()
 
     if any(k in m for k in ("help", "what can you", "what do you")):
         return (
             "I can help with:\n"
-            "• Sending documents & Prepare Studio\n"
+            "• Sending documents & **Prepare Studio**\n"
+            "• **Manage PDF** (2-in-1 on paid plans)\n"
             "• Plans, quotas & buying extra documents\n"
-            "• Templates, bulk send & reminders\n"
+            "• Industry solutions at **/solutions**\n"
             "• UK e-signature law & signature tiers\n"
             "• Upgrades, billing & Organisation quotes\n\n"
             "Tap a suggestion below or ask in your own words."
@@ -455,26 +489,25 @@ async def generate_product_reply(
     history: list[dict] | None = None,
     system_prompt: str,
 ) -> str:
-    """Hybrid reply: rules first for known intents, then LLM, then rules/fallback."""
-    from llm import chat_completion
+    """Hybrid reply: curated rules for known intents, then LLM, then fallback."""
+    from assistant_format import polish_reply
 
     history = history or []
     ruled = rule_based_product_reply(message)
 
-    if ruled and len(_norm(message)) < 100:
-        return ruled
+    if ruled:
+        return polish_reply(ruled)
+
+    from llm import chat_completion
 
     llm = await chat_completion(
         system=system_prompt,
         user=message,
         history=history,
-        max_tokens=360,
-        temperature=0.45,
+        max_tokens=320,
+        temperature=0.35,
     )
     if llm:
-        return llm
+        return polish_reply(llm)
 
-    if ruled:
-        return ruled
-
-    return PRODUCT_FALLBACK
+    return polish_reply(PRODUCT_FALLBACK)

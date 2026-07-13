@@ -4,7 +4,42 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scrollbar-gutter: stable;
+  overflow-x: clip;
+}
+
+/* Marketing header — pinned at top on every public page. */
+.site-header-fixed {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 200;
+  padding-top: env(safe-area-inset-top, 0px);
+  background-color: var(--c-paper);
+  border-bottom-color: var(--c-border);
+}
+
+.scroll-mt-header {
+  scroll-margin-top: var(--site-header-height, 64px);
+}
+
+.scroll-mt-header-loose {
+  scroll-margin-top: calc(var(--site-header-height, 64px) + 1rem);
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.safe-right {
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
 :root {
+  --site-header-height: 64px;
   --font-heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
 
@@ -56,6 +91,19 @@
 
   /* Card surface (opaque hex so direct `bg-[var(--card)]` works without `hsl()` wrapping) */
   --card: #FCFBF7;
+  /* Portal surfaces — Dashboard design palette (cool mint paper, white cards) */
+  --c-portal-bg: #F3F8F7;
+  --c-portal-card: #FFFFFF;
+  --c-portal-border: #E6EDEB;
+  --c-portal-muted: #F1F5F4;
+  --c-portal-hover: #F8FBFA;
+  /* Landing v3 teal + coral wash — shared by marketing, auth forms, portal & admin main */
+  --c-marketing-gradient:
+    radial-gradient(900px 460px at 24% 10%, rgba(45, 212, 191, 0.16), transparent),
+    radial-gradient(700px 400px at 88% 80%, rgba(255, 122, 92, 0.10), transparent);
+  --c-dark-panel-glow:
+    radial-gradient(700px 340px at 80% 0%, rgba(45, 212, 191, 0.12), transparent),
+    radial-gradient(520px 280px at 12% 100%, rgba(255, 122, 92, 0.08), transparent);
 
   /* status tokens */
   --status-draft-bg: #F0EEE6; --status-draft-fg: #1B2E2C; --status-draft-border: #D5CFBE;
@@ -107,6 +155,14 @@ html[data-theme="dark"] {
   --badge-neutral-bg: #1B2622;
   --badge-neutral-fg: #E2E9E6;
   --card: #141F1B;
+  --c-portal-bg: var(--c-paper);
+  --c-portal-card: var(--card);
+  --c-portal-border: var(--c-border);
+  --c-portal-muted: var(--c-paper-2);
+  --c-portal-hover: #243530;
+  --c-marketing-gradient:
+    radial-gradient(900px 420px at 20% 8%, rgba(45, 212, 191, 0.10), transparent),
+    radial-gradient(640px 360px at 90% 85%, rgba(255, 122, 92, 0.06), transparent);
 
   --status-draft-bg: #1B2622; --status-draft-fg: #E2E9E6; --status-draft-border: #2E3D37;
   --status-sent-bg: #0C2A26; --status-sent-fg: #E2E9E6; --status-sent-border: #2DD4BF;
@@ -173,22 +229,41 @@ html[data-theme="dark"] {
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3, h4, h5, .font-heading { font-family: var(--font-heading); }
 }
 
 @layer components {
   .cs-auth-panel {
-    background: linear-gradient(155deg, var(--c-ink-solid) 0%, var(--c-auth-grad-mid) 48%, var(--c-auth-grad-end) 100%);
+    position: relative;
+    background: var(--c-ink-solid);
     flex-shrink: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
+  .cs-auth-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(520px 320px at 82% 0%, rgba(45, 212, 191, 0.2), transparent),
+      radial-gradient(420px 280px at 8% 100%, rgba(255, 122, 92, 0.16), transparent);
+  }
   @media (min-width: 1024px) {
+    /* Auth v3: the brand panel floats as a rounded ink card. */
     .cs-auth-panel {
-      min-height: 100%;
+      min-height: 0;
       border-bottom: none;
+      border-radius: 26px;
+      margin: 1.25rem;
+      overflow: hidden;
+    }
+    .cs-auth-panel::before {
+      border-radius: 26px;
     }
   }
   .cs-auth-panel-inner {
@@ -473,11 +548,7 @@ html[data-theme="dark"] {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    opacity: 0.55;
-    background-image:
-      radial-gradient(circle at 18% 8%, rgba(20, 184, 166, 0.09), transparent 40%),
-      radial-gradient(circle at 88% 72%, rgba(255, 122, 92, 0.06), transparent 36%),
-      radial-gradient(circle at 50% 50%, rgba(240, 238, 230, 0.4), transparent 55%);
+    background: var(--c-marketing-gradient);
   }
   .cs-auth-form-glow {
     position: absolute;
@@ -504,36 +575,65 @@ html[data-theme="dark"] {
     position: relative;
     z-index: 1;
   }
+  /* Auth v3: forms sit bare on the washed page — no card chrome. */
   .cs-auth-card {
     position: relative;
-    overflow: hidden;
     border-radius: 1.35rem;
-    border: 1px solid color-mix(in srgb, var(--c-border) 80%, var(--c-primary));
-    background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 92%, var(--c-paper)) 100%);
-    box-shadow:
-      0 1px 2px rgba(15, 23, 32, 0.03),
-      0 8px 24px rgba(15, 23, 32, 0.05),
-      0 24px 48px rgba(15, 23, 32, 0.04);
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
-  .cs-auth-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--c-primary) 0%, var(--c-logo-dot) 50%, var(--c-accent) 100%);
+  .cs-auth-script {
+    font-family: 'Caveat', cursive;
+    font-size: 1.9rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--c-primary-hover);
   }
-  .cs-auth-card::after {
-    content: "";
-    position: absolute;
-    top: -30%;
-    right: -20%;
-    width: 220px;
-    height: 220px;
+  .cs-auth-title-dot {
+    color: var(--c-accent);
+  }
+  .cs-auth-title-dot-teal {
+    color: var(--c-logo-dot);
+  }
+  .cs-auth-topbar-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
     border-radius: 9999px;
-    background: radial-gradient(circle, rgba(20, 184, 166, 0.07), transparent 68%);
-    pointer-events: none;
+    border: 1px solid var(--c-border);
+    background: var(--card);
+    padding: 0.45rem 0.9rem;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--badge-teal-fg);
+  }
+  .cs-auth-input,
+  .cs-auth-input.cs-auth-input {
+    border-radius: 12px;
+    border: 1px solid var(--c-border);
+    background: var(--card);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .cs-auth-input:focus,
+  .cs-auth-input:focus-visible {
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+    outline: none;
+  }
+  /* Admin console (Auth v3): inputs on the dark card. */
+  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input {
+    background: rgba(248, 247, 242, 0.06);
+    border-color: rgba(248, 247, 242, 0.16);
+    color: #f8f7f2;
+  }
+  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input:focus,
+  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input:focus-visible {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+  }
+  .cs-admin-dark-input::placeholder {
+    color: rgba(248, 247, 242, 0.3);
   }
   .cs-auth-card-logo {
     position: relative;
@@ -631,17 +731,17 @@ html[data-theme="dark"] {
   .cs-auth-submit {
     height: 3rem;
     width: 100%;
-    border-radius: 0.75rem;
+    border-radius: 0.85rem;
     font-size: 0.9375rem;
     font-weight: 600;
     color: #fff;
-    background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-primary-hover) 100%);
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--c-primary) 35%, transparent);
+    background: var(--c-ink-solid);
+    box-shadow: 0 12px 28px rgba(18, 33, 32, 0.22);
     transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
   }
   .cs-auth-submit:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px color-mix(in srgb, var(--c-primary) 40%, transparent);
+    box-shadow: 0 14px 32px rgba(18, 33, 32, 0.28);
   }
   .cs-auth-submit:active:not(:disabled) {
     transform: translateY(0);
@@ -838,9 +938,30 @@ html[data-theme="dark"] {
   .cs-badge-danger { background: var(--c-danger-bg); color: var(--c-danger); }
 
   .cs-admin-sidebar {
+    position: relative;
     background: linear-gradient(180deg, var(--c-ink-solid) 0%, #0c1f1c 55%, var(--c-auth-grad-mid) 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow: 4px 0 24px rgba(15, 23, 32, 0.08);
+  }
+  .cs-admin-sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--c-dark-panel-glow);
+  }
+  .cs-admin-sidebar > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cs-admin-shell {
+    background: var(--c-paper);
+  }
+  .cs-admin-main {
+    position: relative;
+    min-height: 100vh;
+    min-width: 0;
   }
   .cs-admin-sidebar-brand {
     display: flex;
@@ -872,7 +993,7 @@ html[data-theme="dark"] {
   }
   .cs-app-nav-link:hover {
     color: var(--c-ink);
-    background: var(--c-paper-2);
+    background: var(--c-portal-hover, var(--c-paper-2));
   }
   .cs-app-nav-link-active {
     color: var(--badge-teal-fg);
@@ -896,6 +1017,8 @@ html[data-theme="dark"] {
     font-size: 0.875rem;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.58);
+    cursor: pointer;
+    pointer-events: auto;
     transition:
       color 0.22s ease,
       background 0.22s ease,
@@ -913,6 +1036,7 @@ html[data-theme="dark"] {
     background: linear-gradient(180deg, var(--c-primary) 0%, var(--c-primary-hover) 100%);
     transform: scaleY(0);
     opacity: 0;
+    pointer-events: none;
     transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
     box-shadow: 0 0 14px color-mix(in srgb, var(--c-primary) 65%, transparent);
   }
@@ -999,7 +1123,7 @@ html[data-theme="dark"] {
   }
   .cs-admin-header {
     border-bottom: 1px solid var(--c-border);
-    background: color-mix(in srgb, var(--c-paper) 88%, var(--card));
+    background: color-mix(in srgb, var(--card) 82%, transparent);
     backdrop-filter: blur(10px);
   }
   .cs-admin-header-badge {
@@ -1015,6 +1139,163 @@ html[data-theme="dark"] {
     color: var(--c-ink);
     box-shadow: 0 1px 2px rgba(15, 23, 32, 0.04);
   }
+  .cs-portal-sidebar,
+  .cs-portal-main-panel {
+    --card: var(--c-portal-card);
+    --c-border: var(--c-portal-border);
+    --c-paper-2: var(--c-portal-muted);
+  }
+  /* Dashboard design: the workspace sidebar is a fixed ink panel in both themes. */
+  .cs-portal-sidebar {
+    background: var(--c-ink-solid);
+    border-color: rgba(248, 247, 242, 0.1) !important;
+  }
+  .cs-portal-sidebar .cs-sidebar-section-label {
+    color: rgba(248, 247, 242, 0.4);
+  }
+  .cs-portal-sidebar .cs-app-nav-link {
+    color: rgba(248, 247, 242, 0.65);
+    border-color: transparent;
+  }
+  .cs-portal-sidebar .cs-app-nav-link-active {
+    color: #2dd4bf;
+    font-weight: 600;
+    background: rgba(45, 212, 191, 0.14);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .cs-portal-sidebar .cs-app-nav-link-active svg {
+    color: #2dd4bf;
+  }
+  .cs-portal-shell {
+    isolation: isolate;
+  }
+  .cs-portal-main-panel {
+    position: relative;
+    background: var(--c-portal-bg);
+    overflow-x: clip;
+  }
+  .cs-portal-main-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: var(--c-marketing-gradient);
+    animation: cs-portal-gradient-drift 24s ease-in-out infinite alternate;
+  }
+  .cs-portal-main-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0.55;
+    background:
+      radial-gradient(640px 360px at 72% 18%, rgba(45, 212, 191, 0.12), transparent),
+      radial-gradient(560px 320px at 18% 82%, rgba(255, 122, 92, 0.09), transparent);
+    animation: cs-portal-gradient-drift-alt 30s ease-in-out infinite alternate;
+  }
+  @keyframes cs-portal-gradient-drift {
+    0% { opacity: 0.92; }
+    50% { opacity: 1; }
+    100% { opacity: 0.94; }
+  }
+  @keyframes cs-portal-gradient-drift-alt {
+    0% { opacity: 0.45; }
+    50% { opacity: 0.58; }
+    100% { opacity: 0.48; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cs-portal-main-panel::before,
+    .cs-portal-main-panel::after {
+      animation: none;
+      will-change: auto;
+    }
+  }
+  .cs-portal-sidebar .cs-app-nav-link:hover:not(.cs-app-nav-link-active) {
+    color: #f8f7f2;
+    background: rgba(248, 247, 242, 0.08);
+    border-color: transparent;
+  }
+  .cs-portal-main-panel .hover\:bg-\[var\(--c-paper-2\)\]:hover {
+    background-color: var(--c-portal-hover) !important;
+  }
+  .cs-portal-main-panel .cs-portal-header-actions button:hover,
+  .cs-portal-main-panel .cs-portal-header-actions a:hover {
+    background: var(--c-portal-hover) !important;
+    border-color: var(--c-portal-border) !important;
+    color: var(--c-ink) !important;
+  }
+  .cs-portal-sidebar button.hover\:bg-accent:hover {
+    background-color: rgba(248, 247, 242, 0.08) !important;
+    color: #f8f7f2 !important;
+  }
+  .cs-portal-main-panel button.hover\:bg-accent:hover {
+    background-color: var(--c-portal-hover) !important;
+    color: var(--c-ink) !important;
+  }
+  .cs-portal-main-panel .divide-y > .grid:hover,
+  .cs-portal-main-panel .divide-y > .flex:hover,
+  .cs-portal-main-panel .divide-y > [data-testid$="-row"]:hover {
+    background: var(--c-portal-hover);
+  }
+  .cs-portal-topbar {
+    background: color-mix(in srgb, var(--c-portal-card) 88%, transparent);
+    backdrop-filter: blur(10px);
+  }
+  .cs-portal-topbar-search:focus-visible {
+    border-color: var(--c-primary);
+    box-shadow:
+      inset 0 1px 2px rgba(18, 33, 32, 0.04),
+      0 0 0 3px color-mix(in srgb, var(--c-primary) 18%, transparent);
+  }
+  .cs-portal-main-panel header {
+    background: color-mix(in srgb, var(--c-portal-bg) 75%, var(--c-portal-card));
+  }
+  .cs-portal-surface-card {
+    border: 1px solid var(--c-portal-border);
+    background: var(--c-portal-card);
+    box-shadow: 0 1px 2px rgba(18, 33, 32, 0.04);
+  }
+
+  html[data-theme="dark"] .cs-portal-sidebar,
+  html[data-theme="dark"] .cs-portal-main-panel {
+    --card: #141F1B;
+    --c-border: #22302B;
+    --c-paper-2: #141F1B;
+    --c-portal-hover: #243530;
+  }
+  html[data-theme="dark"] .cs-portal-sidebar {
+    background: var(--c-paper);
+  }
+  html[data-theme="dark"] .cs-portal-main-panel {
+    background: var(--c-paper);
+  }
+  html[data-theme="dark"] .cs-portal-sidebar .cs-app-nav-link:hover:not(.cs-app-nav-link-active) {
+    border-color: #2E3D37;
+  }
+  html[data-theme="dark"] .cs-portal-topbar {
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+  }
+  html[data-theme="dark"] .cs-portal-main-panel header {
+    background: color-mix(in srgb, var(--c-paper) 90%, var(--card));
+  }
+  html[data-theme="dark"] .cs-portal-surface-card {
+    border-color: var(--c-border);
+    background: var(--card);
+    box-shadow: none;
+  }
+  .cs-sidebar-section-label {
+    padding: 0.35rem 0.75rem 0.5rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--c-muted-fg);
+  }
   .cs-portal-header-actions {
     flex-shrink: 0;
   }
@@ -1023,15 +1304,11 @@ html[data-theme="dark"] {
     align-items: center;
     gap: 0.75rem;
     border-radius: 0.85rem;
-    border: 1px solid color-mix(in srgb, var(--c-primary) 18%, var(--c-border));
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--c-primary) 6%, var(--card)) 0%,
-      var(--card) 100%
-    );
+    border: 1px solid var(--c-portal-border);
+    background: var(--c-portal-card);
     padding: 0.65rem 0.75rem;
     color: var(--c-ink);
-    box-shadow: 0 2px 10px color-mix(in srgb, var(--c-primary) 8%, transparent);
+    box-shadow: 0 1px 2px rgba(18, 33, 32, 0.04);
   }
   .cs-portal-sidebar-user-dark {
     border-color: color-mix(in srgb, var(--c-primary) 28%, transparent);

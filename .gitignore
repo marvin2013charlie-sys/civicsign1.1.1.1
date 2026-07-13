@@ -12,14 +12,27 @@ __pycache__/
 # Environment
 backend/.env
 frontend/.env
+DEV_TEST_LOGINS.txt
 
 # Test artifacts
 test-results/
+test_reports/
 .dev-logs/
 scripts/certificates/
 scripts/reports/
 playwright-report/
 scripts/smoke_test_results.json
+scripts/integration_e2e_results.json
+
+# Design / agent artifacts (not shipped)
+ds-bundle/
+.design-sync/
+.ds-sync/
+.claude/
+.emergent/
+memory/
+poc/
+*.pptx
 
 # Large local-only assets (Cloudflare Pages max 25 MiB per file)
 frontend/public/resources/*.mp4.bak

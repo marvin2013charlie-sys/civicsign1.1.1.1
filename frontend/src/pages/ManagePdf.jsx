@@ -63,14 +63,17 @@ import {
   Link as LinkIcon,
   Undo2,
   Redo2,
-  Minimize2,
-  Droplets,
-  Lock,
-  LockOpen,
-  FileOutput,
-  FileType,
-  ScanSearch,
+  Files,
+  ShieldCheck,
+  PenLine,
+  Send,
 } from "lucide-react";
+import {
+  PDF_CATEGORIES,
+  PDF_HOME_TOOLS,
+  PDF_TOOL_GROUPS,
+  toolMatchesSearch,
+} from "@/lib/managePdfTools";
 
 const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2, testid: "pdf-tool-select" },
@@ -98,6 +101,217 @@ const ANNOT_COLORS = [
   { id: "black", css: "#1f2937", rgb: [0.12, 0.16, 0.22] },
   { id: "yellow", css: "#eab308", rgb: [0.92, 0.7, 0.03] },
 ];
+
+function PdfHomeModeCard({ testId, onClick, icon: Icon, title, description, cta, tag }) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className="group cs-portal-surface-card flex h-full flex-col rounded-2xl p-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--c-primary)] hover:shadow-lg"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
+          style={{ background: "var(--badge-teal-bg)" }}
+        >
+          <Icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+        </span>
+        {tag && (
+          <span className="rounded-full bg-[var(--c-paper-2)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
+            {tag}
+          </span>
+        )}
+      </div>
+      <h2 className="mt-3 font-heading text-base font-bold text-[var(--c-ink)]">{title}</h2>
+      <p className="mt-1.5 flex-1 text-sm leading-snug text-[var(--c-muted-fg)]">{description}</p>
+      <span className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--c-primary)]">
+        {cta} <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </button>
+  );
+}
+
+function ManagePdfHome({ category, search, onCategoryChange, onSelectTool, onOpenSaved }) {
+  const categoryLabel = PDF_CATEGORIES.find((c) => c.id === category)?.label || "All tools";
+  const q = search.trim().toLowerCase();
+  const byCategory = category === "all"
+    ? PDF_HOME_TOOLS
+    : PDF_HOME_TOOLS.filter((t) => t.category === category);
+  const filtered = byCategory.filter((t) => toolMatchesSearch(t, q));
+
+  const renderToolGrid = (tools) => (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {tools.map((tool) => {
+        const group = PDF_TOOL_GROUPS.find((g) => g.id === tool.category);
+        return (
+          <PdfHomeModeCard
+            key={tool.id}
+            testId={tool.testId}
+            onClick={() => onSelectTool(tool.id)}
+            icon={tool.icon}
+            title={tool.title}
+            description={tool.description}
+            cta={tool.cta}
+            tag={category === "all" ? group?.label : undefined}
+          />
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div data-testid="manage-pdf-home">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div
+            style={{ fontFamily: "'Caveat', cursive", fontSize: "24px", fontWeight: 600, color: "var(--c-primary-hover)" }}
+          >
+            2-in-1 workspace
+          </div>
+          <h2 className="mt-0.5 font-heading text-3xl font-bold tracking-[-0.02em] text-[var(--c-ink)]">
+            Choose a tool
+            <span style={{ color: "var(--c-accent)" }}>.</span>
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-[var(--c-muted-fg)]">
+            Edit, compress, watermark, protect, unlock, convert, merge, split, or scan PDFs — then download or save to Documents for signing.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenSaved}
+          data-testid="manage-pdf-saved-documents-btn"
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--c-border)] bg-[var(--c-portal-card)] px-4 py-2.5 text-[13px] font-semibold text-[var(--c-ink)] transition-colors hover:border-[var(--c-primary)]"
+        >
+          <Files className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
+          Saved PDFs
+        </button>
+      </div>
+
+      <div
+        className="mb-5 flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px] w-fit"
+        data-testid="manage-pdf-category-filter"
+      >
+        {PDF_CATEGORIES.map((cat) => {
+          const active = category === cat.id;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => onCategoryChange(cat.id)}
+              data-testid={`manage-pdf-category-${cat.id}`}
+              className="rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+              style={active ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
+            >
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr] lg:items-start">
+        <div className="min-w-0 space-y-5">
+          {filtered.length === 0 ? (
+            <div className="cs-portal-surface-card flex flex-col items-center justify-center rounded-2xl px-6 py-16 text-center">
+              <p className="font-heading text-lg font-semibold text-[var(--c-ink)]">No tools match your search</p>
+              <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">
+                Try &quot;compress&quot;, &quot;merge&quot;, &quot;watermark&quot;, or clear the search bar above.
+              </p>
+            </div>
+          ) : category === "all" ? (
+            PDF_TOOL_GROUPS.map((group) => {
+              const tools = filtered.filter((t) => t.category === group.id);
+              if (!tools.length) return null;
+              return (
+                <section key={group.id} className="cs-portal-surface-card overflow-hidden rounded-2xl">
+                  <div className="flex items-center gap-2 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-sm"
+                      style={{ background: group.bg }}
+                      aria-hidden
+                    >
+                      {group.emoji}
+                    </span>
+                    <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">{group.label}</h3>
+                    <span className="ml-auto rounded-full bg-[var(--c-portal-card)] px-2 py-0.5 text-[10px] font-semibold text-[var(--c-muted-fg)]">
+                      {tools.length} tool{tools.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="p-5">{renderToolGrid(tools)}</div>
+                </section>
+              );
+            })
+          ) : (
+            <div className="cs-portal-surface-card overflow-hidden rounded-2xl">
+              <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
+                <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">{categoryLabel}</h3>
+                <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+                  {filtered.length} tool{filtered.length === 1 ? "" : "s"} in this category
+                </p>
+              </div>
+              <div className="p-5">{renderToolGrid(filtered)}</div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="cs-portal-surface-card rounded-2xl p-5">
+            <h4 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[1px] text-[var(--c-muted-fg)]">
+              <ShieldCheck className="h-3.5 w-3.5" /> Included on your plan
+            </h4>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--c-ink)]">
+              Manage PDF is part of CivicSign&apos;s 2-in-1 platform. Saved files do not count toward your monthly send allowance.
+            </p>
+          </div>
+
+          <div className="cs-portal-surface-card rounded-2xl p-5">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[1px] text-[var(--c-muted-fg)]">Typical workflow</h4>
+            <ol className="mt-3 space-y-2.5">
+              {[
+                { icon: PenTool, text: "Pick a tool and upload your file" },
+                { icon: Save, text: "Download or save to Documents" },
+                { icon: PenLine, text: "Open in Prepare Studio to place fields" },
+                { icon: Send, text: "Send for signature when ready" },
+              ].map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <li key={step.text} className="flex items-start gap-2.5 text-sm text-[var(--c-ink)]">
+                    <span
+                      className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                      style={{ background: "var(--badge-teal-bg)", color: "var(--c-primary)" }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="flex items-center gap-1.5 pt-0.5">
+                      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
+                      {step.text}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+
+          <div
+            className="cs-portal-surface-card rounded-2xl border-l-4 px-4 py-3.5"
+            style={{ borderLeftColor: "var(--c-primary)" }}
+          >
+            <p className="text-sm leading-relaxed text-[var(--c-ink)]">
+              <strong>Saved PDFs</strong> live under Documents → From Manage PDF. Open any saved file in Prepare Studio when you&apos;re ready to send.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenSaved}
+              className="mt-2 text-xs font-semibold text-[var(--c-primary)] hover:underline"
+            >
+              View saved PDFs →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SortablePageCard({
   index,
@@ -176,6 +390,8 @@ export default function ManagePdf() {
   const { has: hasFeature } = usePlan();
   const navigate = useNavigate();
   const [homeView, setHomeView] = useState("home");
+  const [homeCategory, setHomeCategory] = useState("all");
+  const [homeToolSearch, setHomeToolSearch] = useState("");
   const [workspace, setWorkspace] = useState(null);
   const [tab, setTab] = useState("pages");
   const [busy, setBusy] = useState(false);
@@ -774,14 +990,16 @@ export default function ManagePdf() {
     return { left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` };
   })() : null;
 
+  const showToolHome = !workspace && homeView === "home";
+
   if (!hasFeature("manage_pdf")) {
     return (
-      <AppShell title="Manage PDF">
+      <AppShell>
         <div className="mx-auto max-w-xl" data-testid="manage-pdf-upgrade">
           <UpgradePrompt
             feature="manage_pdf"
-            title="Manage PDF is a Pro feature"
-            description="Edit, compress, watermark, protect, unlock, convert PDF/Word, merge, split, and scan AI metadata — available on Pro, Business, Organisation, and internal team plans."
+            title="Manage PDF is included with every paid plan"
+            description="Edit, compress, watermark, protect, unlock, convert PDF/Word, merge, split, and scan AI metadata — included on Pro, Business, and Organisation plans. Not available on the Free plan."
           />
         </div>
       </AppShell>
@@ -789,227 +1007,26 @@ export default function ManagePdf() {
   }
 
   return (
-    <AppShell title="Manage PDF" actions={headerActions}>
+    <AppShell
+      actions={headerActions}
+      headerSearch={showToolHome ? {
+        value: homeToolSearch,
+        onChange: setHomeToolSearch,
+        placeholder: "Search PDF tools…",
+        testId: "manage-pdf-search-input",
+      } : undefined}
+    >
       <div data-testid="manage-pdf" className="mx-auto max-w-6xl">
         {!workspace ? (
           <div data-testid="pdf-empty-uploader">
             {homeView === "home" && (
-              <>
-                <p className="mb-6 text-center text-sm text-[var(--c-muted-fg)]">
-                  Edit, compress, watermark, protect, unlock, convert, merge, split, or scan PDFs and images for AI metadata — then download or save to Documents.
-                </p>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-edit"
-                    onClick={() => setHomeView("edit")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <Pencil className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Edit PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Reorder, rotate, or delete pages. Edit text, add images, highlights, shapes, checkmarks, links, and whiteout.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Open editor <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-merge"
-                    onClick={() => setHomeView("merge")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <FileStack className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Merge PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Combine 2–10 PDF or Word files in order. Open in the editor or go straight to Prepare Studio for signing.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Merge files <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-split"
-                    onClick={() => setHomeView("split")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <Scissors className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Split PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Divide one PDF into separate files by page ranges. Download a ZIP — no editor required.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Split document <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-compress"
-                    onClick={() => setHomeView("compress")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <Minimize2 className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Compress PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Optimise images and reduce file size. Choose quality level — ideal before email or upload.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Compress file <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-watermark"
-                    onClick={() => setHomeView("watermark")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <Droplets className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Watermark PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Add CONFIDENTIAL, DRAFT, or your logo. Control opacity, rotation, colour, and which pages to stamp.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Add watermark <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-protect"
-                    onClick={() => setHomeView("protect")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <Lock className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Protect PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Password-protect your PDF with AES-256. Restrict printing, copying, and editing.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Add password <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-unlock"
-                    onClick={() => setHomeView("unlock")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <LockOpen className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Unlock PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Remove password protection when you have the correct open or owner password.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Remove password <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-pdf-to-word"
-                    onClick={() => setHomeView("pdf-to-word")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <FileOutput className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">PDF to Word</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Turn a PDF into an editable Word document. Best results with text-based PDFs.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Convert to DOCX <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-word-to-pdf"
-                    onClick={() => setHomeView("word-to-pdf")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <FileType className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">Word to PDF</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Convert a Word (.docx) file to PDF. Download or save to Documents for signing.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Convert to PDF <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-testid="pdf-mode-ai-metadata"
-                    onClick={() => setHomeView("ai-metadata")}
-                    className="group rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 text-left transition-all hover:border-[var(--c-primary)] hover:shadow-md"
-                  >
-                    <span
-                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl"
-                      style={{ background: "var(--c-primary)18" }}
-                    >
-                      <ScanSearch className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
-                    </span>
-                    <h2 className="mt-4 font-heading text-lg font-bold text-[var(--c-ink)]">AI metadata check</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-                      Deep fraud scan — metadata, binary strings, structure, and body text for AI or altered documents.
-                    </p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--c-primary)]">
-                      Scan file <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </button>
-                </div>
-              </>
+              <ManagePdfHome
+                category={homeCategory}
+                search={homeToolSearch}
+                onCategoryChange={setHomeCategory}
+                onSelectTool={setHomeView}
+                onOpenSaved={() => navigate("/documents?tab=manage-pdf")}
+              />
             )}
 
             {homeView === "compress" && (

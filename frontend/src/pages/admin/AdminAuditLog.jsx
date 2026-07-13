@@ -3,17 +3,28 @@ import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { History, RefreshCcw, KeyRound, UserCog, AlertCircle } from "lucide-react";
 import { AUDIT_ACTION_BADGE } from "@/lib/semanticColors";
+import {
+  AdminPageIntro,
+  AdminSurfaceCard,
+  AdminSectionHeader,
+  AdminPillTabs,
+  AdminEmptyState,
+} from "@/components/portal/AdminPrimitives";
 
 const ACTION_META = {
   refund_transaction: { label: "Refund", icon: RefreshCcw, badge: AUDIT_ACTION_BADGE.refund_transaction },
   send_password_reset: { label: "Password reset", icon: KeyRound, badge: AUDIT_ACTION_BADGE.send_password_reset },
   impersonate: { label: "Impersonate", icon: UserCog, badge: AUDIT_ACTION_BADGE.impersonate },
 };
+
+const ACTION_TABS = [
+  { id: "all", label: "All actions" },
+  { id: "refund_transaction", label: "Refunds" },
+  { id: "send_password_reset", label: "Password resets" },
+  { id: "impersonate", label: "Impersonations" },
+];
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -42,51 +53,49 @@ export default function AdminAuditLog() {
 
   return (
     <div data-testid="admin-audit-log">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Audit log</h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Sensitive admin actions, newest first. Useful for compliance & support reviews.</p>
-        </div>
-        <Select value={action} onValueChange={setAction}>
-          <SelectTrigger className="w-full sm:w-48" data-testid="audit-action-filter"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actions</SelectItem>
-            <SelectItem value="refund_transaction">Refunds</SelectItem>
-            <SelectItem value="send_password_reset">Password resets</SelectItem>
-            <SelectItem value="impersonate">Impersonations</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <AdminPageIntro
+        caveat="Compliance & support"
+        title="Audit log"
+        subtitle="Sensitive admin actions, newest first. Useful for compliance & support reviews."
+      />
 
-      <div className="mt-5 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">
-              <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Admin</th>
-                <th className="px-4 py-3">Target user</th>
-                <th className="px-4 py-3">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={5} className="px-4 py-3"><Skeleton className="h-6 w-full" /></td></tr>
-                ))
-              ) : items.length === 0 ? (
+      <AdminPillTabs
+        tabs={ACTION_TABS}
+        value={action}
+        onChange={setAction}
+        testId="audit-action-filter"
+      />
+
+      <AdminSurfaceCard flush className="mt-5 overflow-hidden">
+        <AdminSectionHeader
+          title="Admin activity"
+          subtitle="Refunds, password resets, and impersonations"
+          icon={History}
+        />
+        {loading ? (
+          <div className="space-y-3 p-5">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-6 w-full rounded-lg" />)}
+          </div>
+        ) : items.length === 0 ? (
+          <AdminEmptyState
+            icon={History}
+            title="No audit events yet"
+            description="Refunds, password resets and impersonations will be logged here."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--c-paper-2)] text-left text-xs uppercase tracking-wide text-[var(--c-muted-fg)]">
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center">
-                    <div className="mx-auto flex flex-col items-center gap-2 text-[var(--c-muted-fg)]">
-                      <History className="h-6 w-6" />
-                      <p className="text-sm">No audit events yet.</p>
-                      <p className="text-xs">Refunds, password resets and impersonations will be logged here.</p>
-                    </div>
-                  </td>
+                  <th className="px-4 py-3">When</th>
+                  <th className="px-4 py-3">Action</th>
+                  <th className="px-4 py-3">Admin</th>
+                  <th className="px-4 py-3">Target user</th>
+                  <th className="px-4 py-3">Detail</th>
                 </tr>
-              ) : (
-                items.map((ev) => {
+              </thead>
+              <tbody>
+                {items.map((ev) => {
                   const meta = ACTION_META[ev.action] || { label: ev.action, icon: AlertCircle, badge: "cs-badge cs-badge-neutral" };
                   const Icon = meta.icon;
                   return (
@@ -113,12 +122,12 @@ export default function AdminAuditLog() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminSurfaceCard>
     </div>
   );
 }

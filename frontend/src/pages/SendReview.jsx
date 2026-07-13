@@ -222,7 +222,7 @@ export default function SendReview() {
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">Recipients · {env.signing_order}</p>
             <div className="mt-3 space-y-2">
               {(env.recipients || []).sort((a, b) => a.order - b.order).map((r) => (
-                <div key={r.recipient_id} className="flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-white p-2">
+                <div key={r.recipient_id} className="flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] p-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: r.color }}>{r.order}</span>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--c-ink)]">{r.name}</p><p className="truncate text-xs text-[var(--c-muted-fg)]">{r.email}</p></div>
                 </div>

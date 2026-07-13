@@ -13,18 +13,28 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Trash2, Edit3, ExternalLink, FilePlus2, Search, X, EyeOff, Eye, BookOpen,
+  AdminPageIntro, AdminStatCard, AdminSurfaceCard, AdminEmptyState, AdminStaffBadge,
+  AdminPillTabs, AdminSectionHeader,
+} from "@/components/portal/AdminPrimitives";
+import {
+  Plus, Trash2, Edit3, ExternalLink, FilePlus2, Search, X, EyeOff, Eye, FileText,
 } from "lucide-react";
 
 const CATEGORIES = ["UK Law", "Real Estate", "Charities", "HR & People", "Compliance", "Product Updates", "Customer Stories"];
 const BLOCK_TYPES = [
-  { value: "h2", label: "Heading" },
+  { value: "h2", label: "Section heading" },
+  { value: "h3", label: "Subheading" },
   { value: "p", label: "Paragraph" },
   { value: "ul", label: "Bulleted list" },
   { value: "callout", label: "Callout / tip" },
   { value: "quote", label: "Quote" },
+];
+
+const FILTER_TABS = [
+  { id: "all", label: "All" },
+  { id: "published", label: "Published" },
+  { id: "drafts", label: "Drafts" },
 ];
 
 const EMPTY_FORM = () => ({
@@ -43,6 +53,7 @@ export default function AdminBlog() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSlug, setEditingSlug] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM());
@@ -63,11 +74,26 @@ export default function AdminBlog() {
 
   useEffect(() => { load(); }, []);
 
+  const counts = useMemo(() => ({
+    all: posts.length,
+    published: posts.filter((p) => p.published).length,
+    drafts: posts.filter((p) => !p.published).length,
+  }), [posts]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return posts;
+    let list = posts;
+    if (filter === "published") list = list.filter((p) => p.published);
+    if (filter === "drafts") list = list.filter((p) => !p.published);
+    if (!search.trim()) return list;
     const q = search.toLowerCase();
-    return posts.filter((p) => p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
-  }, [posts, search]);
+    return list.filter((p) => p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+  }, [posts, search, filter]);
+
+  const filterTabs = FILTER_TABS.map((tab) => ({
+    ...tab,
+    count: counts[tab.id],
+    testId: `admin-blog-filter-${tab.id}`,
+  }));
 
   const openCreate = () => {
     setEditingSlug(null);
@@ -101,7 +127,6 @@ export default function AdminBlog() {
       toast.error("Title, excerpt and cover image are required");
       return;
     }
-    // Normalise body: split textarea-entered lists by newline
     const body = form.body.map((b) => {
       if (b.type === "ul") {
         const items = typeof b.content === "string"
@@ -141,7 +166,6 @@ export default function AdminBlog() {
     }
   };
 
-  // Block helpers
   const addBlock = (type) => setForm((f) => ({ ...f, body: [...f.body, { type, content: type === "ul" ? "" : "" }] }));
   const removeBlock = (idx) => setForm((f) => ({ ...f, body: f.body.filter((_, i) => i !== idx) }));
   const updateBlock = (idx, patch) => setForm((f) => ({
@@ -149,90 +173,157 @@ export default function AdminBlog() {
     body: f.body.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
   }));
 
+  const listSubtitle = loading
+    ? "Loading posts…"
+    : `${filtered.length} ${filtered.length === 1 ? "post" : "posts"}${filter !== "all" ? ` · ${filter === "published" ? "live on site" : "not published"}` : ""}${search.trim() ? " · filtered by search" : ""}`;
+
   return (
     <div data-testid="admin-blog">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Blog</h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Write, edit and publish posts that appear on the public /blog page.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 border-[var(--c-primary)]/30 bg-[var(--c-primary)]/5 text-[var(--c-primary)]">
-            <BookOpen className="h-3.5 w-3.5" /> Internal team
-          </Badge>
-          <Button onClick={openCreate} data-testid="admin-blog-create-button" style={{ background: "var(--c-primary)", color: "#fff" }}>
-            <Plus className="mr-1.5 h-4 w-4" /> New post
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search posts…" className="pl-9" data-testid="admin-blog-search" />
-        </div>
-        <p className="text-sm text-[var(--c-muted-fg)]">{loading ? "…" : `${filtered.length} post${filtered.length === 1 ? "" : "s"}`}</p>
-      </div>
-
-      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="admin-blog-table">
-        {loading ? (
-          <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--c-primary)22" }}>
-              <FilePlus2 className="h-7 w-7" style={{ color: "var(--c-primary)" }} />
-            </span>
-            <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">No posts yet</h3>
-            <p className="mt-1 max-w-sm text-sm text-[var(--c-muted-fg)]">
-              Create your first post. It will appear on the public /blog page immediately if published.
-            </p>
-            <Button onClick={openCreate} className="mt-5" data-testid="admin-blog-empty-create" style={{ background: "var(--c-primary)", color: "#fff" }}>
+      <AdminPageIntro
+        caveat="Public content"
+        title="Blog"
+        subtitle="Write, edit and publish posts that appear on the public /blog page."
+        actions={(
+          <>
+            <AdminStaffBadge />
+            <Button
+              onClick={openCreate}
+              className="rounded-xl"
+              data-testid="admin-blog-create-button"
+              style={{ background: "var(--c-ink-solid)", color: "#fff" }}
+            >
               <Plus className="mr-1.5 h-4 w-4" /> New post
             </Button>
+          </>
+        )}
+      />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <AdminStatCard
+          icon={FilePlus2}
+          label="Total posts"
+          value={loading ? "…" : posts.length}
+          tone="teal"
+          testId="admin-blog-stat-total"
+        />
+        <AdminStatCard
+          icon={Eye}
+          label="Published"
+          value={loading ? "…" : counts.published}
+          tone="success"
+          sub={!loading && counts.drafts > 0 ? `${counts.drafts} draft${counts.drafts === 1 ? "" : "s"}` : undefined}
+          testId="admin-blog-stat-published"
+        />
+        <AdminStatCard
+          icon={EyeOff}
+          label="Drafts"
+          value={loading ? "…" : counts.drafts}
+          tone="warning"
+          testId="admin-blog-stat-drafts"
+        />
+      </div>
+
+      <div className="mt-5">
+        <AdminPillTabs
+          tabs={filterTabs}
+          value={filter}
+          onChange={setFilter}
+          testId="admin-blog-filter-tabs"
+        />
+      </div>
+
+      <AdminSurfaceCard className="mt-4 overflow-hidden p-0" flush testId="admin-blog-table">
+        <AdminSectionHeader
+          icon={FileText}
+          title="Posts"
+          subtitle={listSubtitle}
+          action={(
+            <div className="relative w-full max-w-xs sm:w-56">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search posts…"
+                className="h-9 rounded-xl pl-9"
+                data-testid="admin-blog-search"
+              />
+            </div>
+          )}
+        />
+
+        {loading ? (
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="p-5">
+            <AdminEmptyState
+              icon={FilePlus2}
+              title="No posts yet"
+              description="Create your first post. It will appear on the public /blog page immediately if published."
+              action={(
+                <Button onClick={openCreate} className="rounded-xl" data-testid="admin-blog-empty-create" style={{ background: "var(--c-ink-solid)", color: "#fff" }}>
+                  <Plus className="mr-1.5 h-4 w-4" /> New post
+                </Button>
+              )}
+            />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-5">
+            <AdminEmptyState
+              icon={FileText}
+              title={filter === "drafts" ? "No drafts" : filter === "published" ? "No published posts" : "No matching posts"}
+              description={search.trim()
+                ? "Try a different search term or clear the filter."
+                : filter === "drafts"
+                  ? "All posts are currently published."
+                  : "Publish a post or switch to another filter."}
+            />
           </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
-            <div className="hidden grid-cols-12 gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)] sm:grid">
-              <div className="col-span-5">Title</div>
-              <div className="col-span-2">Category</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-2">Updated</div>
-              <div className="col-span-1" />
-            </div>
             {filtered.map((p) => (
-              <div key={p.slug} data-testid="admin-blog-row"
-                className="grid grid-cols-1 items-center gap-3 px-5 py-4 sm:grid-cols-12">
-                <div className="col-span-5 min-w-0">
-                  <p className="truncate font-semibold text-[var(--c-ink)]">{p.title}</p>
-                  <p className="truncate text-xs text-[var(--c-muted-fg)]">/{p.slug}</p>
+              <article
+                key={p.slug}
+                data-testid="admin-blog-row"
+                className="px-5 py-4 transition-colors hover:bg-[var(--c-paper-2)]"
+                style={!p.published ? { borderLeft: "3px solid #F59E0B" } : { borderLeft: "3px solid var(--c-primary)" }}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">{p.title}</p>
+                      {p.published ? (
+                        <span className="cs-badge cs-badge-success">
+                          <Eye className="mr-1 inline h-3 w-3" /> Published
+                        </span>
+                      ) : (
+                        <span className="cs-badge cs-badge-warning">
+                          <EyeOff className="mr-1 inline h-3 w-3" /> Draft
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-[var(--c-muted-fg)]">/{p.slug}</p>
+                    <p className="mt-2 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--c-primary)" }}>
+                      {p.category}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-[var(--c-muted-fg)]">{p.date}</span>
                 </div>
-                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{p.category}</div>
-                <div className="col-span-2">
-                  {p.published ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                      <Eye className="h-3 w-3" /> Published
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                      <EyeOff className="h-3 w-3" /> Draft
-                    </span>
-                  )}
-                </div>
-                <div className="col-span-2 text-sm text-[var(--c-muted-fg)]">{p.date}</div>
-                <div className="col-span-1 flex justify-end gap-1">
+
+                <div className="mt-4 flex justify-end gap-1">
                   <a href={`/blog/${p.slug}`} target="_blank" rel="noreferrer" data-testid="admin-blog-preview">
-                    <Button variant="ghost" size="icon" title="Preview"><ExternalLink className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="rounded-xl" title="Preview"><ExternalLink className="h-4 w-4" /></Button>
                   </a>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(p.slug)} title="Edit" data-testid="admin-blog-edit"><Edit3 className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(p)} title="Delete" data-testid="admin-blog-delete"><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                  <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => openEdit(p.slug)} title="Edit" data-testid="admin-blog-edit"><Edit3 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setConfirmDelete(p)} title="Delete" data-testid="admin-blog-delete"><Trash2 className="h-4 w-4 text-red-600" /></Button>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
-      </div>
+      </AdminSurfaceCard>
 
-      {/* Editor dialog */}
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="admin-blog-editor">
           <DialogHeader>
@@ -244,12 +335,12 @@ export default function AdminBlog() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="blog-title">Title *</Label>
-                <Input id="blog-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} data-testid="admin-blog-title-input" />
+                <Input id="blog-title" className="rounded-xl" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} data-testid="admin-blog-title-input" />
               </div>
               <div>
                 <Label htmlFor="blog-category">Category</Label>
                 <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                  <SelectTrigger id="blog-category" data-testid="admin-blog-category-input"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="blog-category" className="rounded-xl" data-testid="admin-blog-category-input"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
@@ -259,21 +350,21 @@ export default function AdminBlog() {
 
             <div>
               <Label htmlFor="blog-excerpt">Excerpt *</Label>
-              <Textarea id="blog-excerpt" rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} data-testid="admin-blog-excerpt-input" />
+              <Textarea id="blog-excerpt" className="rounded-xl" rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} data-testid="admin-blog-excerpt-input" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="blog-image">Cover image URL *</Label>
-                <Input id="blog-image" placeholder="https://images.unsplash.com/..." value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} data-testid="admin-blog-image-input" />
+                <Input id="blog-image" className="rounded-xl" placeholder="https://images.unsplash.com/..." value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} data-testid="admin-blog-image-input" />
               </div>
               <div>
                 <Label htmlFor="blog-author">Author</Label>
-                <Input id="blog-author" placeholder="CivicSign Editorial" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} data-testid="admin-blog-author-input" />
+                <Input id="blog-author" className="rounded-xl" placeholder="CivicSign Editorial" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} data-testid="admin-blog-author-input" />
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-[var(--c-ink)]">Publish immediately</p>
                 <p className="text-xs text-[var(--c-muted-fg)]">Off = save as draft (not visible on the public site)</p>
@@ -281,13 +372,12 @@ export default function AdminBlog() {
               <Switch checked={form.published} onCheckedChange={(v) => setForm({ ...form, published: v })} data-testid="admin-blog-published-toggle" />
             </div>
 
-            {/* Body blocks */}
             <div>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <Label>Body</Label>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {BLOCK_TYPES.map((t) => (
-                    <Button key={t.value} variant="outline" size="sm" onClick={() => addBlock(t.value)} data-testid={`admin-blog-add-${t.value}`}>
+                    <Button key={t.value} variant="outline" size="sm" className="rounded-xl" onClick={() => addBlock(t.value)} data-testid={`admin-blog-add-${t.value}`}>
                       + {t.label}
                     </Button>
                   ))}
@@ -298,7 +388,7 @@ export default function AdminBlog() {
                   const meta = BLOCK_TYPES.find((t) => t.value === b.type);
                   const value = b.type === "ul" && Array.isArray(b.content) ? b.content.join("\n") : (b.content || "");
                   return (
-                    <div key={idx} className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-2.5">
+                    <div key={idx} className="rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] p-2.5">
                       <div className="mb-1.5 flex items-center justify-between">
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">{meta?.label || b.type}</span>
                         <button type="button" onClick={() => removeBlock(idx)} className="rounded p-1 text-[var(--c-muted-fg)] hover:bg-[var(--c-paper)] hover:text-red-600" data-testid="admin-blog-block-remove">
@@ -310,7 +400,7 @@ export default function AdminBlog() {
                         placeholder={b.type === "ul" ? "One list item per line" : b.type === "callout" ? "Bottom line tip…" : "Write here…"}
                         value={value}
                         onChange={(e) => updateBlock(idx, { content: e.target.value })}
-                        className="bg-[var(--c-paper)]"
+                        className="rounded-xl bg-[var(--c-paper)]"
                       />
                     </div>
                   );
@@ -320,15 +410,14 @@ export default function AdminBlog() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving} data-testid="admin-blog-save" style={{ background: "var(--c-primary)", color: "#fff" }}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setEditorOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={saving} className="rounded-xl" data-testid="admin-blog-save" style={{ background: "var(--c-ink-solid)", color: "#fff" }}>
               {saving ? "Saving…" : editingSlug ? "Save changes" : "Publish post"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <DialogContent>
           <DialogHeader>
@@ -338,8 +427,8 @@ export default function AdminBlog() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-            <Button onClick={() => remove(confirmDelete.slug)} data-testid="admin-blog-confirm-delete" style={{ background: "#DC2626", color: "#fff" }}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button onClick={() => remove(confirmDelete.slug)} className="rounded-xl" data-testid="admin-blog-confirm-delete" style={{ background: "#DC2626", color: "#fff" }}>
               <Trash2 className="mr-1.5 h-4 w-4" /> Delete
             </Button>
           </DialogFooter>

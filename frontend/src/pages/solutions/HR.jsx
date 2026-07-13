@@ -4,12 +4,14 @@ import {
   FileSignature, ScrollText, UserPlus, FileText, Sparkles, Landmark,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanDocsAMonth } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function HR() {
   return (
     <SolutionPageLayout
       testidSlug="hr"
+      solutionPath="/solutions/hr"
       industry="Solutions · HR & People Ops"
       IndustryIcon={UsersRound}
       headline={<>Onboard new starters <BrandAccent>before their first coffee.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function HR() {
         { icon: ShieldCheck, title: "Confidentiality and restrictive covenants", body: "Capture post-termination undertakings, defensible if you ever need to enforce a non-compete." },
       ]}
       ctaHeadline="Ready to give every new starter the welcome they deserve?"
-      ctaSubhead="No more chasing the photocopier on a Monday morning. Get your contract pack signing itself, free for 2 documents a month."
+      ctaSubhead={`No more chasing the photocopier on a Monday morning. Get your contract pack signing itself, free for ${formatFreePlanDocsAMonth()}.`}
       ctaButton="Start free for HR teams"
     />
   );

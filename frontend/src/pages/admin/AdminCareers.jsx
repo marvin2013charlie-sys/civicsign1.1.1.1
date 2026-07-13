@@ -7,10 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Briefcase, MapPin, Globe2, Plus, Pencil, Trash2, Eye, Mail, Phone, Link as LinkIcon, ExternalLink } from "lucide-react";
+import {
+  AdminPageIntro, AdminPillTabs, AdminSurfaceCard, AdminEmptyState,
+  AdminStatCard, AdminSectionHeader, AdminStaffBadge,
+} from "@/components/portal/AdminPrimitives";
+import {
+  Briefcase, Globe2, Plus, Pencil, Trash2, Eye, Mail, Phone,
+  Link as LinkIcon, ExternalLink, MapPin, Users, Sparkles,
+} from "lucide-react";
 import { CAREERS_APP_STATUS } from "@/lib/semanticColors";
 
 const JOB_TYPES = [
@@ -34,32 +40,113 @@ const STATUS_OPTIONS = [
 
 const EMPTY = { slug: "", title: "", department: "", location: "", job_type: "full-time", workplace: "hybrid", salary: "", summary: "", description: "", published: true };
 
+const TYPE_LABEL = Object.fromEntries(JOB_TYPES.map((o) => [o.value, o.label]));
+const WP_LABEL = Object.fromEntries(WORKPLACES.map((o) => [o.value, o.label]));
+
 export default function AdminCareers() {
   const [tab, setTab] = useState("jobs");
+  const [jobs, setJobs] = useState([]);
+  const [apps, setApps] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [jobDialogOpen, setJobDialogOpen] = useState(false);
+
+  const refreshStats = async () => {
+    setStatsLoading(true);
+    try {
+      const [jobsRes, appsRes] = await Promise.all([
+        api.get("/admin/careers/jobs"),
+        api.get("/admin/careers/applications"),
+      ]);
+      setJobs(jobsRes.data);
+      setApps(appsRes.data);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => { refreshStats(); }, []);
+
+  const liveCount = jobs.filter((j) => j.published).length;
+  const newApps = apps.filter((a) => a.status === "new").length;
+
   return (
     <div data-testid="admin-careers">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-[var(--c-ink)]">Careers</h1>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Manage open positions and review applications.</p>
-        </div>
+      <AdminPageIntro
+        caveat="Hiring"
+        title="Careers"
+        subtitle="Publish roles on the public careers page and triage incoming applications."
+        actions={(
+          <>
+            <AdminStaffBadge />
+            <Button
+              onClick={() => setJobDialogOpen(true)}
+              data-testid="admin-careers-new-job"
+              style={{ background: "var(--c-ink-solid)", color: "#fff" }}
+            >
+              <Plus className="mr-1.5 h-4 w-4" /> New position
+            </Button>
+          </>
+        )}
+      />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <AdminStatCard
+          icon={Briefcase}
+          label="Open positions"
+          value={statsLoading ? "…" : jobs.length}
+          tone="teal"
+          testId="admin-careers-stat-positions"
+        />
+        <AdminStatCard
+          icon={Globe2}
+          label="Live on site"
+          value={statsLoading ? "…" : liveCount}
+          tone="success"
+          sub={!statsLoading && jobs.length - liveCount > 0 ? `${jobs.length - liveCount} hidden` : undefined}
+          testId="admin-careers-stat-live"
+        />
+        <AdminStatCard
+          icon={Users}
+          label="Applications"
+          value={statsLoading ? "…" : apps.length}
+          tone="accent"
+          sub={!statsLoading && newApps > 0 ? `${newApps} new` : undefined}
+          testId="admin-careers-stat-applications"
+        />
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="mt-5">
-        <TabsList>
-          <TabsTrigger value="jobs" data-testid="admin-careers-tab-jobs">Job posts</TabsTrigger>
-          <TabsTrigger value="applications" data-testid="admin-careers-tab-applications">Applications</TabsTrigger>
-        </TabsList>
-        <TabsContent value="jobs" className="mt-4"><JobsTab /></TabsContent>
-        <TabsContent value="applications" className="mt-4"><ApplicationsTab /></TabsContent>
-      </Tabs>
+      <div className="mt-5">
+        <AdminPillTabs
+          tabs={[
+            { id: "jobs", label: "Job posts", count: jobs.length, testId: "admin-careers-tab-jobs" },
+            { id: "applications", label: "Applications", count: apps.length, testId: "admin-careers-tab-applications" },
+          ]}
+          value={tab}
+          onChange={setTab}
+          testId="admin-careers-tabs"
+        />
+      </div>
+
+      <div className="mt-4">
+        {tab === "jobs" ? (
+          <JobsTab
+            externalCreateOpen={jobDialogOpen}
+            onExternalCreateClose={() => setJobDialogOpen(false)}
+            onChanged={refreshStats}
+          />
+        ) : (
+          <ApplicationsTab onChanged={refreshStats} />
+        )}
+      </div>
     </div>
   );
 }
 
 /* ----------------------------- JOBS TAB ----------------------------- */
 
-function JobsTab() {
+function JobsTab({ externalCreateOpen, onExternalCreateClose, onChanged }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -73,13 +160,23 @@ function JobsTab() {
     try {
       const { data } = await api.get("/admin/careers/jobs");
       setJobs(data);
+      await onChanged?.();
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!externalCreateOpen) return;
+    setForm(EMPTY);
+    setEditingSlug(null);
+    setOpen(true);
+    onExternalCreateClose?.();
+  }, [externalCreateOpen, onExternalCreateClose]);
 
   const startCreate = () => { setForm(EMPTY); setEditingSlug(null); setOpen(true); };
   const startEdit = (j) => {
@@ -136,45 +233,83 @@ function JobsTab() {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
-          {loading ? "…" : `${jobs.length} ${jobs.length === 1 ? "position" : "positions"}`}
-        </span>
-        <Button onClick={startCreate} data-testid="admin-careers-new-job" style={{ background: "var(--c-primary)", color: "#fff" }}>
-          <Plus className="mr-1.5 h-4 w-4" /> New position
-        </Button>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
+      <AdminSurfaceCard className="overflow-hidden p-0" flush>
+        <AdminSectionHeader
+          icon={Briefcase}
+          title="Job posts"
+          subtitle={loading ? "Loading positions…" : `${jobs.length} ${jobs.length === 1 ? "position" : "positions"} on file`}
+          action={(
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startCreate}
+              data-testid="admin-careers-empty-create"
+              className="rounded-xl"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add position
+            </Button>
+          )}
+        />
         {loading ? (
-          <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+          </div>
         ) : jobs.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No positions yet. Click <span className="font-semibold">New position</span> to publish your first opening.</div>
+          <div className="p-5">
+            <AdminEmptyState
+              icon={Sparkles}
+              title="No positions yet"
+              description="Publish your first role — it will appear on the public /careers page when marked live."
+              action={(
+                <Button onClick={startCreate} data-testid="admin-careers-new-job-inline" style={{ background: "var(--c-ink-solid)", color: "#fff" }}>
+                  <Plus className="mr-1.5 h-4 w-4" /> New position
+                </Button>
+              )}
+            />
+          </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             {jobs.map((j) => (
-              <div key={j.slug} className="grid grid-cols-1 items-center gap-3 px-5 py-4 lg:grid-cols-12" data-testid="admin-careers-job-row">
-                <div className="lg:col-span-6">
-                  <p className="font-semibold text-[var(--c-ink)]">{j.title}</p>
-                  <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">{j.department} · {j.location}</p>
+              <div
+                key={j.slug}
+                className="grid grid-cols-1 items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--c-paper-2)] lg:grid-cols-12"
+                data-testid="admin-careers-job-row"
+              >
+                <div className="lg:col-span-5 min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--c-primary)" }}>
+                    {j.department}
+                  </p>
+                  <p className="mt-0.5 font-heading text-base font-semibold text-[var(--c-ink)]">{j.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--c-muted-fg)]">{j.summary}</p>
                 </div>
                 <div className="lg:col-span-3 flex flex-wrap gap-1.5 text-[11px]">
-                  <Pill icon={Briefcase}>{j.job_type}</Pill>
-                  <Pill icon={Globe2}>{j.workplace}</Pill>
+                  <Pill icon={MapPin}>{j.location}</Pill>
+                  <Pill icon={Briefcase}>{TYPE_LABEL[j.job_type] || j.job_type}</Pill>
+                  <Pill icon={Globe2}>{WP_LABEL[j.workplace] || j.workplace}</Pill>
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-2">
                   <span className={j.published ? "cs-badge cs-badge-success" : "cs-badge cs-badge-neutral"}>
                     {j.published ? "Live" : "Hidden"}
                   </span>
+                  {j.salary ? (
+                    <p className="mt-1.5 text-xs font-medium text-[var(--c-muted-fg)]">{j.salary}</p>
+                  ) : null}
                 </div>
-                <div className="lg:col-span-2 flex items-center justify-end gap-1">
-                  <a href={`/careers/${j.slug}`} target="_blank" rel="noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--c-paper-2)]" title="View public page" data-testid="admin-careers-view">
+                <div className="lg:col-span-2 flex items-center justify-start gap-1 lg:justify-end">
+                  <a
+                    href={`/careers/${j.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--c-border)] bg-[var(--card)] hover:bg-[var(--c-paper-2)]"
+                    title="View public page"
+                    data-testid="admin-careers-view"
+                  >
                     <Eye className="h-4 w-4" />
                   </a>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEdit(j)} title="Edit" data-testid="admin-careers-edit">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => startEdit(j)} title="Edit" data-testid="admin-careers-edit">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setConfirmDel(j)} title="Delete" data-testid="admin-careers-delete">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setConfirmDel(j)} title="Delete" data-testid="admin-careers-delete">
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
@@ -182,7 +317,7 @@ function JobsTab() {
             ))}
           </div>
         )}
-      </div>
+      </AdminSurfaceCard>
 
       {/* Create / Edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -267,18 +402,19 @@ function JobsTab() {
 
 /* -------------------------- APPLICATIONS TAB -------------------------- */
 
-function ApplicationsTab() {
+function ApplicationsTab({ onChanged }) {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState(null);
 
-  const load = async () => {
+  const load = async (status = filter) => {
     setLoading(true);
     try {
-      const params = filter === "all" ? {} : { status: filter };
+      const params = status === "all" ? {} : { status };
       const { data } = await api.get("/admin/careers/applications", { params });
       setApps(data);
+      await onChanged?.();
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -286,7 +422,7 @@ function ApplicationsTab() {
     }
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [filter]);
+  useEffect(() => { load(filter); }, [filter]);
 
   const current = useMemo(() => apps.find((a) => a.application_id === openId) || null, [apps, openId]);
   const statusOpt = (v) => STATUS_OPTIONS.find((s) => s.value === v) || STATUS_OPTIONS[0];
@@ -303,26 +439,44 @@ function ApplicationsTab() {
 
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "\u2014";
 
+  const filterTabs = [
+    { id: "all", label: "All", testId: "admin-careers-app-filter-all" },
+    ...STATUS_OPTIONS.map((s) => ({
+      id: s.value,
+      label: s.label,
+      testId: `admin-careers-app-filter-${s.value}`,
+    })),
+  ];
+
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="h-9 w-[180px]" data-testid="admin-careers-app-filter"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All applications</SelectItem>
-            {STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
-          {loading ? "…" : `${apps.length} ${apps.length === 1 ? "application" : "applications"}`}
-        </span>
+      <div className="mb-4">
+        <AdminPillTabs
+          tabs={filterTabs}
+          value={filter}
+          onChange={setFilter}
+          testId="admin-careers-app-filter"
+        />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
+      <AdminSurfaceCard className="overflow-hidden p-0" flush>
+        <AdminSectionHeader
+          icon={Mail}
+          title="Applications"
+          subtitle={loading ? "Loading applications…" : `${apps.length} ${apps.length === 1 ? "candidate" : "candidates"}${filter !== "all" ? ` · ${statusOpt(filter).label}` : ""}`}
+        />
         {loading ? (
-          <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+          </div>
         ) : apps.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-[var(--c-muted-fg)]">No applications {filter === "all" ? "yet" : `with status "${filter}"`}.</div>
+          <div className="p-5">
+            <AdminEmptyState
+              icon={Mail}
+              title={filter === "all" ? "No applications yet" : `No ${statusOpt(filter).label.toLowerCase()} applications`}
+              description={filter === "all" ? "Applications submitted on /careers will appear here." : `No applications currently marked as "${statusOpt(filter).label}".`}
+            />
+          </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
             {apps.map((a) => (
@@ -331,22 +485,22 @@ function ApplicationsTab() {
                 type="button"
                 onClick={() => setOpenId(a.application_id)}
                 data-testid="admin-careers-app-row"
-                className="grid w-full grid-cols-1 items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--c-paper-2)] lg:grid-cols-12"
+                className="grid w-full grid-cols-1 items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--c-paper-2)] lg:grid-cols-12"
               >
-                <div className="lg:col-span-4">
-                  <p className="font-semibold text-[var(--c-ink)]">{a.name}</p>
+                <div className="lg:col-span-4 min-w-0">
+                  <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">{a.name}</p>
                   <p className="truncate text-xs text-[var(--c-muted-fg)]">{a.email}</p>
                 </div>
-                <div className="lg:col-span-3 text-sm text-[var(--c-ink)]">{a.job_title}</div>
+                <div className="lg:col-span-3 text-sm font-medium text-[var(--c-ink)]">{a.job_title}</div>
                 <div className="lg:col-span-2">
                   <span className={statusOpt(a.status).badge}>{statusOpt(a.status).label}</span>
                 </div>
-                <div className="lg:col-span-3 text-right text-xs text-[var(--c-muted-fg)]">{fmtDate(a.created_at)}</div>
+                <div className="lg:col-span-3 text-left text-xs text-[var(--c-muted-fg)] lg:text-right">{fmtDate(a.created_at)}</div>
               </button>
             ))}
           </div>
         )}
-      </div>
+      </AdminSurfaceCard>
 
       {/* Detail dialog */}
       <Dialog open={!!current} onOpenChange={(o) => !o && setOpenId(null)}>

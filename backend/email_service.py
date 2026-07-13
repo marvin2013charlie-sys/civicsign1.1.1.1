@@ -173,6 +173,28 @@ def send_completion(to_email, doc_title, completed_pdf_bytes=None):
                  attachment_bytes=completed_pdf_bytes, attachment_name=fname)
 
 
+def send_org_invite(to_email, invitee_name, org_name, inviter_name, accept_url, *, monthly_limit=None):
+    """Organisation admin invites a colleague — they choose their own password."""
+    limit_note = ""
+    if monthly_limit:
+        limit_note = (
+            f"<p style=\"color:#3a4650;font-size:14px\">Your monthly document allowance: "
+            f"<b>{monthly_limit:,}</b> per billing period.</p>"
+        )
+    body = (
+        f"<p>Hi {esc(invitee_name or 'there')},</p>"
+        f"<p><b>{esc(inviter_name)}</b> has invited you to join "
+        f"<b>{esc(org_name)}</b> on CivicSign.</p>"
+        f"<p>Accept the invitation to access your organisation workspace, send documents, "
+        f"and collaborate with your team.</p>"
+        f"{limit_note}"
+        f"<p style=\"color:#8a9299;font-size:13px\">This invitation expires in 7 days. "
+        f"If you weren't expecting this, you can ignore this email.</p>"
+    )
+    html = _shell(f"Join {org_name} on CivicSign", body, "Accept invitation", accept_url)
+    return _send(to_email, f"You're invited to join {org_name} on CivicSign", html)
+
+
 def send_declined(to_email, doc_title, decliner, reason=None):
     body = (
         f"<p><b>{esc(decliner)}</b> has declined to sign <b>{esc(doc_title)}</b>.</p>"

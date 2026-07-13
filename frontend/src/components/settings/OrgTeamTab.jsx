@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import { usePoll, POLL_FAST_MS } from "@/hooks/usePoll";
 import { toast } from "sonner";
 import api, { formatApiError } from "@/lib/api";
+import { getAppOrigin } from "@/lib/appOrigin";
 import { formatOrgRole } from "@/lib/orgLabels";
 import { copyToClipboard } from "@/lib/clipboard";
+import {
+  ORG_MEMBER_FEATURE_OPTIONS,
+  defaultOrgMemberFeatureFlags,
+} from "@/lib/orgMemberFeatures";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +18,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  UserPlus, Users, KeyRound, PauseCircle, PlayCircle, Eye, EyeOff, Copy, Check, Loader2, Gauge,
+  UserPlus, Users, KeyRound, PauseCircle, PlayCircle, Copy, Check, Loader2, Gauge,
+  Mail, RotateCw, XCircle,
 } from "lucide-react";
 
 function generatePw() {
@@ -32,23 +38,36 @@ const fmtDate = (iso) => (iso
   ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
   : "—");
 
+const emptyInviteForm = () => ({
+  email: "",
+  name: "",
+  quotaUseDefault: true,
+  quotaValue: "",
+  featureFlags: defaultOrgMemberFeatureFlags(),
+});
+
 /**
  * @param {object} [props]
  * @param {Array|null} [props.members] When provided (Organisation portal), use parent data — no duplicate polling.
+ * @param {Array|null} [props.pendingInvites] Pending email invitations (owner view).
  * @param {number} [props.orgPerSeat]
  * @param {() => Promise<void>} [props.onReload] Refresh callback after mutations (parent reloads /org/portal).
  */
-export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: orgPerSeatProp, onReload } = {}) {
+export default function OrgTeamTab({
+  members: membersProp = null,
+  pendingInvites: pendingInvitesProp = null,
+  orgPerSeat: orgPerSeatProp,
+  onReload,
+} = {}) {
   const embedded = membersProp != null;
   const [members, setMembers] = useState(membersProp ?? []);
+  const [invites, setInvites] = useState(pendingInvitesProp ?? []);
   const [loading, setLoading] = useState(!embedded);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [showPw, setShowPw] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState(emptyInviteForm);
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPw, setResetPw] = useState("");
-  const [resetShowPw, setResetShowPw] = useState(false);
   const [resetSaving, setResetSaving] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(null);
   const [resetCopied, setResetCopied] = useState(false);
@@ -58,13 +77,19 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
   const [quotaValue, setQuotaValue] = useState("");
   const [quotaUseDefault, setQuotaUseDefault] = useState(false);
   const [quotaSaving, setQuotaSaving] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const [revokeSaving, setRevokeSaving] = useState(false);
+  const [resendId, setResendId] = useState(null);
   const orgPerSeat = orgPerSeatProp
     ?? members.find((m) => m.org_per_seat_limit)?.org_per_seat_limit
     ?? 500;
 
   useEffect(() => {
-    if (embedded) setMembers(membersProp);
-  }, [embedded, membersProp]);
+    if (embedded) {
+      setMembers(membersProp);
+      setInvites(pendingInvitesProp ?? []);
+    }
+  }, [embedded, membersProp, pendingInvitesProp]);
 
   const load = useCallback(async (silent = false) => {
     if (embedded) {
@@ -73,10 +98,12 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
     }
     if (!silent) setLoading(true);
     try {
-      const { data } = await api.get("/org/members", {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
-      setMembers(data);
+      const [membersRes, invitesRes] = await Promise.all([
+        api.get("/org/members", { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } }),
+        api.get("/org/invites", { headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } }),
+      ]);
+      setMembers(membersRes.data);
+      setInvites(invitesRes.data);
     } catch (err) {
       if (!silent) toast.error(formatApiError(err));
     } finally {
@@ -88,27 +115,72 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
     if (!embedded) load();
   }, [embedded, load]);
 
-  const dialogOpen = createOpen || !!resetTarget || !!holdTarget || !!quotaTarget
-    || !!resetSuccess || saving || resetSaving || holdSaving || quotaSaving;
+  const dialogOpen = inviteOpen || !!resetTarget || !!holdTarget || !!quotaTarget
+    || !!resetSuccess || !!revokeTarget || saving || resetSaving || holdSaving || quotaSaving || revokeSaving;
 
   usePoll(() => load(true), POLL_FAST_MS, { enabled: !embedded && !dialogOpen });
 
-  const create = async () => {
-    if (!form.name.trim() || !form.email.trim() || form.password.length < 8) {
-      toast.error("Name, email and an 8+ character password are required");
+  const sendInvite = async () => {
+    if (!form.email.trim()) {
+      toast.error("Work email is required");
       return;
+    }
+    if (!form.quotaUseDefault) {
+      const n = parseInt(form.quotaValue, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        toast.error("Enter a valid monthly document limit");
+        return;
+      }
+      if (n > orgPerSeat) {
+        toast.error(`Cannot exceed your organisation allowance of ${orgPerSeat.toLocaleString()} per seat`);
+        return;
+      }
     }
     setSaving(true);
     try {
-      await api.post("/org/members", form);
-      toast.success(`Account created for ${form.email}. Share the login details securely.`);
-      setForm({ name: "", email: "", password: "" });
-      setCreateOpen(false);
+      await api.post("/org/invites", {
+        email: form.email.trim().toLowerCase(),
+        name: form.name.trim() || undefined,
+        monthly_seat_limit: form.quotaUseDefault ? null : parseInt(form.quotaValue, 10),
+        feature_flags: form.featureFlags,
+        base_url: getAppOrigin(),
+      });
+      toast.success(`Invitation sent to ${form.email}`);
+      setForm(emptyInviteForm());
+      setInviteOpen(false);
       await load();
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resendInvite = async (invite) => {
+    setResendId(invite.invite_id);
+    try {
+      await api.post(`/org/invites/${invite.invite_id}/resend`);
+      toast.success(`Invitation resent to ${invite.email}`);
+      await load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setResendId(null);
+    }
+  };
+
+  const revokeInvite = async () => {
+    if (!revokeTarget) return;
+    setRevokeSaving(true);
+    try {
+      await api.delete(`/org/invites/${revokeTarget.invite_id}`);
+      toast.success(`Revoked invitation for ${revokeTarget.email}`);
+      setRevokeTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setRevokeSaving(false);
     }
   };
 
@@ -152,7 +224,7 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
       });
       toast.success(quotaUseDefault
         ? `Reset ${quotaTarget.email} to the organisation default (${orgPerSeat.toLocaleString()}/month)`
-        : `Set ${quotaTarget.email} to ${parseInt(quotaValue, 10).toLocaleString()} documents/month`);
+        : `Set ${quotaTarget.email} to ${parseInt(quotaValue, 10).toLocaleString()} documents per billing period`);
       setQuotaTarget(null);
       await load();
     } catch (err) {
@@ -180,31 +252,92 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
     }
   };
 
+  const toggleFeature = (key) => {
+    setForm((f) => ({
+      ...f,
+      featureFlags: { ...f.featureFlags, [key]: !f.featureFlags[key] },
+    }));
+  };
+
+  const empty = !loading && members.length === 0 && invites.length === 0;
+
   return (
     <div className="space-y-5" data-testid="org-team-tab">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Organisation team</h2>
           <p className="mt-0.5 max-w-xl text-sm text-[var(--c-muted-fg)]">
-            Create logins for colleagues and set each member&apos;s monthly document allowance (up to {orgPerSeat.toLocaleString()} per seat). Contract pricing is agreed with your account manager.
+            Invite colleagues by email — they choose their own password. Set each member&apos;s monthly
+            document allowance (up to {orgPerSeat.toLocaleString()} per seat) and feature access when inviting.
           </p>
         </div>
-        <Button onClick={() => { setForm((f) => ({ ...f, password: f.password || generatePw() })); setCreateOpen(true); }}
-          data-testid="org-team-add" style={{ background: "var(--c-primary)", color: "#fff" }}>
-          <UserPlus className="mr-1.5 h-4 w-4" /> Add team member
+        <Button
+          onClick={() => {
+            setForm((f) => ({
+              ...emptyInviteForm(),
+              quotaValue: String(orgPerSeat),
+              featureFlags: f.featureFlags,
+            }));
+            setInviteOpen(true);
+          }}
+          data-testid="org-team-invite"
+          style={{ background: "var(--c-primary)", color: "#fff" }}
+        >
+          <UserPlus className="mr-1.5 h-4 w-4" /> Invite team member
         </Button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
         {loading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
-        ) : members.length === 0 ? (
+        ) : empty ? (
           <div className="px-6 py-16 text-center">
             <Users className="mx-auto h-10 w-10 text-[var(--c-muted-fg)]" />
-            <p className="mt-3 text-sm text-[var(--c-muted-fg)]">No team members yet.</p>
+            <p className="mt-3 text-sm text-[var(--c-muted-fg)]">No team members yet. Send your first invitation.</p>
           </div>
         ) : (
           <div className="divide-y divide-[var(--c-border)]">
+            {invites.map((inv) => (
+              <div key={inv.invite_id} data-testid="org-team-invite-row" className="flex flex-wrap items-center gap-3 px-5 py-4 bg-[var(--c-paper-2)]/40">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[var(--c-ink)]">{inv.name || inv.email}</p>
+                  <p className="text-xs text-[var(--c-muted-fg)]">{inv.email}</p>
+                </div>
+                <Badge variant="outline" className="border-dashed border-[var(--c-primary)]/40 text-[var(--c-primary)]">
+                  <Mail className="mr-1 h-3 w-3" /> Invited
+                </Badge>
+                <div className="text-right text-sm">
+                  <p className="font-medium text-[var(--c-ink)]">
+                    {(inv.monthly_seat_limit ?? orgPerSeat).toLocaleString()} / billing period
+                  </p>
+                  <p className="text-xs text-[var(--c-muted-fg)]">pending acceptance</p>
+                </div>
+                <span className="text-sm text-[var(--c-muted-fg)]">{fmtDate(inv.created_at)}</span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Resend invitation"
+                    disabled={resendId === inv.invite_id}
+                    onClick={() => resendInvite(inv)}
+                  >
+                    {resendId === inv.invite_id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <RotateCw className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Revoke invitation"
+                    onClick={() => setRevokeTarget(inv)}
+                  >
+                    <XCircle className="h-4 w-4 text-amber-600" />
+                  </Button>
+                </div>
+              </div>
+            ))}
             {members.map((m) => (
               <div key={m.user_id} data-testid="org-team-row" className="flex flex-wrap items-center gap-3 px-5 py-4">
                 <div className="min-w-0 flex-1">
@@ -217,7 +350,7 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
                     {(m.seat_used ?? 0).toLocaleString()} / {(m.seat_limit ?? orgPerSeat).toLocaleString()}
                   </p>
                   <p className="text-xs text-[var(--c-muted-fg)]">
-                    docs this month{m.seat_limit_custom ? " · custom limit" : ""}
+                    docs this billing period{m.seat_limit_custom ? " · custom limit" : ""}
                   </p>
                 </div>
                 <span className="text-sm text-[var(--c-muted-fg)]">{fmtDate(m.created_at)}</span>
@@ -248,45 +381,101 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
         )}
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent data-testid="org-team-create-dialog">
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent data-testid="org-team-invite-dialog" className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add a team member</DialogTitle>
+            <DialogTitle>Invite a team member</DialogTitle>
             <DialogDescription>
-              Create a login for someone in your organisation. Share the email and temporary password securely — they can change it in Settings.
+              We&apos;ll email them a secure link to join your organisation and set their own password.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <Label htmlFor="org-member-name">Full name</Label>
-              <Input id="org-member-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Label htmlFor="org-invite-email">Work email</Label>
+              <Input
+                id="org-invite-email"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value.toLowerCase() })}
+                placeholder="colleague@company.co.uk"
+                data-testid="org-invite-email"
+              />
             </div>
             <div>
-              <Label htmlFor="org-member-email">Work email</Label>
-              <Input id="org-member-email" type="email" value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value.toLowerCase() })} />
+              <Label htmlFor="org-invite-name">Name (optional)</Label>
+              <Input
+                id="org-invite-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Shown in the invitation email"
+              />
             </div>
-            <div>
-              <Label htmlFor="org-member-password">Temporary password</Label>
-              <div className="relative">
-                <Input id="org-member-password" type={showPw ? "text" : "password"} value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-2 p-1 text-[var(--c-muted-fg)]">
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+            <div className="space-y-2 rounded-lg border border-[var(--c-border)] p-3">
+              <p className="text-sm font-semibold text-[var(--c-ink)]">Document limit per billing period</p>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.quotaUseDefault}
+                  onChange={(e) => setForm({ ...form, quotaUseDefault: e.target.checked })}
+                  className="rounded border-[var(--c-border)]"
+                />
+                Use organisation default ({orgPerSeat.toLocaleString()} / billing period)
+              </label>
+              {!form.quotaUseDefault && (
+                <div>
+                  <Label htmlFor="org-invite-quota">Documents per billing period</Label>
+                  <Input
+                    id="org-invite-quota"
+                    type="number"
+                    min={1}
+                    max={orgPerSeat}
+                    value={form.quotaValue}
+                    onChange={(e) => setForm({ ...form, quotaValue: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2 rounded-lg border border-[var(--c-border)] p-3">
+              <p className="text-sm font-semibold text-[var(--c-ink)]">Feature access</p>
+              <p className="text-xs text-[var(--c-muted-fg)]">
+                Choose what this member can use. Organisation admins always have full access including API keys.
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {ORG_MEMBER_FEATURE_OPTIONS.map((opt) => (
+                  <label key={opt.key} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!form.featureFlags[opt.key]}
+                      onChange={() => toggleFeature(opt.key)}
+                      className="rounded border-[var(--c-border)]"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
               </div>
-              <Button type="button" variant="link" className="mt-1 h-auto p-0 text-xs"
-                onClick={() => setForm({ ...form, password: generatePw() })}>
-                Generate secure password
-              </Button>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={create} disabled={saving} style={{ background: "var(--c-primary)", color: "#fff" }}>
-              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-              Create account
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+            <Button onClick={sendInvite} disabled={saving} style={{ background: "var(--c-primary)", color: "#fff" }}>
+              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}
+              Send invitation
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revoke invitation</DialogTitle>
+            <DialogDescription>
+              Cancel the pending invitation for {revokeTarget?.email}. They will no longer be able to join using that link.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeTarget(null)}>Keep invitation</Button>
+            <Button onClick={revokeInvite} disabled={revokeSaving}>Revoke</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -295,14 +484,9 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset password for {resetTarget?.email}</DialogTitle>
-            <DialogDescription>Set a new temporary password. Share it securely with the team member.</DialogDescription>
+            <DialogDescription>Emergency fallback — prefer invitations so members manage their own passwords.</DialogDescription>
           </DialogHeader>
-          <div className="relative">
-            <Input type={resetShowPw ? "text" : "password"} value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
-            <button type="button" onClick={() => setResetShowPw(!resetShowPw)} className="absolute right-2 top-2 p-1 text-[var(--c-muted-fg)]">
-              {resetShowPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+          <Input type="text" value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetTarget(null)}>Cancel</Button>
             <Button onClick={submitReset} disabled={resetSaving}>Save password</Button>
@@ -314,7 +498,7 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Password updated</DialogTitle>
-            <DialogDescription>Copy these details and share them with the team member.</DialogDescription>
+            <DialogDescription>Copy these details and share them securely with the team member.</DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-3 text-sm font-mono">
             <p>Email: {resetSuccess?.email}</p>
@@ -336,7 +520,7 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
       <Dialog open={!!quotaTarget} onOpenChange={(open) => { if (!open) setQuotaTarget(null); }}>
         <DialogContent data-testid="org-team-quota-dialog">
           <DialogHeader>
-            <DialogTitle>Monthly limit for {quotaTarget?.email}</DialogTitle>
+            <DialogTitle>Billing-period limit for {quotaTarget?.email}</DialogTitle>
             <DialogDescription>
               Set how many documents this team member can send each billing period. Cannot exceed your organisation allowance of {orgPerSeat.toLocaleString()} per seat.
             </DialogDescription>
@@ -349,11 +533,11 @@ export default function OrgTeamTab({ members: membersProp = null, orgPerSeat: or
                 onChange={(e) => setQuotaUseDefault(e.target.checked)}
                 className="rounded border-[var(--c-border)]"
               />
-              Use organisation default ({orgPerSeat.toLocaleString()} / month)
+              Use organisation default ({orgPerSeat.toLocaleString()} / billing period)
             </label>
             {!quotaUseDefault && (
               <div>
-                <Label htmlFor="org-member-quota">Documents per month</Label>
+                <Label htmlFor="org-member-quota">Documents per billing period</Label>
                 <Input
                   id="org-member-quota"
                   type="number"

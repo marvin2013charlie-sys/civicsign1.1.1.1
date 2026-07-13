@@ -1,13 +1,16 @@
 // @ts-check
 const { expect } = require("@playwright/test");
 
-const backendUrl = process.env.E2E_BACKEND_URL || "http://localhost:8001";
+const backendUrl = process.env.E2E_BACKEND_URL || "http://127.0.0.1:8001";
 
+/** Seeded by scripts/reset_dev_data.py — keep in sync with local dev DB. */
 const USERS = {
-  pro: { email: "protest@civicbot.co.uk", password: "ProTest123!" },
-  business: { email: "businesstest@civicbot.co.uk", password: "BusinessPass123!" },
-  orgOwner: { email: "orgowner-test@civicbot.co.uk", password: "OrgOwner123!" },
-  admin: { email: "admin@example.com", password: "AdminPass123!" },
+  free: { email: "free@civicbot.co.uk", password: "CivicSign2026!Free" },
+  pro: { email: "pro@civicbot.co.uk", password: "CivicSign2026!Pro" },
+  business: { email: "business@civicbot.co.uk", password: "CivicSign2026!Biz" },
+  orgOwner: { email: "org@civicbot.co.uk", password: "CivicSign2026!Org" },
+  orgStaff: { email: "staff@civicbot.co.uk", password: "CivicSign2026!Staff" },
+  admin: { email: "admin@civicbot.co.uk", password: "CivicSign2026!Admin" },
 };
 
 /** Remove product tour overlays and toasts that intercept Playwright clicks. */
@@ -58,6 +61,7 @@ async function loginAdmin(page, { email, password }) {
     (url) => url.pathname.startsWith("/admin") && !url.pathname.includes("/login"),
     { timeout: 30_000 },
   );
+  await clearUiBlockers(page);
 }
 
 function uniqueEmail() {

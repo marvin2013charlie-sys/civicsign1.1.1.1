@@ -142,13 +142,13 @@ export function buildAppTourSteps(user) {
     navStep(
       "nav-usage",
       "Usage",
-      "Check your monthly document allowance and see how your plan is tracking.",
+      "Check your document allowance for this billing period and see how your plan is tracking.",
     ),
     {
-      element: '[data-testid="dashboard-new-envelope-button"]',
+      element: '[data-testid="sidebar-new-envelope"]',
       popover: {
         title: "Quick send",
-        description: "On the dashboard you can also jump straight into a new envelope from here.",
+        description: "Start a new envelope any time from the sidebar — upload, prepare, and send in minutes.",
         side: "bottom",
         align: "start",
       },

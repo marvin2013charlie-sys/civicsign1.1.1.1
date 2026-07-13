@@ -1,7 +1,7 @@
 import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
-import { sanitizeNextUrl } from "@/lib/authPortal";
+import { getPostAuthDestination } from "@/lib/authPortal";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import AcceptInvite from "@/pages/AcceptInvite";
 import Dashboard from "@/pages/Dashboard";
 import NewEnvelope from "@/pages/NewEnvelope";
 import Documents from "@/pages/Documents";
@@ -22,6 +23,8 @@ import EnvelopeDetail from "@/pages/EnvelopeDetail";
 import SignerFlow from "@/pages/SignerFlow";
 import Templates from "@/pages/Templates";
 import ManagePdf from "@/pages/ManagePdf";
+import ManagePdfProduct from "@/pages/ManagePdfProduct";
+import Pricing from "@/pages/Pricing";
 import Contacts from "@/pages/Contacts";
 import PublicForm from "@/pages/PublicForm";
 import Settings from "@/pages/Settings";
@@ -34,6 +37,7 @@ import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminUserDetail from "@/pages/admin/AdminUserDetail";
 
+
 import AdminContacts from "@/pages/admin/AdminContacts";
 import AdminBilling from "@/pages/admin/AdminBilling";
 import AdminAuditLog from "@/pages/admin/AdminAuditLog";
@@ -44,9 +48,11 @@ import AdminCareers from "@/pages/admin/AdminCareers";
 import StaffLanding from "@/pages/admin/StaffLanding";
 import RequirePerm from "@/components/RequirePerm";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Careers from "@/pages/Careers";
 import JobDetail from "@/pages/JobDetail";
 import About from "@/pages/About";
+import Solutions from "@/pages/Solutions";
 import Contact from "@/pages/Contact";
 import RealEstate from "@/pages/solutions/RealEstate";
 import StaffingAgency from "@/pages/solutions/StaffingAgency";
@@ -57,6 +63,8 @@ import Healthcare from "@/pages/solutions/Healthcare";
 import Charities from "@/pages/solutions/Charities";
 import Construction from "@/pages/solutions/Construction";
 import Education from "@/pages/solutions/Education";
+import Sales from "@/pages/solutions/Sales";
+import Freelancers from "@/pages/solutions/Freelancers";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import Resources from "@/pages/Resources";
@@ -91,7 +99,7 @@ function PublicOnly({ children }) {
   const [params] = useSearchParams();
   if (user === null) return <FullLoader />;
   if (user) {
-    const dest = sanitizeNextUrl(params.get("next")) || "/dashboard";
+    const dest = getPostAuthDestination(params.get("next"));
     return <Navigate to={dest} replace />;
   }
   return children;
@@ -129,6 +137,7 @@ function AppRoutes() {
 
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
+      <Route path="/solutions" element={<Solutions />} />
       <Route path="/solutions/real-estate" element={<RealEstate />} />
       <Route path="/solutions/staffing-agency" element={<StaffingAgency />} />
       <Route path="/solutions/legal" element={<Legal />} />
@@ -138,6 +147,10 @@ function AppRoutes() {
       <Route path="/solutions/charities" element={<Charities />} />
       <Route path="/solutions/construction" element={<Construction />} />
       <Route path="/solutions/education" element={<Education />} />
+      <Route path="/solutions/sales" element={<Sales />} />
+      <Route path="/solutions/freelancers" element={<Freelancers />} />
+      <Route path="/product/manage-pdf" element={<ManagePdfProduct />} />
+      <Route path="/pricing" element={<Pricing />} />
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
       <Route path="/resources" element={<Resources />} />
@@ -158,6 +171,7 @@ function AppRoutes() {
       <Route path="/form/:slug" element={<PublicForm />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
       <Route path="/documents" element={<Protected><Documents /></Protected>} />
@@ -175,6 +189,7 @@ function AppRoutes() {
         <Route index element={<AdminIndex />} />
         <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
         <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
+
 
         <Route path="billing" element={<RequirePerm perm="billing"><AdminBilling /></RequirePerm>} />
         <Route path="audit" element={<RequirePerm perm="audit"><AdminAuditLog /></RequirePerm>} />
@@ -199,7 +214,9 @@ function App() {
       <BrowserRouter>
         <ScrollToTop />
         <SeoManager />
-        <AppRoutes />
+        <ErrorBoundary>
+          <AppRoutes />
+        </ErrorBoundary>
         <Toaster position="top-right" richColors closeButton />
       </BrowserRouter>
     </AuthProvider>

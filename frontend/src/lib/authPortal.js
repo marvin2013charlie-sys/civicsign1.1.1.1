@@ -6,8 +6,15 @@ export function sanitizeNextUrl(next) {
   if (!next || typeof next !== "string") return null;
   const path = next.trim();
   if (!path.startsWith("/") || path.startsWith("//")) return null;
+  // Marketing home is not a post-auth destination — send users to the app instead.
+  if (path === "/" || path === "") return null;
   if (path.startsWith("/login") || path.startsWith("/register") || path.startsWith("/admin")) return null;
   return path;
+}
+
+/** Where to land after sign-in / verification — never the public landing page. */
+export function getPostAuthDestination(next, fallback = "/dashboard") {
+  return sanitizeNextUrl(next) || fallback;
 }
 
 export function getAuthNext(searchParams) {

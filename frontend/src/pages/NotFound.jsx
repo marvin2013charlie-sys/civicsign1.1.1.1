@@ -1,13 +1,16 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Logo } from "@/components/Logo";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
+import { CookieBanner } from "@/components/CookieBanner";
 import { Button } from "@/components/ui/button";
 import { Home, ArrowLeft } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--c-paper)] px-6 text-center">
-      <Logo />
+    <div className="min-h-screen bg-[var(--c-paper)]">
+      <SiteHeader />
+      <div className="flex flex-col items-center justify-center gap-6 px-6 py-24 text-center">
       <div>
         <p className="text-sm font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">404</p>
         <h1 className="mt-2 font-heading text-3xl font-bold text-[var(--c-ink)]">Page not found</h1>
@@ -25,6 +28,9 @@ export default function NotFound() {
           </Button>
         </Link>
       </div>
+      </div>
+      <SiteFooter />
+      <CookieBanner />
     </div>
   );
 }

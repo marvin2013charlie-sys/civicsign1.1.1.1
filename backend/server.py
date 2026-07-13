@@ -28,7 +28,9 @@ from db import (
     upload_document_file, download_document_file,
 )
 from document_access import (
+    assert_can_view_envelope_confidential,
     assert_sender_can_view_document, assert_template_owner_can_view,
+    is_privileged_session, maybe_redact_envelope,
 )
 from schema import ensure_database
 import pdf_service
@@ -43,13 +45,13 @@ from integrations import integrations_router, v1_router, emit_webhook
 from auth import auth_router, get_current_user, get_current_user_sse, seed_admin
 from security_utils import (
     get_cors_origins, validate_redirect_base, esc, trust_proxy, sniff_image_type, is_dev_mode,
-    assert_safe_production, security_headers,
+    assert_safe_production, assert_document_encryption_key, security_headers,
 )
 import hashlib
 import secrets as _secrets
 from plan_features import (
     plan_features, has_feature, require_feature, owner_has_feature,
-    get_bulk_send_max_rows,
+    get_bulk_send_max_rows, sms_auth_available,
 )
 from signature_levels import (
     resolve_send_signature_level,
@@ -132,6 +134,61 @@ def can_sign(env: dict, recipient: dict) -> bool:
         if r.get("order", 1) < order and r["status"] != "signed":
             return False
     return True
+
+
+SIGNER_SIGN_ONLY_FIELD_TYPES = frozenset({"signature", "initials"})
+IDLE_ENVELOPE_DAYS = 3
+
+
+def is_sign_only_document(env: dict) -> bool:
+    """Word uploads are converted to PDF but signers may only add signatures."""
+    return (env.get("document") or {}).get("file_type") == "docx"
+
+
+def signer_field_editable(field: dict, recipient: dict, env: dict, signable: bool) -> bool:
+    if field.get("recipient_id") != recipient.get("recipient_id"):
+        return False
+    if not signable or recipient.get("status") in ("signed", "declined"):
+        return False
+    if is_sign_only_document(env) and field.get("type") not in SIGNER_SIGN_ONLY_FIELD_TYPES:
+        return False
+    return True
+
+
+def is_sent_envelope(item: dict) -> bool:
+    """True when the envelope was sent for signature (not a draft or saved PDF)."""
+    return bool(item.get("sent_at"))
+
+
+def envelope_list_query(
+    owner_id: str,
+    status: str | None = None,
+    q: str | None = None,
+    *,
+    exclude_manage_pdf: bool = False,
+    manage_pdf_only: bool = False,
+    sealed_only: bool = False,
+) -> dict:
+    query: dict = {"owner_id": owner_id}
+    if q and q.strip():
+        query["title"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    if status and status != "all":
+        if status == "awaiting":
+            query["status"] = {"$in": ["sent", "viewed"]}
+        else:
+            query["status"] = status
+    if manage_pdf_only:
+        query["manage_pdf_tool"] = {"$exists": True, "$nin": [None, ""]}
+    elif exclude_manage_pdf:
+        query["$or"] = [
+            {"manage_pdf_tool": {"$exists": False}},
+            {"manage_pdf_tool": None},
+            {"manage_pdf_tool": ""},
+        ]
+    if sealed_only:
+        query["status"] = "completed"
+        query["doc_hash"] = {"$exists": True, "$nin": [None, ""]}
+    return query
 
 
 async def get_envelope_owned(envelope_id: str, user: dict) -> dict:
@@ -391,20 +448,16 @@ async def create_envelope(
     title: str = Form(None),
     user: dict = Depends(get_current_user),
 ):
-    credits = await enforce_quota(user, count=1)
     envelope_id = f"env_{uuid.uuid4().hex[:16]}"
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         raise HTTPException(status_code=413, detail="File too large — maximum size is 25 MB")
     if not raw:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         raise HTTPException(status_code=400, detail="Empty file")
     fname = file.filename or "document"
     is_docx = fname.lower().endswith((".docx", ".doc")) or (file.content_type in DOCX_TYPES)
     is_pdf = fname.lower().endswith(".pdf") or file.content_type == "application/pdf"
     if not (is_docx or is_pdf):
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         raise HTTPException(status_code=400, detail="Only PDF and Word (.docx) files are supported")
     try:
         if is_docx:
@@ -414,14 +467,12 @@ async def create_envelope(
         pdf_bytes = pdf_service.normalize_pdf_viewbox(pdf_bytes)
         page_count, pages = pdf_service.get_pdf_info(pdf_bytes)
     except RuntimeError as e:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         msg = str(e)
         if "DOCX conversion unavailable" in msg or "conversion failed" in msg.lower():
             raise HTTPException(status_code=503, detail=msg)
         logger.error(f"upload processing error: {e}")
         raise HTTPException(status_code=400, detail="Could not process document")
     except Exception as e:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         logger.error(f"upload processing error: {e}")
         raise HTTPException(status_code=400, detail="Could not process document")
 
@@ -456,10 +507,24 @@ async def list_envelopes(
     limit: int = Query(500, ge=1, le=2000),
     skip: int = Query(0, ge=0),
     paginated: bool = Query(False),
+    status: str | None = Query(None),
+    q: str | None = Query(None),
+    exclude_manage_pdf: bool = Query(False),
+    manage_pdf_only: bool = Query(False),
+    sealed_only: bool = Query(False),
 ):
-    query = {"owner_id": user["user_id"]}
+    query = envelope_list_query(
+        user["user_id"],
+        status=status,
+        q=q,
+        exclude_manage_pdf=exclude_manage_pdf,
+        manage_pdf_only=manage_pdf_only,
+        sealed_only=sealed_only,
+    )
     items = await db.envelopes.find(query, {"_id": 0}).sort(
-        "created_at", -1).skip(skip).limit(limit).to_list(limit)
+        "updated_at", -1).skip(skip).limit(limit).to_list(limit)
+    if is_privileged_session(user):
+        items = [maybe_redact_envelope(user, it) for it in items]
     if paginated:
         total = await db.envelopes.count_documents(query)
         return {"items": items, "total": total, "skip": skip, "limit": limit}
@@ -470,29 +535,48 @@ async def list_envelopes(
 async def stats(user: dict = Depends(get_current_user)):
     items = await db.envelopes.find(
         {"owner_id": user["user_id"]},
-        {"_id": 0, "status": 1, "created_at": 1, "completed_at": 1}).to_list(2000)
+        {"_id": 0, "status": 1, "created_at": 1, "completed_at": 1,
+         "updated_at": 1, "envelope_id": 1, "title": 1, "sent_at": 1}).to_list(2000)
     counts = {"draft": 0, "sent": 0, "viewed": 0, "completing": 0,
               "completed": 0, "declined": 0, "voided": 0, "expired": 0}
+    sent_items = []
     for it in items:
         s = it.get("status", "draft")
         counts[s] = counts.get(s, 0) + 1
-    total = len(items)
+        if is_sent_envelope(it):
+            sent_items.append(it)
+    total = len(sent_items)
     pending = counts["sent"] + counts["viewed"]
     completion_rate = round((counts["completed"] / total) * 100) if total else 0
     series = []
     today = datetime.now(timezone.utc).date()
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
-        c = sum(1 for it in items if (it.get("created_at") or "")[:10] == d.isoformat())
+        c = sum(
+            1 for it in sent_items
+            if (it.get("sent_at") or "")[:10] == d.isoformat()
+        )
         series.append({"date": d.strftime("%b %d"), "count": c})
+    idle_cutoff = (datetime.now(timezone.utc) - timedelta(days=IDLE_ENVELOPE_DAYS)).isoformat()
+    idle = []
+    for it in sent_items:
+        if it.get("status") not in ("sent", "viewed"):
+            continue
+        if (it.get("updated_at") or "") >= idle_cutoff:
+            continue
+        title = "Confidential document" if is_privileged_session(user) else (it.get("title") or "Untitled")
+        idle.append({"envelope_id": it["envelope_id"], "title": title})
     return {"total": total, "counts": counts, "pending": pending,
-            "completion_rate": completion_rate, "series": series}
+            "completion_rate": completion_rate, "series": series,
+            "idle": idle, "idle_count": len(idle),
+            "draft_count": counts.get("draft", 0)}
 
 
 @api_router.get("/envelopes/{envelope_id}")
 async def get_envelope(envelope_id: str, user: dict = Depends(get_current_user)):
     env = await get_envelope_owned(envelope_id, user)
-    return await maybe_expire(env)
+    env = await maybe_expire(env)
+    return maybe_redact_envelope(user, env)
 
 
 @api_router.put("/envelopes/{envelope_id}")
@@ -529,6 +613,11 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
                 raise HTTPException(status_code=400, detail="auth_method must be sms or kba")
             if auth_method:
                 require_feature(user, "recipient_auth")
+            if auth_method == "sms" and not sms_auth_available():
+                raise HTTPException(
+                    status_code=400,
+                    detail="SMS verification is not available yet — use postcode (KBA) verification instead",
+                )
             if auth_method == "sms" and not (r.auth_phone or "").strip():
                 raise HTTPException(status_code=400, detail="SMS authentication requires auth_phone")
             if auth_method == "kba" and not (r.auth_kba_postcode or "").strip():
@@ -585,6 +674,7 @@ async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
         if r["recipient_id"] not in rids_with_fields:
             raise HTTPException(status_code=400,
                                 detail=f"Recipient {r['name']} has no fields assigned")
+    credits = await enforce_quota(user, count=1)
     msg = body.message if body.message is not None else env.get("message")
     expires_at = None
     if body.expires_in_days and body.expires_in_days > 0:
@@ -618,13 +708,17 @@ async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
     )
     env["audit_events"].append(
         audit_event(user["email"], "Sent for signature", client_ip(request), audit_detail))
-    await db.envelopes.update_one(
-        {"envelope_id": envelope_id},
-        {"$set": {"status": "sent", "sent_at": env["sent_at"], "message": msg,
-                  "expires_at": expires_at, "signature_level": sig_level,
-                  "auto_remind": auto_remind,
-                  "recipients": env["recipients"], "audit_events": env["audit_events"],
-                  "updated_at": now_iso()}})
+    try:
+        await db.envelopes.update_one(
+            {"envelope_id": envelope_id},
+            {"$set": {"status": "sent", "sent_at": env["sent_at"], "message": msg,
+                      "expires_at": expires_at, "signature_level": sig_level,
+                      "auto_remind": auto_remind,
+                      "recipients": env["recipients"], "audit_events": env["audit_events"],
+                      "updated_at": now_iso()}})
+    except Exception:
+        await release_envelope_quota(user, count=1, credits_consumed=credits)
+        raise
     base = _resolve_redirect_base(request, body.base_url or "")
     links = []
     for r in env["recipients"]:
@@ -634,10 +728,10 @@ async def send_envelope(envelope_id: str, body: SendRequest, request: Request,
         if can_sign(env, r) and link:
             email_service.send_signing_invite(
                 r["email"], r["name"], env["owner_name"], env["title"], link, msg)
-    asyncio.create_task(emit_webhook(env["owner_id"], "envelope.sent", {
+    emit_webhook(env["owner_id"], "envelope.sent", {
         "envelope_id": envelope_id, "title": env["title"], "status": "sent",
         "recipient_count": len(env["recipients"]),
-    }))
+    })
     return {
         "status": "sent",
         "links": links,
@@ -690,6 +784,9 @@ async def void_envelope(envelope_id: str, request: Request,
         {"envelope_id": envelope_id},
         {"$set": {"status": "voided", "audit_events": env["audit_events"],
                   "updated_at": now_iso()}})
+    emit_webhook(env["owner_id"], "envelope.voided", {
+        "envelope_id": envelope_id, "title": env["title"], "status": "voided",
+    })
     return {"status": "voided"}
 
 
@@ -858,6 +955,7 @@ async def verify_envelopes_bulk(
 ):
     """Verify stored copies for many completed envelopes (batched for large libraries)."""
     require_feature(user, "seal_verification")
+    assert_can_view_envelope_confidential(user)
     query = {
         "owner_id": user["user_id"],
         "status": "completed",
@@ -1119,16 +1217,13 @@ async def create_envelope_from_merge(
     user: dict = Depends(get_current_user),
 ):
     """Merge PDFs and create a draft envelope in one step."""
-    credits = await enforce_quota(user, count=1)
     envelope_id = f"env_{uuid.uuid4().hex[:16]}"
     if len(files) < 2:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
         raise HTTPException(status_code=400, detail="Upload at least 2 PDF files")
     parts = []
     for f in files:
         raw = await f.read()
         if not raw:
-            await release_envelope_quota(user, count=1, credits_consumed=credits)
             raise HTTPException(status_code=400, detail="Empty file")
         parts.append(raw)
     merged = pdf_service.merge_pdf_bytes(parts)
@@ -1211,13 +1306,11 @@ async def template_file(template_id: str, user: dict = Depends(get_current_user)
 @api_router.post("/templates/{template_id}/use")
 async def use_template(template_id: str, body: TemplateUse,
                        user: dict = Depends(get_current_user)):
-    credits = await enforce_quota(user, count=1)
     tpl = await get_usable_template(template_id, user)
     role_to = {a.role_id: {"name": a.name, "email": a.email} for a in body.recipients}
     role_ids = {r["role_id"] for r in tpl["roles"]}
     for rid in role_ids:
         if rid not in role_to or not role_to[rid]["email"]:
-            await release_envelope_quota(user, count=1, credits_consumed=credits)
             raise HTTPException(status_code=400, detail="Provide a recipient for every role")
     env_id = f"env_{uuid.uuid4().hex[:16]}"
     new_file = await copy_document_file(
@@ -1329,6 +1422,11 @@ async def signer_view(request: Request, token: str):
             {"$set": {"status": new_status, "recipients": env["recipients"],
                       "audit_events": env["audit_events"], "updated_at": now_iso()}})
         recipient["status"] = "viewed"
+        if new_status == "viewed":
+            emit_webhook(env["owner_id"], "envelope.viewed", {
+                "envelope_id": env["envelope_id"], "title": env["title"],
+                "viewer_email": recipient["email"], "status": "viewed",
+            })
 
     # Field-level auto-fill: pre-populate identity / date fields from the recipient
     # profile so the signer sees them filled in (still editable). Already-signed
@@ -1341,10 +1439,10 @@ async def signer_view(request: Request, token: str):
         "jobtitle": recipient.get("job_title") or recipient.get("title") or "",
         "signdate": today_iso,
     }
+    sign_only = is_sign_only_document(env)
     fields = []
     for f in env["fields"]:
-        editable = (f["recipient_id"] == recipient["recipient_id"] and signable
-                    and recipient["status"] not in ("signed", "declined"))
+        editable = signer_field_editable(f, recipient, env, signable)
         rcolor = next((r["color"] for r in env["recipients"]
                        if r["recipient_id"] == f["recipient_id"]), "#14B8A6")
         merged = {**f, "editable": editable, "recipient_color": rcolor}
@@ -1373,7 +1471,9 @@ async def signer_view(request: Request, token: str):
         "sender_branding": sender_branding,
         "status": env["status"], "signing_order": env["signing_order"],
         "document": {"page_count": env["document"]["page_count"],
-                     "pages": env["document"]["pages"]},
+                     "pages": env["document"]["pages"],
+                     "file_type": env["document"].get("file_type", "pdf")},
+        "sign_only": sign_only,
         "recipient": {"recipient_id": recipient["recipient_id"], "name": recipient["name"],
                       "email": recipient["email"], "color": recipient["color"],
                       "status": recipient["status"], "order": recipient["order"]},
@@ -1405,6 +1505,11 @@ async def signer_send_auth_code(request: Request, token: str):
     env, recipient = await _find_by_token(token)
     if recipient.get("auth_method") != "sms":
         raise HTTPException(status_code=400, detail="SMS verification is not required for this link")
+    if not sms_auth_available():
+        raise HTTPException(
+            status_code=503,
+            detail="SMS verification is temporarily unavailable — ask the sender to resend with postcode verification",
+        )
     phone = recipient.get("auth_phone")
     if not phone:
         raise HTTPException(status_code=400, detail="No phone number configured for this signer")
@@ -1480,10 +1585,37 @@ async def _bump_signer_auth_failure(env: dict, token: str) -> None:
     )
 
 
+def _assert_signer_file_access(env: dict, recipient: dict) -> None:
+    """Gate PDF download to the same rules as signing (auth + turn order)."""
+    if env["status"] == "completed":
+        raise HTTPException(
+            status_code=400,
+            detail="Document is completed — use the completed download link",
+        )
+    if env["status"] not in ("sent", "viewed"):
+        raise HTTPException(status_code=400, detail="This document is not available for signing")
+    if recipient["status"] == "declined":
+        raise HTTPException(status_code=400, detail="You declined this document")
+    if recipient["status"] == "signed":
+        return
+    if not can_sign(env, recipient):
+        raise HTTPException(
+            status_code=403,
+            detail="This document is not currently awaiting your signature",
+        )
+    if recipient.get("auth_method") and not recipient.get("auth_verified"):
+        raise HTTPException(
+            status_code=403,
+            detail="Complete recipient verification before viewing the document",
+        )
+
+
 @api_router.get("/sign/{token}/file")
 @limiter.limit("60/hour")
 async def signer_file(request: Request, token: str):
-    env, _ = await _find_by_token(token)
+    env, recipient = await _find_by_token(token)
+    env = await maybe_expire(env)
+    _assert_signer_file_access(env, recipient)
     data = await download_document_file(
         env["document"]["file_id"], "envelope", env["envelope_id"],
     )
@@ -1524,12 +1656,23 @@ async def signer_submit(token: str, body: SignSubmit, request: Request,
         if v.value is not None and len(str(v.value)) > MAX_SIGNER_FIELD_CHARS:
             raise HTTPException(status_code=400, detail="A field value is too large")
 
+    sign_only = is_sign_only_document(env)
     values = {v.field_id: v.value for v in body.values}
     my_fields = [f for f in env["fields"] if f["recipient_id"] == recipient["recipient_id"]]
     for f in my_fields:
-        if f["field_id"] in values:
-            f["value"] = values[f["field_id"]]
-    missing = [f for f in my_fields if f.get("required") and f.get("value") in (None, "", False)]
+        if f["field_id"] not in values:
+            continue
+        if sign_only and f.get("type") not in SIGNER_SIGN_ONLY_FIELD_TYPES:
+            continue
+        f["value"] = values[f["field_id"]]
+    required_for_signer = (
+        [f for f in my_fields if f.get("type") in SIGNER_SIGN_ONLY_FIELD_TYPES]
+        if sign_only else my_fields
+    )
+    missing = [
+        f for f in required_for_signer
+        if f.get("required") and f.get("value") in (None, "", False)
+    ]
     if missing:
         raise HTTPException(status_code=400,
                             detail=f"{len(missing)} required field(s) are not completed")
@@ -1580,10 +1723,10 @@ async def signer_submit(token: str, body: SignSubmit, request: Request,
         {"envelope_id": env["envelope_id"]},
         {"$set": {"recipients": env["recipients"], "fields": env["fields"],
                   "audit_events": env["audit_events"], "updated_at": now_iso()}})
-    asyncio.create_task(emit_webhook(env["owner_id"], "envelope.signed", {
+    emit_webhook(env["owner_id"], "envelope.signed", {
         "envelope_id": env["envelope_id"], "title": env["title"],
         "signer_email": recipient["email"], "all_signed": all_signed,
-    }))
+    })
 
     if all_signed:
         claimed = await db.envelopes.update_one(
@@ -1598,9 +1741,9 @@ async def signer_submit(token: str, body: SignSubmit, request: Request,
             return {"status": "completing", "message": "Finalizing signed document…"}
         env_full = await db.envelopes.find_one({"envelope_id": env["envelope_id"]}, {"_id": 0})
         background.add_task(finalize_envelope_doc, env_full)
-        asyncio.create_task(emit_webhook(env["owner_id"], "envelope.completed", {
+        emit_webhook(env["owner_id"], "envelope.completed", {
             "envelope_id": env["envelope_id"], "title": env["title"],
-        }))
+        })
         return {"status": "completed", "message": "All parties have signed."}
 
     if next_recipient:
@@ -1636,10 +1779,10 @@ async def signer_decline(request: Request, token: str, body: DeclineRequest):
                                         recipient["name"], body.reason)
     except Exception:
         pass
-    asyncio.create_task(emit_webhook(env["owner_id"], "envelope.declined", {
+    emit_webhook(env["owner_id"], "envelope.declined", {
         "envelope_id": env["envelope_id"], "title": env["title"],
         "signer_email": recipient["email"], "reason": body.reason,
-    }))
+    })
     return {"status": "declined"}
 
 
@@ -1886,6 +2029,7 @@ async def _can_access_envelope(env: dict, user: dict) -> bool:
 
 @api_router.get("/envelopes/{envelope_id}/comments")
 async def list_comments(envelope_id: str, user: dict = Depends(get_current_user)):
+    assert_can_view_envelope_confidential(user)
     env = await db.envelopes.find_one({"envelope_id": envelope_id}, {"_id": 0})
     if not env:
         raise HTTPException(status_code=404, detail="Envelope not found")
@@ -2094,6 +2238,7 @@ async def expiry_loop():
 @app.on_event("startup")
 async def startup():
     assert_safe_production()
+    assert_document_encryption_key()
     # Single source of truth: collections, indexes, TTLs, and validators.
     try:
         await ensure_database(db)

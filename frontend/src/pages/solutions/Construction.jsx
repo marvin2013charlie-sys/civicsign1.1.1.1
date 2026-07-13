@@ -4,12 +4,14 @@ import {
   Wrench, FileSignature, ScrollText, ClipboardList, FileText, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function Construction() {
   return (
     <SolutionPageLayout
       testidSlug="construction"
+      solutionPath="/solutions/construction"
       industry="Solutions · Construction & Trades"
       IndustryIcon={HardHat}
       headline={<>Quotes, JCT contracts and RAMS, <BrandAccent>signed off-site, on the phone.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function Construction() {
         { icon: ShieldCheck, title: "Handover and sign-off certificates", body: "Final client sign-off on snagging, handover and retention, locks in payment, closes the job." },
       ]}
       ctaHeadline="Ready to send quotes from the van and get paid?"
-      ctaSubhead="Stop losing jobs to the company that emails first. Free for 2 documents a month, no card required."
+      ctaSubhead={`Stop losing jobs to the company that emails first. ${formatFreePlanSignupPitch()}.`}
       ctaButton="Start free for trades"
     />
   );

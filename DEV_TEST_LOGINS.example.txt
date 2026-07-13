@@ -1,0 +1,13 @@
+# Local dev test accounts (copy to DEV_TEST_LOGINS.txt — not committed)
+# Seed with: backend/.venv/bin/python scripts/reset_dev_data.py
+# Passwords are printed by the reset script for your local DB only.
+
+FREE         free@civicbot.co.uk
+PRO          pro@civicbot.co.uk
+BUSINESS     business@civicbot.co.uk
+ORG OWNER    org@civicbot.co.uk
+ORG STAFF    orgstaff@civicbot.co.uk
+ADMIN        admin@civicbot.co.uk
+
+Login: http://localhost:3000/login
+Admin: http://localhost:3000/admin/login

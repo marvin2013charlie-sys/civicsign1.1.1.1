@@ -4,12 +4,14 @@ import {
   BookOpen, FileSignature, ScrollText, UserCheck, FileText, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function Education() {
   return (
     <SolutionPageLayout
       testidSlug="education"
+      solutionPath="/solutions/education"
       industry="Solutions · Education"
       IndustryIcon={GraduationCap}
       headline={<>Parental consent and staff contracts, <BrandAccent>back before the bell rings.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function Education() {
         { icon: FileText, title: "Pupil premium and SEN consents", body: "Capture parental consent for EHC plans, pupil-premium assessments and outside-agency referrals." },
       ]}
       ctaHeadline="Ready to give your school office its Friday afternoon back?"
-      ctaSubhead="Stop the printer jams. Start collecting consent that arrives signed. Free for 2 documents a month, MAT discounts available."
+      ctaSubhead={`Stop the printer jams. Start collecting consent that arrives signed. ${formatFreePlanSignupPitch({ includeNoCard: false })}, MAT discounts available.`}
       ctaButton="Start free for schools"
     />
   );

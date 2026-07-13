@@ -18,8 +18,10 @@ export function AuthFormCard({
   className,
   showLogo = false,
   nav,
+  script,
+  titleDot,
 }) {
-  const showIcon = !showLogo && (Icon || iconNode);
+  const showIcon = !showLogo && !script && (Icon || iconNode);
   return (
     <div
       className={cn("cs-auth-card", className)}
@@ -48,8 +50,15 @@ export function AuthFormCard({
         {badge && (
           <span className="cs-badge cs-badge-teal mb-4">{badge}</span>
         )}
-        <h1 className="font-heading text-[1.75rem] font-bold tracking-tight text-[var(--c-ink)] sm:text-[1.85rem]">
+        {script && <div className="cs-auth-script">{script}</div>}
+        <h1 className={cn(
+          "font-heading font-bold tracking-tight text-[var(--c-ink)]",
+          script ? "mt-1 text-[2.1rem] leading-[1.08] sm:text-[2.35rem]" : "text-[1.75rem] sm:text-[1.85rem]",
+        )}>
           {title}
+          {titleDot && (
+            <span className={titleDot === "teal" ? "cs-auth-title-dot-teal" : "cs-auth-title-dot"}>.</span>
+          )}
         </h1>
         {subtitle && (
           <p className="mt-2 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">{subtitle}</p>

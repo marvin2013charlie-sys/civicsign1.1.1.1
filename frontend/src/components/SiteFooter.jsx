@@ -24,7 +24,7 @@ export const SiteFooter = () => {
 
           {/* Right: nav columns, start immediately after logo block */}
           <div
-            className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-2 md:grid-cols-4 md:gap-x-8 lg:gap-x-10"
+            className="grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-8 min-[400px]:grid-cols-2 md:grid-cols-4 md:gap-x-8 lg:gap-x-10"
             data-testid="footer-nav-columns"
           >
             {FOOTER_COLS.map((c) => (
@@ -35,7 +35,7 @@ export const SiteFooter = () => {
                     <li key={l.label}>
                       <FooterLink
                         link={l}
-                        className="inline-flex min-h-[40px] items-center py-1 sm:min-h-0"
+                        className="inline-flex min-h-[44px] items-center py-1 sm:min-h-0"
                       />
                     </li>
                   ))}
@@ -47,7 +47,7 @@ export const SiteFooter = () => {
       </div>
 
       <div className="border-t border-[var(--c-border)]">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-[var(--c-muted-fg)] sm:flex-row sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-xs text-[var(--c-muted-fg)] sm:flex-row sm:px-6">
           <p className="text-center sm:text-left">© {new Date().getFullYear()} CivicBot LTD · Registered in England and Wales. All rights reserved.</p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
             {LEGAL_LINKS.map((item) => (

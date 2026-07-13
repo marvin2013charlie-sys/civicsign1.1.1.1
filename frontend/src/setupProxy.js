@@ -11,6 +11,8 @@ module.exports = function (app) {
       // address uvicorn binds — "localhost" can resolve to IPv6 ::1 and fail.
       target: "http://127.0.0.1:8001",
       changeOrigin: true,
+      proxyTimeout: 30_000,
+      timeout: 30_000,
     })
   );
 };

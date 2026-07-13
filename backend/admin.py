@@ -15,6 +15,7 @@ SECURITY HARDENING:
 """
 import io
 import csv
+import hashlib
 import os
 import uuid
 import secrets
@@ -32,6 +33,7 @@ from db import db
 from auth import require_admin, require_permission, _public_user, create_access_token, create_password_reset
 from security_utils import is_dev_mode, validate_redirect_base
 from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
+from billing import downgrade_user_for_plan_refund, _is_plan_purchase_tx
 
 try:
     import stripe as stripe_sdk  # official Stripe SDK for refunds
@@ -170,6 +172,10 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _impersonation_otp_hash(code: str) -> str:
+    return hashlib.sha256(code.strip().encode("utf-8")).hexdigest()
+
+
 def _clean_user(doc: dict) -> dict:
     """Remove sensitive fields from user document."""
     doc.pop("password_hash", None)
@@ -266,8 +272,12 @@ async def metrics(request: Request, admin: dict = Depends(require_admin)):
             u = umap.get(a["_id"])
             if not u:
                 continue
-            top_users.append({"name": u.get("name") or u.get("email"),
-                              "email": u.get("email"), "count": a["count"]})
+            top_users.append({
+                "user_id": a["_id"],
+                "name": u.get("name") or u.get("email"),
+                "email": u.get("email"),
+                "count": a["count"],
+            })
 
         analytics = {
             "avg_time_to_sign_hours": avg_tts,
@@ -701,7 +711,7 @@ async def impersonate_request(request: Request, user_id: str,
             "request_id": request_id,
             "admin_id": admin["user_id"],
             "target_user_id": user_id,
-            "otp": otp,
+            "otp_hash": _impersonation_otp_hash(otp),
             "used": False,
             "expires_at": expire_dt.isoformat(),
             # Real BSON date for the TTL index (auto-purges stale OTPs).
@@ -776,8 +786,13 @@ async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVe
         if expired:
             raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
         
-        # Strict OTP comparison (prevent timing attacks)
-        if not hmac.compare_digest((body.otp or "").strip(), rec["otp"]):
+        # Strict OTP comparison (prevent timing attacks); support legacy plaintext records
+        stored_hash = rec.get("otp_hash")
+        if stored_hash:
+            otp_ok = hmac.compare_digest(_impersonation_otp_hash(body.otp or ""), stored_hash)
+        else:
+            otp_ok = hmac.compare_digest((body.otp or "").strip(), rec.get("otp") or "")
+        if not otp_ok:
             await db.impersonation_otps.update_one(
                 {"request_id": body.request_id},
                 {"$inc": {"failed_attempts": 1}}
@@ -1113,14 +1128,13 @@ async def refund_transaction(request: Request, tx_id: str, body: RefundRequest, 
             },
         )
 
-        # Optionally downgrade the user's plan back to free
+        # Plan refunds downgrade immediately — do not wait for billing period end.
         plan_changed = False
-        if body.downgrade_plan and new_status == "refunded" and tx.get("user_id"):
-            await db.users.update_one(
-                {"user_id": tx["user_id"]},
-                {"$set": {"plan": "free", "plan_updated_at": now, "plan_signature": None}},
+        if body.downgrade_plan and tx.get("user_id") and _is_plan_purchase_tx(tx):
+            plan_changed = await downgrade_user_for_plan_refund(
+                tx["user_id"],
+                reason=f"admin refund tx={tx_id}",
             )
-            plan_changed = True
 
         await db.admin_audit.insert_one({
             "audit_id": f"aud_{uuid.uuid4().hex[:12]}",

@@ -8,7 +8,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { BrandAccent } from "@/components/BrandText";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { getAuthNext, clearAuthNext, nextQueryString } from "@/lib/authPortal";
+import { getAuthNext, getPostAuthDestination, clearAuthNext, nextQueryString } from "@/lib/authPortal";
 import { Loader2, MailCheck, Lock, RefreshCw, Fingerprint } from "lucide-react";
 import { requestProductTour } from "@/lib/productTour";
 
@@ -51,7 +51,7 @@ export default function VerifyEmail() {
       sessionStorage.removeItem("cs_verify_dev_mode");
       requestProductTour("app", data?.user?.user_id);
       toast.success("Email verified, welcome to CivicSign!");
-      const dest = next || "/dashboard";
+      const dest = getPostAuthDestination(next);
       clearAuthNext();
       navigate(dest, { replace: true });
     } catch (err) {

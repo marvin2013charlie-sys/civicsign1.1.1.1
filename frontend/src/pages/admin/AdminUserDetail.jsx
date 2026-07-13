@@ -20,7 +20,9 @@ import {
 import {
   ArrowLeft, ShieldCheck, Loader2, KeyRound, Copy, Check, LogIn, Mail,
   MailWarning, MailCheck, Activity, FileText, CircleCheck, Send, Eye, AlertTriangle,
+  UserCog, LifeBuoy,
 } from "lucide-react";
+import { AdminSurfaceCard, AdminSectionHeader } from "@/components/portal/AdminPrimitives";
 
 const STAT_TILES = [
   { key: "total", label: "Total", icon: FileText },
@@ -268,7 +270,7 @@ export default function AdminUserDetail() {
       </button>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
+      <AdminSurfaceCard className="flex flex-wrap items-center gap-4">
         <Avatar className="h-14 w-14"><AvatarFallback className="bg-[var(--c-primary)] text-base text-white">{(user.name || user.email).slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -284,16 +286,18 @@ export default function AdminUserDetail() {
             {isGoogle ? "Signs in with Google" : "Email & password"} · Joined {fmt(user.created_at)}
           </p>
         </div>
-      </div>
+      </AdminSurfaceCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Account management — super-admin only */}
         {isSuperAdmin && (
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Account management</h2>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Adjust plan and access. Roles can&apos;t be changed here.</p>
-
-          <div className="mt-4 space-y-4">
+        <AdminSurfaceCard flush className="overflow-hidden">
+          <AdminSectionHeader
+            title="Account management"
+            subtitle="Adjust plan and access. Roles can't be changed here."
+            icon={UserCog}
+          />
+          <div className="space-y-4 p-5">
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-[var(--c-ink)]">Plan</Label>
@@ -402,17 +406,17 @@ export default function AdminUserDetail() {
               </div>
             )}
           </div>
-        </div>
+        </AdminSurfaceCard>
         )}
 
         {/* Diagnostics */}
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-detail-diagnostics">
-          <h2 className="flex items-center gap-2 font-heading text-lg font-semibold text-[var(--c-ink)]">
-            <Activity className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Diagnostics
-          </h2>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Account health & delivery status.</p>
-
-          <div className="mt-3 divide-y divide-[var(--c-border)]">
+        <AdminSurfaceCard flush className="overflow-hidden" testId="admin-detail-diagnostics">
+          <AdminSectionHeader
+            title="Diagnostics"
+            subtitle="Account health & delivery status."
+            icon={Activity}
+          />
+          <div className="divide-y divide-[var(--c-border)] px-5">
             <DiagnosticRow ok={diagnostics.account_active} label="Account status" value={diagnostics.account_active ? "Active" : "Disabled"} />
             <DiagnosticRow ok label="Sign-in method" value={isGoogle ? "Google" : "Password"} />
             <DiagnosticRow ok={diagnostics.email_configured} label="Email delivery" value={diagnostics.email_configured ? "Configured" : "Skip-mode"} />
@@ -420,7 +424,7 @@ export default function AdminUserDetail() {
           </div>
 
           <div
-            className="mt-3 flex items-start gap-2 rounded-lg p-3 text-xs"
+            className="mx-5 mb-5 mt-3 flex items-start gap-2 rounded-lg p-3 text-xs"
             style={{ background: diagnostics.email_configured ? "var(--status-sent-bg)" : "#FEF3C7", color: "#78350F" }}
             data-testid="admin-detail-email-note"
           >
@@ -429,14 +433,17 @@ export default function AdminUserDetail() {
               : <MailWarning className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#D97706" }} />}
             <span style={{ color: diagnostics.email_configured ? "var(--c-ink)" : "#78350F" }}>{diagnostics.email_note}</span>
           </div>
-        </div>
+        </AdminSurfaceCard>
 
         {/* Activity — super-admin sees document counts only; titles are never shown */}
         {isSuperAdmin ? (
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Activity</h2>
-          <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">Aggregate document counts only — titles and contents stay private to the account owner.</p>
-          <div className="mt-4 grid grid-cols-4 gap-3">
+        <AdminSurfaceCard flush className="overflow-hidden">
+          <AdminSectionHeader
+            title="Activity"
+            subtitle="Aggregate document counts only — titles and contents stay private to the account owner."
+            icon={FileText}
+          />
+          <div className="grid grid-cols-4 gap-3 p-5">
             {STAT_TILES.map((t) => (
               <div key={t.key} className="rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-3 text-center">
                 <t.icon className="mx-auto h-4 w-4 text-[var(--c-muted-fg)]" />
@@ -445,29 +452,32 @@ export default function AdminUserDetail() {
               </div>
             ))}
           </div>
-          <p className="mt-4 rounded-lg bg-[var(--c-paper-2)] px-3 py-2 text-xs text-[var(--c-muted-fg)]">
+          <p className="mx-5 mb-5 mt-4 rounded-lg bg-[var(--c-paper-2)] px-3 py-2 text-xs text-[var(--c-muted-fg)]">
             Templates saved: <span className="font-semibold text-[var(--c-ink)]">{stats.templates ?? 0}</span>
           </p>
-        </div>
+        </AdminSurfaceCard>
         ) : (
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5">
-          <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Activity</h2>
-          <p className="mt-2 text-sm text-[var(--c-muted-fg)]">
+        <AdminSurfaceCard flush className="overflow-hidden">
+          <AdminSectionHeader title="Activity" icon={FileText} />
+          <p className="p-5 text-sm text-[var(--c-muted-fg)]">
             Document counts and titles are restricted to super-admins. Templates on file:{" "}
             <span className="font-semibold text-[var(--c-ink)]">{stats.templates ?? 0}</span>.
           </p>
-        </div>
+        </AdminSurfaceCard>
         )}
 
         {/* Support actions — super-admin, or staff granted the impersonate permission */}
         {canImpersonate && (
-        <div className="rounded-xl border border-[var(--c-border)] bg-[var(--card)] p-5" data-testid="admin-detail-support">
-          <h2 className="font-heading text-lg font-semibold text-[var(--c-ink)]">Support actions</h2>
-          <p className="mt-0.5 text-sm text-[var(--c-muted-fg)]">Help this user recover access or troubleshoot their account.</p>
-
+        <AdminSurfaceCard flush className="overflow-hidden" testId="admin-detail-support">
+          <AdminSectionHeader
+            title="Support actions"
+            subtitle="Help this user recover access or troubleshoot their account."
+            icon={LifeBuoy}
+          />
+          <div className="space-y-3 p-5">
           {/* Password reset — super-admin only */}
           {isSuperAdmin && (
-          <div className="mt-4 rounded-lg border border-[var(--c-border)] p-4">
+          <div className="rounded-lg border border-[var(--c-border)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
@@ -504,7 +514,7 @@ export default function AdminUserDetail() {
           )}
 
           {/* Impersonation */}
-          <div className="mt-3 rounded-lg border border-[var(--c-border)] p-4">
+          <div className="rounded-lg border border-[var(--c-border)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <LogIn className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
@@ -512,10 +522,11 @@ export default function AdminUserDetail() {
               </div>
               <Button
                 size="sm"
+                className="rounded-xl"
                 onClick={() => setImpOpen(true)}
                 disabled={isAdmin || user.active === false}
                 data-testid="admin-detail-impersonate"
-                style={isAdmin || user.active === false ? {} : { background: "var(--c-primary)", color: "#fff" }}
+                style={isAdmin || user.active === false ? {} : { background: "var(--c-ink-solid)", color: "#fff" }}
               >
                 <LogIn className="mr-1.5 h-4 w-4" /> Impersonate
               </Button>
@@ -534,7 +545,8 @@ export default function AdminUserDetail() {
               </p>
             )}
           </div>
-        </div>
+          </div>
+        </AdminSurfaceCard>
         )}
       </div>
 

@@ -1,18 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError, downloadFile } from "@/lib/api";
-import { fetchAllEnvelopes } from "@/lib/envelopes";
+import { ENVELOPE_PAGE_SIZE, fetchAllEnvelopes, fetchEnvelopesPage } from "@/lib/envelopes";
+import { ListPagination } from "@/components/ListPagination";
 import { AppShell } from "@/components/AppShell";
 import { DocumentsSealedPanel } from "@/components/DocumentsSealedPanel";
 import { DocumentsManagePdfPanel } from "@/components/DocumentsManagePdfPanel";
-import { isManagePdfEnvelope } from "@/lib/savePdfToDocuments";
+
 import { StatusBadge } from "@/components/StatusBadge";
 import { VerifySealDialog } from "@/components/VerifySealDialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/context/AuthContext";
+
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -23,13 +23,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import {
-  FilePlus2, Search, FileText, MoreVertical, Trash2, Send, Eye, Inbox, Download,
+  FilePlus2, FileText, MoreVertical, Trash2, Send, Eye, Inbox, Download,
   ShieldCheck, CheckCircle2, XCircle, Fingerprint, Pencil,
 } from "lucide-react";
 
 export default function Documents() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { features, shouldOfferUpgrade } = usePlan();
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab");
@@ -40,48 +39,89 @@ export default function Documents() {
 
   const [loading, setLoading] = useState(true);
   const [envelopes, setEnvelopes] = useState([]);
+  const [envelopeTotal, setEnvelopeTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [auxEnvelopes, setAuxEnvelopes] = useState([]);
+  const [auxLoading, setAuxLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [managePdfQuery, setManagePdfQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [verifyTarget, setVerifyTarget] = useState(null);
 
-  const load = async () => {
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, statusFilter]);
+
+  const loadAllTab = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAllEnvelopes();
-      setEnvelopes(data);
+      const data = await fetchEnvelopesPage({
+        page,
+        limit: ENVELOPE_PAGE_SIZE,
+        status: statusFilter,
+        q: debouncedQuery,
+        excludeManagePdf: true,
+      });
+      setEnvelopes(data.items);
+      setEnvelopeTotal(data.total);
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, statusFilter, debouncedQuery]);
 
-  useEffect(() => { load(); }, []);
+  const loadAuxEnvelopes = useCallback(async () => {
+    if (tab === "all") return;
+    setAuxLoading(true);
+    try {
+      const data = await fetchAllEnvelopes();
+      setAuxEnvelopes(data);
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setAuxLoading(false);
+    }
+  }, [tab]);
 
   useEffect(() => {
-    if (user && tab === "sealed" && !canVerify) {
-      setParams({}, { replace: true });
-    }
-  }, [user, tab, canVerify, setParams]);
+    if (tab === "all") loadAllTab();
+  }, [tab, loadAllTab]);
 
-  const sealedCount = useMemo(
-    () => envelopes.filter((e) => e.status === "completed" && e.doc_hash).length,
-    [envelopes],
-  );
+  useEffect(() => {
+    if (tab !== "all") loadAuxEnvelopes();
+  }, [tab, loadAuxEnvelopes]);
 
-  const managePdfCount = useMemo(
-    () => envelopes.filter(isManagePdfEnvelope).length,
-    [envelopes],
-  );
+  const load = async () => {
+    if (tab === "all") await loadAllTab();
+    else await loadAuxEnvelopes();
+  };
 
-  const filtered = useMemo(() => {
-    return envelopes.filter((e) => {
-      if (isManagePdfEnvelope(e)) return false;
-      const okQ = !query || e.title.toLowerCase().includes(query.toLowerCase());
-      const okS = statusFilter === "all" || e.status === statusFilter;
-      return okQ && okS;
-    });
-  }, [envelopes, query, statusFilter]);
+  const [sealedCount, setSealedCount] = useState(0);
+  const [managePdfCount, setManagePdfCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [sealed, manage] = await Promise.all([
+          fetchEnvelopesPage({ page: 1, limit: 1, sealedOnly: true }),
+          fetchEnvelopesPage({ page: 1, limit: 1, managePdfOnly: true }),
+        ]);
+        if (!cancelled) {
+          setSealedCount(sealed.total);
+          setManagePdfCount(manage.total);
+        }
+      } catch { /* non-fatal badge counts */ }
+    })();
+    return () => { cancelled = true; };
+  }, [envelopes, auxEnvelopes]);
 
   const openEnvelope = (e) => {
     if (e.status === "draft") navigate(`/prepare/${e.envelope_id}`);
@@ -95,7 +135,7 @@ export default function Documents() {
     try {
       await api.delete(`/envelopes/${id}`);
       toast.success("Envelope deleted");
-      setEnvelopes((prev) => prev.filter((x) => x.envelope_id !== id));
+      await load();
     } catch (err) {
       toast.error(formatApiError(err));
     }
@@ -114,50 +154,91 @@ export default function Documents() {
 
   const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
 
+  const headerSearch = tab === "sealed"
+    ? undefined
+    : {
+      value: tab === "manage-pdf" ? managePdfQuery : query,
+      onChange: tab === "manage-pdf" ? setManagePdfQuery : setQuery,
+      placeholder: tab === "manage-pdf" ? "Search saved PDFs…" : "Search documents…",
+      testId: tab === "manage-pdf" ? "documents-manage-pdf-search" : "documents-search-input",
+    };
+
+  const docTabs = [
+    { id: "all", label: "All documents", icon: FileText, testId: "documents-tab-all", count: envelopeTotal },
+    { id: "sealed", label: "Sealed & verify", icon: Fingerprint, testId: "documents-tab-sealed", count: sealedCount },
+    ...(canManagePdf ? [{ id: "manage-pdf", label: "From Manage PDF", icon: Pencil, testId: "documents-tab-manage-pdf", count: managePdfCount }] : []),
+  ];
+
   return (
     <AppShell
-      title="Documents & seals"
-      actions={
-        <Button onClick={() => navigate("/new")} data-testid="documents-new-envelope-button"
-          style={{ background: "var(--c-primary)", color: "#fff" }}>
-          <FilePlus2 className="mr-1.5 h-4 w-4" /> New Envelope
-        </Button>
-      }
+      headerSearch={headerSearch}
+      actions={tab === "all" ? (
+        <button
+          type="button"
+          onClick={() => navigate("/new")}
+          data-testid="documents-header-new-button"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-4 text-[13px] font-semibold text-white transition-all hover:-translate-y-px"
+          style={{ background: "var(--c-ink-solid)", boxShadow: "0 4px 14px rgba(18,33,32,.16)" }}
+        >
+          <FilePlus2 className="h-4 w-4" />
+          <span className="hidden sm:inline">New envelope</span>
+        </button>
+      ) : undefined}
     >
+      <div className="mb-5">
+        <div
+          style={{ fontFamily: "'Caveat', cursive", fontSize: "24px", fontWeight: 600, color: "var(--c-primary-hover)" }}
+        >
+          Your library
+        </div>
+        <h2 className="mt-0.5 font-heading text-3xl font-bold tracking-[-0.02em] text-[var(--c-ink)]">
+          Documents & seals
+          <span style={{ color: "var(--c-accent)" }}>.</span>
+        </h2>
+        <p className="mt-1 max-w-xl text-sm text-[var(--c-muted-fg)]">
+          Drafts, sent envelopes, tamper-evident seals, and PDFs saved from Manage PDF.
+        </p>
+      </div>
+
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="mb-4 h-auto flex-wrap gap-1 bg-[var(--c-paper-2)] p-1">
-          <TabsTrigger value="all" data-testid="documents-tab-all" className="data-[state=active]:bg-[var(--card)]">
-            <FileText className="mr-1.5 h-4 w-4" /> All documents
-          </TabsTrigger>
-          <TabsTrigger value="sealed" data-testid="documents-tab-sealed" className="data-[state=active]:bg-[var(--card)]">
-            <Fingerprint className="mr-1.5 h-4 w-4" /> Sealed & verify
-            {sealedCount > 0 && (
-              <span className="pointer-events-none ml-1.5 rounded-full bg-[var(--c-primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                {sealedCount}
-              </span>
-            )}
-          </TabsTrigger>
-          {canManagePdf && (
-            <TabsTrigger value="manage-pdf" data-testid="documents-tab-manage-pdf" className="data-[state=active]:bg-[var(--card)]">
-              <Pencil className="mr-1.5 h-4 w-4" /> From Manage PDF
-              {managePdfCount > 0 && (
-                <span className="pointer-events-none ml-1.5 rounded-full bg-[var(--c-primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  {managePdfCount}
-                </span>
-              )}
-            </TabsTrigger>
-          )}
-        </TabsList>
+        <div
+          className="mb-5 flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px] w-fit gap-0.5"
+          data-testid="documents-tab-pills"
+        >
+          {docTabs.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                data-testid={t.testId}
+                className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all sm:px-4"
+                style={active ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t.label}</span>
+                <span className="sm:hidden">{t.id === "all" ? "All" : t.id === "sealed" ? "Sealed" : "PDF"}</span>
+                {t.count > 0 && (
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                    style={active ? { background: "rgba(255,255,255,.2)", color: "#fff" } : { background: "var(--c-paper-2)", color: "var(--c-ink)" }}
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         <TabsContent value="all">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--c-muted-fg)]" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search documents…"
-                className="pl-9" data-testid="documents-search-input" />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-44" data-testid="documents-status-filter"><SelectValue /></SelectTrigger>
+          <div className="cs-portal-surface-card overflow-hidden rounded-2xl">
+            <div className="flex flex-col gap-3 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">All documents</h3>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-full rounded-xl sm:w-44" data-testid="documents-status-filter"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
@@ -170,23 +251,23 @@ export default function Documents() {
                 <SelectItem value="expired">Expired</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+            </div>
 
-          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]" data-testid="documents-table">
+          <div data-testid="documents-table">
             {loading ? (
               <div className="space-y-2 p-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
-            ) : filtered.length === 0 ? (
+            ) : envelopes.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
                 <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--status-sent-bg)" }}>
                   <Inbox className="h-7 w-7" style={{ color: "var(--c-primary)" }} />
                 </span>
                 <h3 className="font-heading text-lg font-semibold text-[var(--c-ink)]">No documents found</h3>
                 <p className="mt-1 max-w-xs text-sm text-[var(--c-muted-fg)]">
-                  {envelopes.length === 0
+                  {envelopeTotal === 0 && !debouncedQuery && statusFilter === "all"
                     ? "Upload a PDF or Word document to send your first document for signature."
                     : "No documents match your filters. Try clearing the search or status filter."}
                 </p>
-                {envelopes.length === 0 && (
+                {envelopeTotal === 0 && !debouncedQuery && statusFilter === "all" && (
                   <Button onClick={() => navigate("/new")} className="mt-5" data-testid="documents-empty-new-button"
                     style={{ background: "var(--c-primary)", color: "#fff" }}>
                     <FilePlus2 className="mr-1.5 h-4 w-4" /> Send your first document
@@ -202,7 +283,7 @@ export default function Documents() {
                   <div className="col-span-2">Updated</div>
                   <div className="col-span-1" />
                 </div>
-                {filtered.map((e) => (
+                {envelopes.map((e) => (
                   <div key={e.envelope_id} data-testid="document-row"
                     className="grid cursor-pointer grid-cols-1 items-center gap-3 px-5 py-4 transition-colors hover:bg-[var(--c-paper-2)] sm:grid-cols-12"
                     onClick={() => openEnvelope(e)}>
@@ -255,26 +336,40 @@ export default function Documents() {
                     </div>
                   </div>
                 ))}
+                <ListPagination
+                  page={page}
+                  total={envelopeTotal}
+                  pageSize={ENVELOPE_PAGE_SIZE}
+                  onPageChange={setPage}
+                  testId="documents-pagination"
+                />
               </div>
             )}
+          </div>
           </div>
         </TabsContent>
 
         <TabsContent value="manage-pdf">
           {canManagePdf ? (
-            <DocumentsManagePdfPanel envelopes={envelopes} loading={loading} onReload={load} />
+            <DocumentsManagePdfPanel
+              envelopes={auxEnvelopes}
+              loading={auxLoading}
+              onReload={load}
+              query={managePdfQuery}
+              onQueryChange={setManagePdfQuery}
+            />
           ) : (
             <UpgradePrompt
               feature="manage_pdf"
-              title="Manage PDF saves appear on Pro plans"
-              description="Use any Manage PDF tool — compress, watermark, AI metadata check, and more — then save PDFs here ready for signing."
+              title="Manage PDF saves are on all paid plans"
+              description="Use any Manage PDF tool — compress, watermark, AI metadata check, and more — then save PDFs here ready for signing. Included with Pro, Business, and Organisation; not on Free."
             />
           )}
         </TabsContent>
 
         <TabsContent value="sealed">
           {canVerify ? (
-            <DocumentsSealedPanel envelopes={envelopes} loading={loading} onReload={load} />
+            <DocumentsSealedPanel envelopes={auxEnvelopes} loading={auxLoading} onReload={load} />
           ) : shouldOfferUpgrade("seal_verification") ? (
             <UpgradePrompt
               feature="seal_verification"

@@ -36,6 +36,8 @@ class FakeUsers:
     async def update_one(self, query, update):
         self.last_set = update.get("$set", {})
         self._user.update(self.last_set)
+        for key in update.get("$unset", {}):
+            self._user.pop(key, None)
 
         class _R:
             matched_count = 1
@@ -63,12 +65,13 @@ def paid_user():
     }
 
 
-def _subscription(status, plan_id="pro"):
+def _subscription(status, plan_id="pro", *, cancel_at_period_end=False):
     return {
         "id": "sub_abc",
         "customer": "cus_abc",
         "status": status,
         "current_period_end": 1893456000,  # 2030-01-01
+        "cancel_at_period_end": cancel_at_period_end,
         "metadata": {"user_id": "usr_123", "plan_id": plan_id, "billing_interval": "monthly"},
     }
 
@@ -79,8 +82,8 @@ def test_active_subscription_keeps_plan(paid_user, monkeypatch):
 
     run(billing._handle_subscription_state(_subscription("active")))
 
-    assert users.last_set["plan"] == "pro"
-    assert users.last_set["plan_signature"], "active subscription must keep a valid signature"
+    assert users._user["plan"] == "pro"
+    assert users._user["plan_signature"], "active subscription must keep a valid signature"
     # Effective plan resolves to pro (signature verifies).
     assert get_effective_plan(users._user) == "pro"
 
@@ -118,6 +121,23 @@ def test_unknown_plan_id_does_not_activate(paid_user, monkeypatch):
     assert users.last_set["plan"] == "free"
 
 
+def test_cancel_at_period_end_keeps_plan_until_deleted(paid_user, monkeypatch):
+    users = FakeUsers(paid_user)
+    monkeypatch.setattr(billing, "db", FakeDB(users))
+
+    run(billing._handle_subscription_state(_subscription("active", cancel_at_period_end=True)))
+
+    assert users._user["plan"] == "pro"
+    assert users._user["subscription_cancel_at_period_end"] is True
+    assert get_effective_plan(users._user) == "pro"
+
+    run(billing._handle_subscription_state(_subscription("canceled")))
+
+    assert users._user["plan"] == "free"
+    assert users._user.get("stripe_subscription_id") is None
+    assert users._user.get("subscription_cancel_at_period_end") is False
+
+
 def test_downgrade_clears_paid_flags(paid_user, monkeypatch):
     users = FakeUsers(paid_user)
     monkeypatch.setattr(billing, "db", FakeDB(users))
@@ -129,3 +149,11 @@ def test_downgrade_clears_paid_flags(paid_user, monkeypatch):
     assert s["plan_signature"] is None
     assert s["plan_upgraded_via_payment"] is False
     assert s["monthly_envelope_limit"] is None
+    assert s["subscription_cancel_at_period_end"] is False
+    assert users._user.get("stripe_subscription_id") is None
+
+
+def test_is_plan_purchase_tx():
+    assert billing._is_plan_purchase_tx({"plan_id": "pro"}) is True
+    assert billing._is_plan_purchase_tx({"plan_id": "pro", "purchase_type": "extra_document"}) is False
+    assert billing._is_plan_purchase_tx({"purchase_type": "extra_document"}) is False

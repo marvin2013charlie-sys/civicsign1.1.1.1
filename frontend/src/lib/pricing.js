@@ -41,22 +41,88 @@ export function formatExtraDocumentPolicyText() {
   return `${formatExtraDocumentPrice({ includeTaxNote: true })} per extra document (${formatGbp(calculateTax(EXTRA_DOCUMENT_PRICE_GBP).total)} incl. VAT)`;
 }
 
+/** Canonical self-serve plan document caps — keep in sync with backend plan_features.PLAN_MONTHLY_QUOTA. */
+export const FREE_MONTHLY_DOCS = 2;
 export const PRO_MONTHLY_DOCS = 100;
 export const PRO_YEARLY_DOCS = 1200;
 export const BUSINESS_MONTHLY_DOCS = 600;
 export const BUSINESS_YEARLY_DOCS = BUSINESS_MONTHLY_DOCS * 12;
 
+const PLAN_DOC_LIMITS = {
+  Free: { monthly: FREE_MONTHLY_DOCS, yearly: FREE_MONTHLY_DOCS },
+  Pro: { monthly: PRO_MONTHLY_DOCS, yearly: PRO_YEARLY_DOCS },
+  Business: { monthly: BUSINESS_MONTHLY_DOCS, yearly: BUSINESS_YEARLY_DOCS },
+};
+
+/** Marketing / auth copy */
+export function formatFreePlanTrustBullet() {
+  return `Free ${FREE_MONTHLY_DOCS} docs / month`;
+}
+
+export function formatFreePlanDocsShort() {
+  return `${FREE_MONTHLY_DOCS} docs/month`;
+}
+
+export function formatFreePlanDocsSlash() {
+  return `${FREE_MONTHLY_DOCS} documents / month`;
+}
+
+export function formatFreePlanDocsPerMonth() {
+  return `${FREE_MONTHLY_DOCS} documents per month`;
+}
+
+export function formatFreePlanDocsAMonth() {
+  return `${FREE_MONTHLY_DOCS} documents a month`;
+}
+
+export function formatFreePlanSignupPitch({ includeNoCard = true } = {}) {
+  const base = `Free for ${FREE_MONTHLY_DOCS} documents a month`;
+  return includeNoCard ? `${base}, no card required` : base;
+}
+
+export function formatFreePlanRegisterFeature() {
+  return `${FREE_MONTHLY_DOCS} documents per billing period (resets on your signup date)`;
+}
+
+export function formatFreePlanRegisterSubtitle() {
+  return `Free forever plan — ${formatFreePlanDocsAMonth()}. No card required.`;
+}
+
+export function formatFreePlanPortalLabel() {
+  return `Free plan · ${formatFreePlanDocsSlash()}`;
+}
+
+export function formatFreePlanFirstDocs() {
+  return `your first ${FREE_MONTHLY_DOCS} documents a month`;
+}
+
+export function formatFreePlanSeoDescription() {
+  return `Free plan with ${FREE_MONTHLY_DOCS} documents per billing period`;
+}
+
+export function formatFreePlanVerifiedCopy() {
+  return `Free includes ${FREE_MONTHLY_DOCS} documents/month`;
+}
+
+export function formatFreePlanTierValue() {
+  return `${FREE_MONTHLY_DOCS} documents / month`;
+}
+
+export function formatQuotaResetAnniversary() {
+  return "Your allowance refreshes on the monthly anniversary of the day you registered, not on the 1st of the calendar month.";
+}
+
+export function formatQuotaResetFaqAnswer() {
+  return `${formatQuotaResetAnniversary()} For example, if you signed up on 12 April, your counter resets on the 12th of each month.`;
+}
+
 export const YEARLY_MONTHS_PAID = 10;
 
 /** @param {"Pro"|"Business"|"Free"} planName @param {"monthly"|"yearly"} interval */
 export function planDocumentLimit(planName, interval = "monthly") {
-  if (planName === "Pro") {
-    return interval === "yearly" ? PRO_YEARLY_DOCS : PRO_MONTHLY_DOCS;
-  }
-  if (planName === "Business") {
-    return interval === "yearly" ? BUSINESS_YEARLY_DOCS : BUSINESS_MONTHLY_DOCS;
-  }
-  return 2;
+  const row = PLAN_DOC_LIMITS[planName];
+  if (!row) return FREE_MONTHLY_DOCS;
+  return interval === "yearly" ? row.yearly : row.monthly;
 }
 
 /** @param {"Pro"|"Business"|"Free"} planName @param {"monthly"|"yearly"} interval */

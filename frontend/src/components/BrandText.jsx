@@ -36,7 +36,14 @@ export function ContactEmailLink({ className, cycles = BRAND_ACCENT_CYCLES, ...p
 
 /** Plain prose with animated mailto links wherever the contact email appears. */
 export function RichTextWithContactEmail({ text, emailClassName }) {
-  if (!text?.includes(CIVICSIGN_CONTACT_EMAIL)) {
+  if (text == null || text === "") return null;
+
+  // Legal copy may include inline <Link> nodes — pass through unchanged.
+  if (typeof text !== "string") {
+    return <>{text}</>;
+  }
+
+  if (!text.includes(CIVICSIGN_CONTACT_EMAIL)) {
     return <>{text}</>;
   }
 

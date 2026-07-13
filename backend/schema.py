@@ -179,6 +179,25 @@ COLLECTIONS = {
             {"invite_id": _STR, "team_id": _STR, "email": _STR},
         ),
     },
+    "org_invites": {
+        "indexes": [
+            ([("invite_id", 1)], {"unique": True}),
+            ([("token", 1)], {"unique": True}),
+            ([("org_id", 1), ("email", 1)], {"unique": True}),
+            ([("email", 1)], {}),
+            ([("expire_at", 1)], {"expireAfterSeconds": 0}),
+        ],
+        "validator": _obj(
+            ["invite_id", "org_id", "email", "token"],
+            {
+                "invite_id": _STR,
+                "org_id": _STR,
+                "email": _STR,
+                "token": _STR,
+                "status": {"enum": ["pending", "accepted", "revoked"]},
+            },
+        ),
+    },
     "payment_transactions": {
         "indexes": [
             ([("session_id", 1)], {"unique": True}),

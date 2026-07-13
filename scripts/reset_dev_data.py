@@ -29,6 +29,20 @@ load_dotenv(ROOT / "backend" / ".env")
 from auth import hash_password  # noqa: E402
 from plan_signing import generate_plan_signature  # noqa: E402
 
+def _assert_safe_to_wipe() -> None:
+    mongo_url = os.environ.get("MONGO_URL", "").lower()
+    if "mongodb+srv://" in mongo_url or "mongodb.net" in mongo_url:
+        print("ERROR: Refusing to wipe Atlas or other remote MongoDB.")
+        print("       This script is for local development only.")
+        sys.exit(1)
+    is_local = "127.0.0.1" in mongo_url or "localhost" in mongo_url
+    if not is_local and os.environ.get("CONFIRM_DEV_WIPE") != "yes":
+        print("ERROR: Non-local MONGO_URL requires CONFIRM_DEV_WIPE=yes")
+        sys.exit(1)
+
+
+_assert_safe_to_wipe()
+
 client = AsyncIOMotorClient(os.environ["MONGO_URL"], serverSelectionTimeoutMS=8000)
 db = client[os.environ["DB_NAME"]]
 
@@ -43,6 +57,7 @@ WIPE_COLLECTIONS = [
     "teams",
     "comments",
     "team_invites",
+    "org_invites",
     "payment_transactions",
     "usage_ledger",
     "org_usage_ledger",

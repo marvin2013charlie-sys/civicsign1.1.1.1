@@ -1,4 +1,6 @@
 """Plan feature catalogue and access checks for CivicSign subscriptions."""
+from __future__ import annotations
+
 import os
 import logging
 from datetime import datetime, timezone, timedelta
@@ -85,6 +87,33 @@ _BUSINESS_ONLY = frozenset({
     "recipient_auth", "bulk_send", "api_webhooks", "priority_support",
 })
 
+# Organisation owners can toggle these per member at invite time.
+ORG_MEMBER_CONFIGURABLE_FEATURES = frozenset({
+    "manage_pdf",
+    "team_templates",
+    "comments",
+    "custom_branding",
+    "public_links",
+    "bulk_send",
+    "recipient_auth",
+    "seal_verification",
+})
+
+
+def default_org_member_feature_flags() -> dict[str, bool]:
+    """All business features enabled for org members except API (owner-only)."""
+    return {key: True for key in ORG_MEMBER_CONFIGURABLE_FEATURES}
+
+
+def normalize_org_member_feature_flags(raw: dict | None) -> dict[str, bool]:
+    base = default_org_member_feature_flags()
+    if not isinstance(raw, dict):
+        return base
+    for key in ORG_MEMBER_CONFIGURABLE_FEATURES:
+        if key in raw:
+            base[key] = bool(raw[key])
+    return base
+
 
 def is_enterprise_unlimited(user: dict) -> bool:
     """True only when admin has enabled contract-grade unlimited (e.g. signed bank deal)."""
@@ -146,7 +175,7 @@ def quota_context(user: dict) -> dict:
             f"(resets on your {'subscription' if yearly else 'signup'} anniversary)."
         )
     elif limit < 0:
-        note = "Unlimited documents this month."
+        note = "Unlimited documents this billing period."
     else:
         note = (
             f"{plan.capitalize()} plan: {limit:,} documents per {period_label} "
@@ -163,6 +192,19 @@ def quota_context(user: dict) -> dict:
     }
 
 
+def sms_auth_available() -> bool:
+    """SMS recipient authentication needs a configured SMS provider.
+
+    In dev mode the code is logged instead of sent, so it always works.
+    In production, senders must not be able to pick SMS auth until a provider
+    (e.g. Twilio) is wired up — otherwise signers wait for a text that never
+    arrives.
+    """
+    if os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes"):
+        return True
+    return bool(os.environ.get("TWILIO_ACCOUNT_SID") and os.environ.get("TWILIO_AUTH_TOKEN"))
+
+
 def plan_features(user: dict) -> dict:
     from plan_signing import is_internal_team
 
@@ -170,6 +212,8 @@ def plan_features(user: dict) -> dict:
     flags = dict(_PLAN_FLAGS.get(plan, _PLAN_FLAGS["free"]))
     flags["plan"] = plan
     flags["enterprise_unlimited"] = is_enterprise_unlimited(user)
+    # SMS availability depends on server configuration, not just the plan tier.
+    flags["recipient_auth_sms"] = bool(flags.get("recipient_auth")) and sms_auth_available()
     if is_internal_team(user):
         flags["internal_team"] = True
     if user.get("org_id"):
@@ -183,6 +227,11 @@ def plan_features(user: dict) -> dict:
             )
         else:
             flags["api_webhooks"] = False
+            overrides = user.get("org_feature_flags")
+            if isinstance(overrides, dict):
+                for key in ORG_MEMBER_CONFIGURABLE_FEATURES:
+                    if key in overrides:
+                        flags[key] = bool(overrides[key])
     return flags
 
 

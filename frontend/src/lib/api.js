@@ -14,10 +14,15 @@ export const API_BASE = `${BACKEND_URL}/api`;
 // Bare backend origin (no `/api` suffix), used for absolute media URLs like avatars.
 export const API_ORIGIN = BACKEND_URL;
 
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+  // Avoid infinite spinners when the backend or dev proxy is down/unreachable.
+  timeout: 30_000,
+});
 
 /** Public client for token-based signer routes, no session cookies or Bearer. */
-export const publicApi = axios.create({ baseURL: API_BASE, withCredentials: false });
+export const publicApi = axios.create({ baseURL: API_BASE, withCredentials: false, timeout: 30_000 });
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
@@ -146,11 +151,7 @@ export async function parseBlobApiError(err) {
   return formatApiError(err);
 }
 
-export async function fetchPdfBlobUrl(path) {
-  const res = await api.get(path, {
-    responseType: "blob",
-    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-  });
+async function blobToObjectUrl(res) {
   const ct = (res.headers["content-type"] || "").toLowerCase();
   if (ct.includes("application/json") || ct.includes("text/plain")) {
     const errText = await res.data.text();
@@ -166,9 +167,17 @@ export async function fetchPdfBlobUrl(path) {
   return URL.createObjectURL(res.data);
 }
 
+export async function fetchPdfBlobUrl(path) {
+  const res = await api.get(path, {
+    responseType: "blob",
+    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+  });
+  return blobToObjectUrl(res);
+}
+
 export async function fetchPublicPdfBlobUrl(path) {
   const res = await publicApi.get(path, { responseType: "blob" });
-  return URL.createObjectURL(res.data);
+  return blobToObjectUrl(res);
 }
 
 // Save a file (returned by an authenticated API path) to the user's computer.

@@ -222,6 +222,21 @@ class OrgMemberQuotaUpdate(BaseModel):
     monthly_seat_limit: Optional[int] = Field(None, ge=1, le=100000)
 
 
+class OrgInviteCreate(BaseModel):
+    """Invite a colleague by email — they set their own password when accepting."""
+    email: EmailStr
+    name: Optional[str] = Field(None, max_length=100)
+    monthly_seat_limit: Optional[int] = Field(None, ge=1, le=100000)
+    feature_flags: Optional[dict[str, bool]] = None
+    base_url: Optional[str] = None
+
+
+class OrgInviteAccept(BaseModel):
+    token: str = Field(min_length=16, max_length=256)
+    name: Optional[str] = Field(None, max_length=100)
+    password: Optional[str] = Field(None, min_length=8)
+
+
 class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     monthly_envelope_limit: Optional[int] = None
@@ -264,6 +279,15 @@ class CheckoutRequest(BaseModel):
 class DocumentCheckoutRequest(BaseModel):
     origin_url: str
     quantity: int = Field(1, ge=1, le=20)
+
+
+class BillingPortalRequest(BaseModel):
+    origin_url: str
+
+
+class CancelSubscriptionRequest(BaseModel):
+    reason: str = ""
+    feedback: str = ""
 
 
 # ---- Admin: impersonation & password reset ----

@@ -4,12 +4,14 @@ import {
   Calculator, FileSignature, ScrollText, Receipt, Building2, Sparkles,
 } from "lucide-react";
 import { SolutionPageLayout } from "@/components/SolutionPageLayout";
+import { formatFreePlanSignupPitch } from "@/lib/pricing";
 import { BrandAccent } from "@/components/BrandText";
 
 export default function FinancialServices() {
   return (
     <SolutionPageLayout
       testidSlug="finance"
+      solutionPath="/solutions/financial-services"
       industry="Solutions · Financial Services & Accountants"
       IndustryIcon={PoundSterling}
       headline={<>Onboard clients and file engagements <BrandAccent>without breaking AML rules.</BrandAccent></>}
@@ -47,7 +49,7 @@ export default function FinancialServices() {
         { icon: Building2, title: "Disengagement and file-transfer letters", body: "Clean exits with disengagement letters and professional-clearance correspondence, signed and sealed." },
       ]}
       ctaHeadline="Ready to bill faster and file calmer?"
-      ctaSubhead="Send your first engagement letter today. Free for 2 documents a month, UK GDPR by default, AML-ready audit trail."
+      ctaSubhead={`Send your first engagement letter today. ${formatFreePlanSignupPitch({ includeNoCard: false })}, UK GDPR by default, AML-ready audit trail.`}
       ctaButton="Start free for practices"
     />
   );

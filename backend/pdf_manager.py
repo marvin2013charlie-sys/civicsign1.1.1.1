@@ -12,7 +12,8 @@ from fastapi.responses import Response as FastResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from auth import get_current_user
-from organizations import enforce_quota, release_envelope_quota
+from document_access import assert_can_access_document_bytes
+
 from plan_features import require_feature
 from db import (
     db,
@@ -143,38 +144,25 @@ async def _create_draft_envelope_from_pdf(
     *,
     manage_pdf_tool: str,
     original_filename: str | None = None,
-    quota_reserved: bool = False,
 ) -> dict:
     if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
         raise HTTPException(status_code=400, detail="Invalid PDF file")
 
-    credits = 0
-    if not quota_reserved:
-        credits = await enforce_quota(user, count=1)
     safe_name = (filename or "document.pdf").strip() or "document.pdf"
     if not safe_name.lower().endswith(".pdf"):
         safe_name = f"{safe_name}.pdf"
-    try:
-        page_count, pages = pdf_service.get_pdf_info(pdf_bytes)
-        return await _persist_manage_pdf_envelope(
-            user,
-            file_bytes=pdf_bytes,
-            filename=safe_name,
-            title=title,
-            manage_pdf_tool=manage_pdf_tool,
-            original_filename=original_filename,
-            file_type="pdf",
-            page_count=page_count,
-            pages=pages,
-        )
-    except HTTPException:
-        if not quota_reserved:
-            await release_envelope_quota(user, count=1, credits_consumed=credits)
-        raise
-    except Exception:
-        if not quota_reserved:
-            await release_envelope_quota(user, count=1, credits_consumed=credits)
-        raise
+    page_count, pages = pdf_service.get_pdf_info(pdf_bytes)
+    return await _persist_manage_pdf_envelope(
+        user,
+        file_bytes=pdf_bytes,
+        filename=safe_name,
+        title=title,
+        manage_pdf_tool=manage_pdf_tool,
+        original_filename=original_filename,
+        file_type="pdf",
+        page_count=page_count,
+        pages=pages,
+    )
 
 
 async def _create_draft_envelope_from_docx(
@@ -189,28 +177,20 @@ async def _create_draft_envelope_from_docx(
     if not docx_bytes or docx_bytes[:2] != b"PK":
         raise HTTPException(status_code=400, detail="Invalid Word file")
 
-    credits = await enforce_quota(user, count=1)
     safe_name = (filename or "document.docx").strip() or "document.docx"
     if not safe_name.lower().endswith((".docx", ".doc")):
         safe_name = f"{safe_name}.docx"
-    try:
-        return await _persist_manage_pdf_envelope(
-            user,
-            file_bytes=docx_bytes,
-            filename=safe_name,
-            title=title,
-            manage_pdf_tool=manage_pdf_tool,
-            original_filename=original_filename,
-            file_type="docx",
-            page_count=0,
-            pages=[],
-        )
-    except HTTPException:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
-        raise
-    except Exception:
-        await release_envelope_quota(user, count=1, credits_consumed=credits)
-        raise
+    return await _persist_manage_pdf_envelope(
+        user,
+        file_bytes=docx_bytes,
+        filename=safe_name,
+        title=title,
+        manage_pdf_tool=manage_pdf_tool,
+        original_filename=original_filename,
+        file_type="docx",
+        page_count=0,
+        pages=[],
+    )
 
 
 class RectPct(BaseModel):
@@ -302,7 +282,8 @@ async def _get_workspace(workspace_id: str, user: dict) -> dict:
     return ws
 
 
-async def _load_workspace_pdf(ws: dict) -> bytes:
+async def _load_workspace_pdf(ws: dict, user: dict) -> bytes:
+    assert_can_access_document_bytes(user)
     return await download_document_file(
         ws["file_id"], WORKSPACE_SCOPE, ws["workspace_id"],
     )
@@ -504,7 +485,7 @@ async def render_workspace_page(
     ws = await _get_workspace(workspace_id, user)
     if page_index < 0 or page_index >= ws.get("page_count", 0):
         raise HTTPException(status_code=400, detail="Page index out of range")
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         png = pdf_service.render_page_png(pdf_bytes, page_index)
     except Exception as exc:
@@ -522,7 +503,7 @@ async def get_page_text_spans(
     ws = await _get_workspace(workspace_id, user)
     if page_index < 0 or page_index >= ws.get("page_count", 0):
         raise HTTPException(status_code=400, detail="Page index out of range")
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         spans = pdf_service.extract_page_text_spans(pdf_bytes, page_index)
     except ValueError as exc:
@@ -540,7 +521,7 @@ async def edit_page_text(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         updated_bytes = pdf_service.replace_text_at_rect(
             pdf_bytes,
@@ -565,7 +546,7 @@ async def add_text_overlay(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         updated_bytes = pdf_service.add_text_overlay(
             pdf_bytes,
@@ -586,7 +567,7 @@ async def add_whiteout_overlay(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         updated_bytes = pdf_service.add_whiteout_overlay(
             pdf_bytes, body.page_index, body.rect_pct.model_dump(),
@@ -665,7 +646,7 @@ async def add_annotation(
 ):
     """Sejda-style annotations: highlight, rect, ellipse, line, check, cross, link."""
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         updated_bytes = pdf_service.add_annotation(
             pdf_bytes,
@@ -705,7 +686,7 @@ async def add_image_overlay(
         if val < 0 or (key in ("w", "h") and val <= 0) or (key in ("x", "y", "w", "h") and val > 1):
             raise HTTPException(status_code=400, detail="Invalid overlay coordinates")
 
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         updated_bytes = pdf_service.add_image_overlay(
             pdf_bytes, page_index, rect_pct, raw,
@@ -722,7 +703,7 @@ async def workspace_page_op(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     op = (body.op or "").strip().lower()
 
     try:
@@ -759,7 +740,7 @@ async def merge_into_workspace(
     if not files:
         raise HTTPException(status_code=400, detail="Upload at least one file to append")
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     extras = []
     for f in files:
         raw = await f.read()
@@ -781,7 +762,7 @@ async def split_workspace(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     ranges = _parse_ranges(body.ranges, ws.get("page_count", 0))
     parts = pdf_service.split_pdf_to_parts(pdf_bytes, ranges)
 
@@ -805,13 +786,12 @@ async def split_save_to_documents(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     ranges = _parse_ranges(body.ranges, ws.get("page_count", 0))
     parts = pdf_service.split_pdf_to_parts(pdf_bytes, ranges)
     base = (ws.get("original_filename") or ws.get("filename") or "document").rsplit(".", 1)[0]
     orig = ws.get("original_filename") or ws.get("filename")
 
-    credits = await enforce_quota(user, count=len(parts))
     saved = []
     try:
         for i, part in enumerate(parts, start=1):
@@ -826,14 +806,11 @@ async def split_save_to_documents(
                 title,
                 manage_pdf_tool="split",
                 original_filename=orig,
-                quota_reserved=True,
             )
             saved.append(env)
     except HTTPException:
-        await release_envelope_quota(user, count=len(parts), credits_consumed=credits)
         raise
     except Exception as exc:
-        await release_envelope_quota(user, count=len(parts), credits_consumed=credits)
         logger.error("[pdf_manager] split save: %s", exc)
         raise HTTPException(status_code=400, detail="Could not save split documents") from exc
     return {"saved_count": len(saved), "envelopes": saved}
@@ -846,7 +823,7 @@ async def compress_workspace(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     preset = (body.preset or "medium").lower().strip()
     if preset not in pdf_service.COMPRESS_PRESETS:
         raise HTTPException(status_code=400, detail="preset must be medium, good, or best")
@@ -893,7 +870,7 @@ async def watermark_workspace(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     wm_kind = (kind or "text").lower().strip()
     image_bytes = None
     if wm_kind == "image":
@@ -946,7 +923,7 @@ async def protect_workspace(
             status_code=400,
             detail="This PDF is password protected. Use Unlock PDF first.",
         )
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         protected = pdf_service.protect_pdf_bytes(
             pdf_bytes,
@@ -976,7 +953,7 @@ async def unlock_workspace(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         unlocked = pdf_service.unlock_pdf_bytes(pdf_bytes, body.password)
     except ValueError as exc:
@@ -1003,7 +980,7 @@ async def pdf_to_word_workspace(
             status_code=400,
             detail="This PDF is password protected. Use Unlock PDF first.",
         )
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
         docx_bytes = pdf_service.convert_pdf_to_docx_bytes(pdf_bytes)
     except ValueError as exc:
@@ -1031,7 +1008,7 @@ async def word_to_pdf_workspace(
             status_code=400,
             detail="Upload a Word (.docx) file — this workspace was not created from Word",
         )
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
         raise HTTPException(status_code=400, detail="Could not load converted PDF")
     base = (ws.get("original_filename") or ws.get("filename") or "document").rsplit(".", 1)[0]
@@ -1052,7 +1029,7 @@ async def download_workspace(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     fname = ws.get("filename") or "document.pdf"
     return FastResponse(
         content=pdf_bytes,
@@ -1119,7 +1096,7 @@ async def save_workspace_to_documents(
     user: dict = Depends(_pdf_user),
 ):
     ws = await _get_workspace(workspace_id, user)
-    pdf_bytes = await _load_workspace_pdf(ws)
+    pdf_bytes = await _load_workspace_pdf(ws, user)
     base = (ws.get("original_filename") or ws.get("filename") or "document").rsplit(".", 1)[0]
     env_title = (title or f"{base} (Edited)").strip()
     return await _create_draft_envelope_from_pdf(

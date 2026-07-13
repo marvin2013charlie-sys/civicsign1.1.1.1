@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { publicApi } from "@/lib/api";
 import { getAuthNext, nextQueryString } from "@/lib/authPortal";
+import { AssistantMessage } from "@/components/AssistantMessage";
 
 const GREETINGS = {
   login: "Hi, I'm your Sign-in Copilot. Ask about logging in, verification, passwords, or rate limits.",
@@ -136,7 +137,7 @@ export function AuthAssistant({ context = "login" }) {
       >
         <span
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "linear-gradient(135deg, var(--c-primary) 0%, #0d9488 100%)" }}
+          style={{ background: "var(--c-ink-solid)", boxShadow: "0 8px 20px rgba(18,33,32,.2)" }}
         >
           <Bot className="h-5 w-5 text-white" />
         </span>
@@ -176,9 +177,9 @@ export function AuthAssistant({ context = "login" }) {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-xs leading-relaxed sm:text-sm ${
+                  className={`max-w-[92%] rounded-2xl px-3 py-2 text-xs leading-relaxed sm:text-sm ${
                     m.role === "user"
-                      ? "rounded-br-sm text-white"
+                      ? "whitespace-pre-wrap rounded-br-sm text-white"
                       : "rounded-bl-sm text-[var(--c-ink)]"
                   }`}
                   style={
@@ -187,7 +188,7 @@ export function AuthAssistant({ context = "login" }) {
                       : { background: "var(--c-paper-2)" }
                   }
                 >
-                  {m.content}
+                  {m.role === "assistant" ? <AssistantMessage content={m.content} /> : m.content}
                 </div>
               </div>
             ))}

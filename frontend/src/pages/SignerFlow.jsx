@@ -43,8 +43,18 @@ export default function SignerFlow() {
   const [savedSig, setSavedSig] = useState(null);
   const fieldRefs = useRef({});
 
+  const loadPdf = async (cancelledRef) => {
+    const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
+    if (cancelledRef.current) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+  };
+
   useEffect(() => {
     let cancelled = false;
+    const cancelledRef = { current: false };
     const todayStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
     (async () => {
       setLoading(true);
@@ -62,13 +72,13 @@ export default function SignerFlow() {
         setValues(init);
         if (d.completed) setDone("completed");
         else if (d.already_signed) setDone("signed");
-        try {
-          const { data: vault } = await publicApi.get(`/sign/${token}/saved-signature`);
-          if (!cancelled && vault?.signature?.signature_data) setSavedSig(vault.signature);
-        } catch { /* optional */ }
-        const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
-        if (cancelled) { URL.revokeObjectURL(url); return; }
-        setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+        else if (d.signable && (!d.auth_required || d.auth_verified)) {
+          try {
+            const { data: vault } = await publicApi.get(`/sign/${token}/saved-signature`);
+            if (!cancelled && vault?.signature?.signature_data) setSavedSig(vault.signature);
+          } catch { /* optional */ }
+          await loadPdf(cancelledRef);
+        }
       } catch (err) {
         if (cancelled) return;
         setError(formatApiError(err) || "This signing link is invalid or has expired.");
@@ -76,7 +86,10 @@ export default function SignerFlow() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      cancelledRef.current = true;
+    };
   }, [token]);
   useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
@@ -169,6 +182,13 @@ export default function SignerFlow() {
       await publicApi.post(`/sign/${token}/auth/verify`, payload);
       setAuthVerified(true);
       toast.success("Identity verified, you can continue to sign");
+      if (data?.signable && !blobUrl) {
+        try {
+          await loadPdf({ current: false });
+        } catch (err) {
+          toast.error(formatApiError(err) || "Could not load document");
+        }
+      }
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -358,6 +378,14 @@ export default function SignerFlow() {
       {/* Document */}
       {started && (
         <div className="flex flex-col items-center px-2 py-6">
+          {data.sign_only && (
+            <div
+              className="mb-4 w-full max-w-[760px] rounded-lg border border-[var(--c-border)] bg-[var(--status-sent-bg)] px-4 py-3 text-sm text-[var(--c-ink)]"
+              data-testid="signer-sign-only-notice"
+            >
+              This document was uploaded from Word. You can add your signature only — the document text cannot be edited.
+            </div>
+          )}
           <div className="mb-4 flex w-full max-w-[760px] items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-3 py-2 sm:hidden">
             <span className="text-xs text-[var(--c-muted-fg)]">{completedCount}/{requiredEditable.length} done</span>
             <Button variant="outline" size="sm" className="ml-auto" onClick={goNext}>Next</Button>

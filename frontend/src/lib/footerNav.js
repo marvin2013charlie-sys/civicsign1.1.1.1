@@ -6,9 +6,11 @@ export const FOOTER_COLS = [
     title: "Product",
     links: [
       { label: "Features", to: { pathname: "/", hash: "#features" } },
+      { label: "Manage PDF", to: "/product/manage-pdf" },
+      { label: "Solutions", to: "/solutions" },
       { label: "How it works", to: { pathname: "/", hash: "#how" } },
       { label: "Security", to: { pathname: "/", hash: "#security" } },
-      { label: "Pricing", to: { pathname: "/", hash: "#pricing" } },
+      { label: "Pricing", to: "/pricing" },
     ],
   },
   {

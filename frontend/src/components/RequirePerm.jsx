@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 export const ADMIN_ROUTE_PERMS = {
   "": "admin",          // /admin (Overview)
   "users": "users-read",
+  "envelopes": "users-read",
 
   "blog": "blog",
   "careers": "careers",

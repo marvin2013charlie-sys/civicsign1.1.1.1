@@ -1,5 +1,6 @@
 import { POSTS } from "@/lib/blogPosts";
 import { CIVICSIGN_CONTACT_EMAIL } from "@/lib/contactEmail";
+import { formatFreePlanSeoDescription } from "@/lib/pricing";
 
 export const SITE_NAME = "CivicSign";
 export const SITE_TAGLINE = "UK e-signature platform";
@@ -103,6 +104,24 @@ const STATIC_ROUTES = {
       "CivicSign refund and cooling-off policy for subscriptions and pay-as-you-go purchases. Contact info@civicbot.co.uk for billing enquiries.",
     path: "/legal/refunds",
   },
+  "/pricing": {
+    title: `Pricing — Simple UK E-Signature Plans${TITLE_SUFFIX}`,
+    description:
+      "CivicSign pricing: Free plan with documents per billing period, Pro from £15/month, Business from £79/month. Manage PDF on paid plans. No card required to start.",
+    path: "/pricing",
+  },
+  "/product/manage-pdf": {
+    title: `Manage PDF — Edit, Compress, Watermark & Sign${TITLE_SUFFIX}`,
+    description:
+      "CivicSign Manage PDF: edit, merge, split, compress, watermark, protect, unlock, convert and AI-scan PDFs in one UK workspace. Included on all paid plans — save to Documents and send for signature.",
+    path: "/product/manage-pdf",
+  },
+  "/solutions": {
+    title: `Industry Solutions — E-Signatures by Sector${TITLE_SUFFIX}`,
+    description:
+      "Explore CivicSign solutions for UK estate agents, solicitors, HR teams, healthcare, education, charities, construction, finance and staffing agencies. UK-built, UK-hosted, court-ready audit trails.",
+    path: "/solutions",
+  },
   "/solutions/real-estate": {
     title: `E-Signatures for UK Estate Agents & Lettings${TITLE_SUFFIX}`,
     description:
@@ -156,6 +175,18 @@ const STATIC_ROUTES = {
     description:
       "Gift Aid declarations, trustee resolutions and volunteer agreements signed before enthusiasm fades. Charity Commission and HMRC aligned.",
     path: "/solutions/charities",
+  },
+  "/solutions/sales": {
+    title: `E-Signatures for UK Sales Teams${TITLE_SUFFIX}`,
+    description:
+      "Close deals faster with proposals, MSAs, order forms and NDAs signed the same day. UK eIDAS aligned e-signatures for B2B sales teams.",
+    path: "/solutions/sales",
+  },
+  "/solutions/freelancers": {
+    title: `E-Signatures for UK Freelancers & Consultants${TITLE_SUFFIX}`,
+    description:
+      "Send SOWs, MSAs, IP assignments and payment terms clients sign in minutes. Free tier for sole traders — UK GDPR compliant from CivicSign.",
+    path: "/solutions/freelancers",
   },
 };
 
@@ -259,7 +290,7 @@ function buildSoftwareApplicationJsonLd() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "GBP",
-      description: "Free plan with 2 documents per billing period",
+      description: formatFreePlanSeoDescription(),
     },
     description: STATIC_ROUTES["/"].description,
     url: SITE_URL,

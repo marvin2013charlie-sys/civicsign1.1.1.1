@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { parseLinkTarget, scrollToSection } from "@/lib/scrollToSection";
+import { cn } from "@/lib/utils";
 
 /**
  * Footer / mobile nav link, routes to pages or scrolls to homepage sections (FAQ, pricing, etc.).
@@ -9,7 +10,8 @@ export function FooterLink({ link, className = "", onNavigate }) {
   const location = useLocation();
   const navigate = useNavigate();
   const testId = `footer-link-${link.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
-  const baseClass = "text-sm text-[var(--c-ink)] transition-colors hover:text-[var(--c-primary)] active:text-[var(--c-primary)]";
+  const baseClass =
+    "text-sm text-[var(--c-ink)] transition-colors hover:text-[var(--c-primary)] active:text-[var(--c-primary)]";
   const { pathname: targetPath, hash: targetHash } = parseLinkTarget(link.to);
 
   const handleNavigate = () => {
@@ -43,7 +45,7 @@ export function FooterLink({ link, className = "", onNavigate }) {
     <Link
       to={link.to}
       onClick={onClick}
-      className={`${baseClass} ${className}`.trim()}
+      className={cn(baseClass, className)}
       data-testid={testId}
     >
       {link.label}

@@ -67,10 +67,10 @@ function OverviewTab({ data, isOwner }) {
             </p>
             <p className="mt-1">
               {usage.seat_at_limit
-                ? "You have reached your monthly document allowance."
+                ? "You have reached your document allowance for this billing period."
                 : isOwner && usage.org_at_limit
-                  ? "Your organisation pool has reached its monthly cap."
-                  : "You are nearing your monthly allowance."}
+                  ? "Your organisation pool has reached its billing-period cap."
+                  : "You are nearing your allowance for this billing period."}
               {" "}
               {isOwner
                 ? "Contact your account manager to review your contract."
@@ -150,17 +150,18 @@ function OverviewTab({ data, isOwner }) {
             Contact them first — they can escalate to CivicSign if needed.
           </p>
         )}
-        <p className="mt-2">Deleting sent documents does not restore your monthly allowance.</p>
+        <p className="mt-2">Deleting sent documents does not restore your allowance within the current billing period.</p>
       </div>
     </div>
   );
 }
 
-function TeamRosterTab({ team, canManage, orgPerSeat, onReload }) {
+function TeamRosterTab({ team, pendingInvites, canManage, orgPerSeat, onReload }) {
   if (canManage) {
     return (
       <OrgTeamTab
         members={team}
+        pendingInvites={pendingInvites}
         orgPerSeat={orgPerSeat}
         onReload={onReload}
       />
@@ -169,7 +170,7 @@ function TeamRosterTab({ team, canManage, orgPerSeat, onReload }) {
   return (
     <div className="space-y-4" data-testid="org-portal-team-readonly">
       <p className="text-sm text-[var(--c-muted-fg)]">
-        Your organisation admin manages team accounts. Contact them to request a new login.
+        Your organisation admin manages team invitations. Contact them if you need a colleague added.
       </p>
       <div className="overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--card)]">
         <ul className="divide-y divide-[var(--c-border)]">
@@ -503,6 +504,7 @@ export default function OrganisationPortal() {
               <TabsContent value="team">
                 <TeamRosterTab
                   team={data.team}
+                  pendingInvites={data.pending_invites}
                   canManage={data.can_manage_team}
                   orgPerSeat={org.org_per_seat_limit}
                   onReload={loadPortal}

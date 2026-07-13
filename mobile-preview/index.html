@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CivicSign — Mobile preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f4f3ee; color: #122120; }
+    header { padding: 1.25rem 1.5rem; background: #122120; color: #f8f7f2; }
+    header h1 { margin: 0 0 .35rem; font-size: 1.25rem; }
+    header p { margin: 0; font-size: .875rem; opacity: .85; line-height: 1.5; }
+    header code { background: rgba(255,255,255,.12); padding: .1rem .35rem; border-radius: 4px; }
+    .grid { display: grid; gap: 1.5rem; padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
+    @media (min-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    .card { background: #fff; border-radius: 16px; border: 1px solid #e5e3db; overflow: hidden; box-shadow: 0 8px 24px rgba(18,33,32,.06); }
+    .card h2 { margin: 0; padding: .85rem 1rem; font-size: .95rem; border-bottom: 1px solid #eee; }
+    .frame { display: flex; justify-content: center; padding: 1rem; background: #ebeae4; }
+    .phone { width: 393px; max-width: 100%; border: 10px solid #1a1a1a; border-radius: 36px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,.18); }
+    .phone img { display: block; width: 100%; height: auto; }
+    .path { padding: .5rem 1rem .85rem; font-size: .75rem; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CivicSign mobile preview</h1>
+    <p>iPhone 14 Pro viewport (393×852). Generated 13/07/2026, 07:22:27.</p>
+    <p>Test on your phone (same Wi‑Fi): <code>http://192.168.0.123:3000</code></p>
+    <p>Chrome DevTools: open any page → toggle device toolbar (⌘⇧M) → pick iPhone.</p>
+  </header>
+  <div class="grid">
+    
+    <article class="card">
+      <h2>Home</h2>
+      <div class="frame"><div class="phone"><img src="home.png" alt="Home" loading="lazy" /></div></div>
+      <p class="path">/</p>
+    </article>
+    <article class="card">
+      <h2>Login</h2>
+      <div class="frame"><div class="phone"><img src="login.png" alt="Login" loading="lazy" /></div></div>
+      <p class="path">/login</p>
+    </article>
+    <article class="card">
+      <h2>Register</h2>
+      <div class="frame"><div class="phone"><img src="register.png" alt="Register" loading="lazy" /></div></div>
+      <p class="path">/register</p>
+    </article>
+    <article class="card">
+      <h2>Pricing</h2>
+      <div class="frame"><div class="phone"><img src="pricing.png" alt="Pricing" loading="lazy" /></div></div>
+      <p class="path">/pricing</p>
+    </article>
+    <article class="card">
+      <h2>Manage PDF</h2>
+      <div class="frame"><div class="phone"><img src="product_manage-pdf.png" alt="Manage PDF" loading="lazy" /></div></div>
+      <p class="path">/product/manage-pdf</p>
+    </article>
+    <article class="card">
+      <h2>Privacy</h2>
+      <div class="frame"><div class="phone"><img src="legal_privacy.png" alt="Privacy" loading="lazy" /></div></div>
+      <p class="path">/legal/privacy</p>
+    </article>
+    <article class="card">
+      <h2>Terms</h2>
+      <div class="frame"><div class="phone"><img src="legal_terms.png" alt="Terms" loading="lazy" /></div></div>
+      <p class="path">/legal/terms</p>
+    </article>
+    <article class="card">
+      <h2>Cookies</h2>
+      <div class="frame"><div class="phone"><img src="legal_cookies.png" alt="Cookies" loading="lazy" /></div></div>
+      <p class="path">/legal/cookies</p>
+    </article>
+    <article class="card">
+      <h2>Refunds</h2>
+      <div class="frame"><div class="phone"><img src="legal_refunds.png" alt="Refunds" loading="lazy" /></div></div>
+      <p class="path">/legal/refunds</p>
+    </article>
+    <article class="card">
+      <h2>Contact</h2>
+      <div class="frame"><div class="phone"><img src="contact.png" alt="Contact" loading="lazy" /></div></div>
+      <p class="path">/contact</p>
+    </article>
+  </div>
+</body>
+</html>

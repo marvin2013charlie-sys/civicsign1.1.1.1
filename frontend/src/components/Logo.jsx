@@ -1,37 +1,74 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { resolveLogoHomePath } from "@/lib/logoHome";
+
+/** Brand teal + coral accent — the two colours used across the portal. */
+const LOGO_DOT_COLORS = ["#2DD4BF", "#FF7A5C"];
+
+function useAnimatedLogoDot(intervalMs = 5000) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) return undefined;
+
+    const id = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % LOGO_DOT_COLORS.length);
+    }, intervalMs);
+
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+
+  return LOGO_DOT_COLORS[index];
+}
 
 /**
  * Brand logo: "CivicSign" wordmark over a teal rule with a detached dot,
  * matching the final brand lockup.
+ *
+ * Public marketing pages → /. Signed-in app/admin surfaces → /dashboard or /admin.
+ * Pass `to` to override (e.g. tests).
  */
-export const Logo = ({ className = "", dark = false, to = "/" }) => {
+export const Logo = ({ className = "", dark = false, to }) => {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const target = to ?? resolveLogoHomePath(user, pathname);
+  const ariaLabel = target === "/" ? "CivicSign home" : "CivicSign dashboard";
+  const dotColor = useAnimatedLogoDot(5000);
+
   const inkColor = dark ? "#ffffff" : "var(--c-ink)";
   return (
-    <Link to={to} className={`inline-flex items-center ${className}`} data-testid="brand-logo">
-      <span className="flex flex-col" style={{ lineHeight: 1 }}>
+    <Link to={target} className={`inline-flex items-center ${className}`} data-testid="brand-logo" aria-label={ariaLabel}>
+      <span className="flex flex-col gap-0.5" style={{ lineHeight: 1 }}>
         <span
-          className="font-heading text-xl font-bold tracking-tight"
-          style={{ color: inkColor, letterSpacing: "-0.02em" }}
+          className="font-heading text-xl font-bold tracking-tight transition-colors duration-200"
+          style={{ color: inkColor, letterSpacing: "-0.02em", lineHeight: 1.05 }}
         >
           CivicSign
         </span>
-        <span className="mt-1 flex items-center" aria-hidden="true">
+        <span className="flex w-full min-w-[5.5rem] items-center" aria-hidden="true">
           <span
+            data-testid="brand-logo-line"
             style={{
               height: "3px",
               flex: 1,
+              minWidth: "2.5rem",
               borderRadius: "9999px",
-              background: "var(--c-primary)",
+              background: dotColor,
+              transition: "background-color 0.6s ease",
             }}
           />
           <span
+            data-testid="brand-logo-dot"
             style={{
               width: "7px",
               height: "7px",
-              marginLeft: "5px",
+              marginLeft: "4px",
+              flexShrink: 0,
               borderRadius: "9999px",
-              background: "var(--c-logo-dot)",
+              background: dotColor,
+              transition: "background-color 0.6s ease",
             }}
           />
         </span>

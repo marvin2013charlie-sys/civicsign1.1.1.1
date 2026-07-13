@@ -1,3 +1,5 @@
+import { formatQuotaLimitReachedMessage } from "@/lib/quotaDisplay";
+
 /** Normalize axios/FastAPI errors, never surface "[object Object]" to users. */
 export function extractApiDetail(errOrDetail) {
   if (errOrDetail == null) return null;
@@ -30,7 +32,7 @@ export function formatApiError(detail) {
   if (typeof d === "object") {
     if (typeof d.message === "string" && d.message.trim()) return d.message;
     if (d.code === "quota_exceeded") {
-      return d.message || "You've reached your monthly document limit.";
+      return d.message || formatQuotaLimitReachedMessage({ includeDeleteNote: false });
     }
     if (typeof d.detail === "object" && typeof d.detail.message === "string") {
       return d.detail.message;

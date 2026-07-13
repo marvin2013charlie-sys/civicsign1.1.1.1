@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import {
   getAuthNext,
+  getPostAuthDestination,
   getRememberedEmail,
   setRememberedEmail,
   clearAuthNext,
@@ -62,7 +63,7 @@ export default function Login() {
   }, [params]);
 
   const goAfterAuth = () => {
-    const dest = next || "/dashboard";
+    const dest = getPostAuthDestination(next);
     clearAuthNext();
     navigate(dest, { replace: true });
   };
@@ -78,7 +79,7 @@ export default function Login() {
     } catch (err) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail || "";
-      if (status === 403 && /verify your email/i.test(detail)) {
+      if (status === 403 && /verify your email/i.test(String(detail))) {
         try {
           const data = await resendVerification(email);
           sessionStorage.setItem("cs_verify_email", email);
@@ -98,7 +99,7 @@ export default function Login() {
           return;
         }
       }
-      toast.error(formatApiError(detail) || "Login failed");
+      toast.error(formatApiError(err) || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -108,10 +109,10 @@ export default function Login() {
     <AuthLayout
       showAssistant={false}
       panelMarquee
-      panelReviews
       panelTitle={
         <>
-          Get legally binding <BrandAccent>signatures</BrandAccent>, fast.
+          Get legally binding <BrandAccent>signatures</BrandAccent>
+          <span className="cs-auth-title-dot">.</span>
         </>
       }
       panelBullets={[
@@ -119,13 +120,18 @@ export default function Login() {
         { icon: Scale, text: "UK eIDAS & Electronic Communications Act 2000 aligned" },
         { icon: Fingerprint, text: "Tamper-evident audit trail on every doc" },
       ]}
+      panelQuote={{
+        text: "We replaced our clunky old tool in a day. CivicSign is faster and our clients love how clean the signing page is.",
+        attribution: "Maya Chen · COO, Northwind Studio",
+      }}
     >
       <AuthFormCard
         testId="login-card"
-        showLogo
         nav={<AuthPortalNav active="login" />}
+        script="Good to see you again"
         title="Welcome back"
-        subtitle="Sign in to send envelopes, track signatures, and manage your documents."
+        titleDot="coral"
+        subtitle="Sign in to send, track and seal your documents."
         footer="Protected by encryption & rate limiting"
       >
         <form onSubmit={submit} noValidate className="mt-7 space-y-5">

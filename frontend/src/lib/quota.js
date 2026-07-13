@@ -1,6 +1,15 @@
-/** Helpers for monthly document quota / rate-limit responses (HTTP 402). */
+/** Helpers for document quota / rate-limit responses (HTTP 402). */
 import { extractApiDetail } from "@/lib/api";
 import { EXTRA_DOCUMENT_PRICE_GBP } from "@/lib/pricing";
+import { formatQuotaLimitReachedMessage } from "@/lib/quotaDisplay";
+
+/** Self-serve upgrade CTA — Free and Pro only (not Business or Organisation). */
+export function canUpgradePlan(usage) {
+  if (!usage) return false;
+  if ((usage.scope || "user") === "organization") return false;
+  const plan = (usage.plan || "free").toLowerCase();
+  return plan === "free" || plan === "pro";
+}
 
 export function isQuotaExceeded(detail) {
   const d = extractApiDetail(detail) ?? detail;
@@ -38,8 +47,8 @@ export function buildQuotaDetailFromUsage(usage, message) {
     message:
       message ||
       (isOrgStaff
-        ? "You've reached your monthly allowance. Contact your organisation admin — they can escalate to CivicSign if required."
-        : "You've reached your monthly document limit. Deleting envelopes does not restore your allowance."),
+        ? "You've reached your allowance for this billing period. Contact your organisation admin — they can escalate to CivicSign if required."
+        : formatQuotaLimitReachedMessage()),
     plan,
     used: usage.used,
     limit: usage.limit,
@@ -68,7 +77,7 @@ export function handleQuotaApiError(err, { setDetail, setOpen }) {
       : {
           message: typeof detail === "string"
             ? detail
-            : "You've reached your monthly document limit.",
+            : formatQuotaLimitReachedMessage({ includeDeleteNote: false }),
           code: "quota_exceeded",
           at_limit: true,
           rate_limited: true,

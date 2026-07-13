@@ -18,7 +18,6 @@ import { validatePassword } from "@/lib/password";
 import { getAuthNext, nextQueryString, persistAuthNext, clearAuthNext } from "@/lib/authPortal";
 import {
   Loader2,
-  Link2,
   PenLine,
   Fingerprint,
   User,
@@ -28,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { requestProductTour } from "@/lib/productTour";
+import { formatFreePlanRegisterFeature, formatFreePlanRegisterSubtitle } from "@/lib/pricing";
 
 const PWD_RULES = [
   { label: "At least 8 characters", test: (p) => p.length >= 8 },
@@ -37,7 +37,7 @@ const PWD_RULES = [
 ];
 
 const FREE_PERKS = [
-  "2 documents per month (resets on your signup date)",
+  formatFreePlanRegisterFeature(),
   "Unlimited signers",
   "Audit trail included",
 ];
@@ -96,25 +96,28 @@ export default function Register() {
     <AuthLayout
       showAssistant={false}
       panelMarquee
-      panelReviews
       panelTitle={
         <>
-          Start sending in <BrandAccent>minutes</BrandAccent>.
+          Send your first document in <BrandAccent>minutes</BrandAccent>
+          <span className="cs-auth-title-dot">.</span>
         </>
       }
       panelBullets={[
-        { icon: PenLine, text: "Unlimited fields & recipients on every envelope" },
-        { icon: Link2, text: "Secure tokenized signing links, no account needed for signers" },
-        { icon: Fingerprint, text: "Certificate of Completion on every finished document" },
+        { icon: CheckCircle2, text: "1 · Create your account — free forever, no card, no trial clock" },
+        { icon: PenLine, text: "2 · Upload & prepare — drag signature and date fields onto any PDF" },
+        { icon: Fingerprint, text: "3 · Send & seal — signers click a link, you get a sealed, court-ready PDF" },
       ]}
+      panelQuote={{
+        text: "The audit trail and sealed certificate on every document gave our legal team instant peace of mind.",
+        attribution: "David Okafor · Head of Legal, Brightwave",
+      }}
     >
       <AuthFormCard
         testId="register-card"
-        showLogo
         nav={<AuthPortalNav active="register" />}
-        badge="Free plan · No card required"
         title="Create your account"
-        subtitle="Join teams across the UK who send contracts, offers, and agreements with CivicSign."
+        titleDot="teal"
+        subtitle={formatFreePlanRegisterSubtitle()}
         footer={
           <>
             <Zap className="h-3.5 w-3.5" style={{ color: "var(--c-accent)" }} />
