@@ -1223,8 +1223,12 @@ async def _seed_internal_admin_account(email, password, name, generate_plan_sign
 
 
 async def seed_admin():
-    """Seed a demo sender + internal admin accounts, and backfill account defaults."""
+    """Seed pilot accounts, demo sender, internal admin, and backfill account defaults."""
     try:
+        if os.environ.get("SEED_PILOT_ACCOUNTS", "").lower() in ("1", "true", "yes"):
+            from pilot_accounts import seed_pilot_accounts
+            await seed_pilot_accounts(db)
+            logger.info("[auth] Pilot accounts upserted (SEED_PILOT_ACCOUNTS)")
         # Backfill defaults for any pre-existing users
         await db.users.update_many({"role": {"$exists": False}}, {"$set": {"role": "user"}})
         await db.users.update_many({"plan": {"$exists": False}}, {"$set": {"plan": "free"}})

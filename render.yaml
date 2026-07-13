@@ -34,6 +34,8 @@ services:
         value: noreply@civicsign.co.uk
       - key: SENDER_NAME
         value: CivicSign
+      - key: SEED_PILOT_ACCOUNTS
+        value: "true"
       # --- Secrets: set these in the Render dashboard (sync:false) ---
       - key: MONGO_URL
         sync: false

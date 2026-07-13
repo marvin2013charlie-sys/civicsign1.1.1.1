@@ -26,7 +26,6 @@ export function buildPricingPlans(billingInterval = "monthly") {
       name: "Pro",
       tag: "For growing businesses",
       cta: "Start Pro",
-      to: "/register",
       highlight: true,
       accent: "coral",
       features: [
@@ -42,7 +41,6 @@ export function buildPricingPlans(billingInterval = "monthly") {
       name: "Business",
       tag: "For teams that scale",
       cta: "Get Business",
-      to: "/register",
       highlight: false,
       accent: "teal",
       features: [

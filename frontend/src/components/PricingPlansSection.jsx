@@ -4,6 +4,8 @@ import { ArrowRight, Building2, Check, Sparkles, Zap } from "lucide-react";
 import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 import { buildPricingPlans, PRICING_COMPARISON_ROWS } from "@/lib/pricingPlans";
 import { formatFreePlanSignupPitch, getPlanPriceDisplay } from "@/lib/pricing";
+import { buildPlanCtaPath } from "@/lib/planCheckout";
+import { useAuth } from "@/context/AuthContext";
 import { H_FONT, INK, MARKETING_CARD, PAPER_TEXT } from "@/lib/marketingUi";
 
 const PLAN_ICONS = {
@@ -22,7 +24,7 @@ function CompareCell({ value }) {
   return <span className="text-xs font-semibold text-[var(--c-ink)]">{value}</span>;
 }
 
-function PlanCard({ plan, billingInterval }) {
+function PlanCard({ plan, billingInterval, ctaTo }) {
   const hot = plan.highlight;
   const Icon = PLAN_ICONS[plan.name] || Sparkles;
   const display = getPlanPriceDisplay(plan.name, billingInterval);
@@ -100,8 +102,8 @@ function PlanCard({ plan, billingInterval }) {
       </ul>
 
       <Link
-        to={plan.to}
-        data-testid={plan.name === "Free" ? "cta-getstarted-button" : undefined}
+        to={ctaTo}
+        data-testid={plan.name === "Free" ? "cta-getstarted-button" : `pricing-cta-${plan.name.toLowerCase()}`}
         className="mt-7 inline-flex items-center justify-center gap-2 rounded-[14px] py-3.5 text-center text-[14px] font-semibold transition-all hover:-translate-y-px"
         style={
           hot
@@ -126,6 +128,7 @@ export function PricingPlansSection({
   className = "",
   embedded = false,
 }) {
+  const { user } = useAuth();
   const [billingInterval, setBillingInterval] = useState("monthly");
   const plans = buildPricingPlans(billingInterval);
 
@@ -174,7 +177,12 @@ export function PricingPlansSection({
 
       <div className={`grid items-stretch gap-5 lg:gap-6 ${showHeader ? "mt-12" : "mt-0"} md:grid-cols-3`}>
         {plans.map((plan) => (
-          <PlanCard key={plan.name} plan={plan} billingInterval={billingInterval} />
+          <PlanCard
+            key={plan.name}
+            plan={plan}
+            billingInterval={billingInterval}
+            ctaTo={buildPlanCtaPath(plan.name, billingInterval, user || null)}
+          />
         ))}
       </div>
 

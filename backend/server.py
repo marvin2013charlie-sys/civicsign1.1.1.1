@@ -2245,6 +2245,8 @@ async def startup():
     except Exception as e:
         logger.warning(f"schema ensure: {e}")
     await seed_admin()
+    if os.environ.get("SEED_PILOT_ACCOUNTS", "").lower() in ("1", "true", "yes"):
+        logger.info("Pilot accounts enabled (free/pro/business/org/admin)")
     asyncio.create_task(expiry_loop())
     # Credentials are never written to disk — configure ADMIN_EMAIL / ADMIN_PASSWORD in env.
     commit = os.environ.get("RENDER_GIT_COMMIT", "local")[:7]

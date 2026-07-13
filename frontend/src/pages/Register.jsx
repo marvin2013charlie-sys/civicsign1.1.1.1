@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { validatePassword } from "@/lib/password";
 import { getAuthNext, nextQueryString, persistAuthNext, clearAuthNext } from "@/lib/authPortal";
+import { normalizeBillingInterval, normalizePaidPlanId } from "@/lib/planCheckout";
 import {
   Loader2,
   PenLine,
@@ -47,6 +48,8 @@ export default function Register() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = getAuthNext(params);
+  const planIntent = normalizePaidPlanId(params.get("plan"));
+  const billingIntent = normalizeBillingInterval(params.get("interval"));
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,6 +60,12 @@ export default function Register() {
   useEffect(() => {
     if (params.get("next")) persistAuthNext(params.get("next"));
   }, [params]);
+
+  const planLabel = planIntent ? planIntent.charAt(0).toUpperCase() + planIntent.slice(1) : null;
+  const registerSubtitle = planIntent
+    ? `Create your account to continue to ${planLabel} checkout (${billingIntent === "yearly" ? "yearly" : "monthly"} billing). No charge until you confirm payment.`
+    : formatFreePlanRegisterSubtitle();
+  const submitLabel = planIntent ? `Create account & continue to ${planLabel}` : "Create free account";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -117,7 +126,7 @@ export default function Register() {
         nav={<AuthPortalNav active="register" />}
         title="Create your account"
         titleDot="teal"
-        subtitle={formatFreePlanRegisterSubtitle()}
+        subtitle={registerSubtitle}
         footer={
           <>
             <Zap className="h-3.5 w-3.5" style={{ color: "var(--c-accent)" }} />
@@ -187,7 +196,7 @@ export default function Register() {
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <span className="inline-flex items-center gap-2">
-                Create free account
+                {submitLabel}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
             )}

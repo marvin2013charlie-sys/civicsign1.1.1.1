@@ -33,6 +33,7 @@ import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
 import { extraDocumentLimitFeature, formatPlanDocumentLimit, formatProMonthlyShort, getPlanPriceDisplay } from "@/lib/pricing";
 import { isOrgStaff, ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
 import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
+import { normalizeBillingInterval, normalizePaidPlanId } from "@/lib/planCheckout";
 
 const EXTRA_DOC_FEATURE = extraDocumentLimitFeature();
 
@@ -851,6 +852,9 @@ function SubscriptionTab() {
   const [verifying, setVerifying] = useState(false);
   const [billingInterval, setBillingInterval] = useState(user?.billing_interval || "monthly");
   const upgradeTarget = params.get("upgrade");
+  const intervalParam = params.get("interval");
+  const autoCheckout = params.get("checkout") === "1";
+  const checkoutStarted = useRef(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [acceptingOffer, setAcceptingOffer] = useState(false);
@@ -866,14 +870,18 @@ function SubscriptionTab() {
   const upgradePlans = buildPlanDefs(billingInterval).filter((p) => p.id !== "free");
 
   useEffect(() => {
-    if (upgradeTarget && current === "free") {
-      const t = setTimeout(() => {
-        document.getElementById("upgrade-plans-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 150);
-      return () => clearTimeout(t);
+    if (intervalParam === "yearly" || intervalParam === "monthly") {
+      setBillingInterval(intervalParam);
     }
-    return undefined;
-  }, [upgradeTarget, current]);
+  }, [intervalParam]);
+
+  useEffect(() => {
+    if (autoCheckout || !upgradeTarget || current !== "free") return undefined;
+    const t = setTimeout(() => {
+      document.getElementById("upgrade-plans-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [upgradeTarget, current, autoCheckout]);
 
   // When Stripe redirects back with ?session_id=..., poll the backend until the
   // payment is confirmed (polling is the source of truth for one-time checkout).
@@ -934,9 +942,10 @@ function SubscriptionTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount to detect a returning Stripe session
 
-  const choose = async (planId) => {
+  const choose = async (planId, intervalOverride) => {
     if (planId === current) return;
     setSwitching(planId);
+    const checkoutInterval = intervalOverride || billingInterval;
     // Free is a downgrade — cancel the Stripe subscription (or downgrade locally
     // if there is no live subscription). Access continues until the paid period ends.
     if (planId === "free") {
@@ -963,7 +972,7 @@ function SubscriptionTab() {
     try {
       const { data } = await api.post("/billing/checkout", {
         plan_id: planId,
-        billing_interval: billingInterval,
+        billing_interval: checkoutInterval,
         origin_url: getAppOrigin(),
       });
       if (data.url) {
@@ -976,6 +985,20 @@ function SubscriptionTab() {
       setSwitching("");
     }
   };
+
+  // After register/verify, pricing CTAs land here and go straight to Stripe Checkout.
+  useEffect(() => {
+    if (!autoCheckout || checkoutStarted.current) return undefined;
+    const plan = normalizePaidPlanId(upgradeTarget);
+    if (!plan || current !== "free" || orgStaff || isOrgAccount) return undefined;
+    checkoutStarted.current = true;
+    const nextParams = new URLSearchParams(params);
+    nextParams.delete("checkout");
+    setParams(nextParams, { replace: true });
+    choose(plan, normalizeBillingInterval(intervalParam || billingInterval));
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCheckout, upgradeTarget, current, orgStaff, isOrgAccount, intervalParam, billingInterval]);
 
   const acceptRetentionOffer = async () => {
     setAcceptingOffer(true);
