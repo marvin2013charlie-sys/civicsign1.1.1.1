@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import { driver } from "driver.js";
-import "driver.js/dist/driver.css";
 import {
   buildAdminTourSteps,
   buildAppTourSteps,
@@ -54,6 +52,11 @@ export function useProductTour({ surface, user, impersonation, onOpenMobileNav }
         surface === "admin" ? buildAdminTourSteps(user) : buildAppTourSteps(user);
 
       if (steps.length === 0) return false;
+
+      const [{ driver }, _css] = await Promise.all([
+        import("driver.js"),
+        import("driver.js/dist/driver.css"),
+      ]);
 
       const driverObj = driver({
         showProgress: true,

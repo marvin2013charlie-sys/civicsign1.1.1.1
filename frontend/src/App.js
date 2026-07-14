@@ -1,81 +1,91 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { getPostAuthDestination } from "@/lib/authPortal";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
-
-import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import AcceptInvite from "@/pages/AcceptInvite";
-import Dashboard from "@/pages/Dashboard";
-import NewEnvelope from "@/pages/NewEnvelope";
-import Documents from "@/pages/Documents";
-
-import Reports from "@/pages/Reports";
-import Usage from "@/pages/Usage";
-import OrganisationPortal from "@/pages/OrganisationPortal";
-import PrepareStudio from "@/pages/PrepareStudio";
-import SendReview from "@/pages/SendReview";
-import EnvelopeDetail from "@/pages/EnvelopeDetail";
-import SignerFlow from "@/pages/SignerFlow";
-import Templates from "@/pages/Templates";
-import ManagePdf from "@/pages/ManagePdf";
-import ManagePdfProduct from "@/pages/ManagePdfProduct";
-import Pricing from "@/pages/Pricing";
-import Contacts from "@/pages/Contacts";
-import PublicForm from "@/pages/PublicForm";
-import Settings from "@/pages/Settings";
-import ResetPassword from "@/pages/ResetPassword";
-import ForgotPassword from "@/pages/ForgotPassword";
-import VerifyEmail from "@/pages/VerifyEmail";
-import { AdminShell } from "@/components/AdminShell";
-import AdminOverview from "@/pages/admin/AdminOverview";
-import AdminLogin from "@/pages/admin/AdminLogin";
-import AdminUsers from "@/pages/admin/AdminUsers";
-import AdminUserDetail from "@/pages/admin/AdminUserDetail";
-
-
-import AdminContacts from "@/pages/admin/AdminContacts";
-import AdminBilling from "@/pages/admin/AdminBilling";
-import AdminAuditLog from "@/pages/admin/AdminAuditLog";
-import AdminBlog from "@/pages/admin/AdminBlog";
-import AdminTeam from "@/pages/admin/AdminTeam";
-import AdminOrganizations from "@/pages/admin/AdminOrganizations";
-import AdminCareers from "@/pages/admin/AdminCareers";
-import StaffLanding from "@/pages/admin/StaffLanding";
 import RequirePerm from "@/components/RequirePerm";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import Careers from "@/pages/Careers";
-import JobDetail from "@/pages/JobDetail";
-import About from "@/pages/About";
-import Solutions from "@/pages/Solutions";
-import Contact from "@/pages/Contact";
-import RealEstate from "@/pages/solutions/RealEstate";
-import StaffingAgency from "@/pages/solutions/StaffingAgency";
-import Legal from "@/pages/solutions/Legal";
-import HR from "@/pages/solutions/HR";
-import FinancialServices from "@/pages/solutions/FinancialServices";
-import Healthcare from "@/pages/solutions/Healthcare";
-import Charities from "@/pages/solutions/Charities";
-import Construction from "@/pages/solutions/Construction";
-import Education from "@/pages/solutions/Education";
-import Sales from "@/pages/solutions/Sales";
-import Freelancers from "@/pages/solutions/Freelancers";
-import Blog from "@/pages/Blog";
-import BlogPost from "@/pages/BlogPost";
-import Resources from "@/pages/Resources";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import Terms from "@/pages/Terms";
-import CookiePolicy from "@/pages/CookiePolicy";
-import RefundPolicy from "@/pages/RefundPolicy";
-import NotFound from "@/pages/NotFound";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { SeoManager } from "@/components/SeoManager";
 
+const lazyPage = (loader, name) => lazy(() => loader().then((m) => ({ default: m.default })).catch((err) => {
+  console.error(`Failed to load chunk: ${name}`, err);
+  throw err;
+}));
+
+// Marketing & public content
+const Landing = lazyPage(() => import("@/pages/Landing"), "Landing");
+const About = lazyPage(() => import("@/pages/About"), "About");
+const Contact = lazyPage(() => import("@/pages/Contact"), "Contact");
+const Solutions = lazyPage(() => import("@/pages/Solutions"), "Solutions");
+const RealEstate = lazyPage(() => import("@/pages/solutions/RealEstate"), "RealEstate");
+const StaffingAgency = lazyPage(() => import("@/pages/solutions/StaffingAgency"), "StaffingAgency");
+const Legal = lazyPage(() => import("@/pages/solutions/Legal"), "Legal");
+const HR = lazyPage(() => import("@/pages/solutions/HR"), "HR");
+const FinancialServices = lazyPage(() => import("@/pages/solutions/FinancialServices"), "FinancialServices");
+const Healthcare = lazyPage(() => import("@/pages/solutions/Healthcare"), "Healthcare");
+const Charities = lazyPage(() => import("@/pages/solutions/Charities"), "Charities");
+const Construction = lazyPage(() => import("@/pages/solutions/Construction"), "Construction");
+const Education = lazyPage(() => import("@/pages/solutions/Education"), "Education");
+const Sales = lazyPage(() => import("@/pages/solutions/Sales"), "Sales");
+const Freelancers = lazyPage(() => import("@/pages/solutions/Freelancers"), "Freelancers");
+const ManagePdfProduct = lazyPage(() => import("@/pages/ManagePdfProduct"), "ManagePdfProduct");
+const Pricing = lazyPage(() => import("@/pages/Pricing"), "Pricing");
+const Blog = lazyPage(() => import("@/pages/Blog"), "Blog");
+const BlogPost = lazyPage(() => import("@/pages/BlogPost"), "BlogPost");
+const Resources = lazyPage(() => import("@/pages/Resources"), "Resources");
+const Careers = lazyPage(() => import("@/pages/Careers"), "Careers");
+const JobDetail = lazyPage(() => import("@/pages/JobDetail"), "JobDetail");
+const PrivacyPolicy = lazyPage(() => import("@/pages/PrivacyPolicy"), "PrivacyPolicy");
+const Terms = lazyPage(() => import("@/pages/Terms"), "Terms");
+const CookiePolicy = lazyPage(() => import("@/pages/CookiePolicy"), "CookiePolicy");
+const RefundPolicy = lazyPage(() => import("@/pages/RefundPolicy"), "RefundPolicy");
+const NotFound = lazyPage(() => import("@/pages/NotFound"), "NotFound");
+
+// Auth
+const Login = lazyPage(() => import("@/pages/Login"), "Login");
+const Register = lazyPage(() => import("@/pages/Register"), "Register");
+const ForgotPassword = lazyPage(() => import("@/pages/ForgotPassword"), "ForgotPassword");
+const ResetPassword = lazyPage(() => import("@/pages/ResetPassword"), "ResetPassword");
+const VerifyEmail = lazyPage(() => import("@/pages/VerifyEmail"), "VerifyEmail");
+const AcceptInvite = lazyPage(() => import("@/pages/AcceptInvite"), "AcceptInvite");
+
+// Signer & public forms (react-pdf)
+const SignerFlow = lazyPage(() => import("@/pages/SignerFlow"), "SignerFlow");
+const PublicForm = lazyPage(() => import("@/pages/PublicForm"), "PublicForm");
+
+// Portal (recharts on dashboard/reports; react-pdf on manage/prepare)
+const Dashboard = lazyPage(() => import("@/pages/Dashboard"), "Dashboard");
+const NewEnvelope = lazyPage(() => import("@/pages/NewEnvelope"), "NewEnvelope");
+const Documents = lazyPage(() => import("@/pages/Documents"), "Documents");
+const Templates = lazyPage(() => import("@/pages/Templates"), "Templates");
+const Contacts = lazyPage(() => import("@/pages/Contacts"), "Contacts");
+const ManagePdf = lazyPage(() => import("@/pages/ManagePdf"), "ManagePdf");
+const Reports = lazyPage(() => import("@/pages/Reports"), "Reports");
+const Usage = lazyPage(() => import("@/pages/Usage"), "Usage");
+const OrganisationPortal = lazyPage(() => import("@/pages/OrganisationPortal"), "OrganisationPortal");
+const Settings = lazyPage(() => import("@/pages/Settings"), "Settings");
+const PrepareStudio = lazyPage(() => import("@/pages/PrepareStudio"), "PrepareStudio");
+const SendReview = lazyPage(() => import("@/pages/SendReview"), "SendReview");
+const EnvelopeDetail = lazyPage(() => import("@/pages/EnvelopeDetail"), "EnvelopeDetail");
+
+// Admin
+const AdminShell = lazy(() => import("@/components/AdminShell").then((m) => ({ default: m.AdminShell })));
+const AdminOverview = lazyPage(() => import("@/pages/admin/AdminOverview"), "AdminOverview");
+const AdminLogin = lazyPage(() => import("@/pages/admin/AdminLogin"), "AdminLogin");
+const AdminUsers = lazyPage(() => import("@/pages/admin/AdminUsers"), "AdminUsers");
+const AdminUserDetail = lazyPage(() => import("@/pages/admin/AdminUserDetail"), "AdminUserDetail");
+const AdminContacts = lazyPage(() => import("@/pages/admin/AdminContacts"), "AdminContacts");
+const AdminBilling = lazyPage(() => import("@/pages/admin/AdminBilling"), "AdminBilling");
+const AdminAuditLog = lazyPage(() => import("@/pages/admin/AdminAuditLog"), "AdminAuditLog");
+const AdminBlog = lazyPage(() => import("@/pages/admin/AdminBlog"), "AdminBlog");
+const AdminTeam = lazyPage(() => import("@/pages/admin/AdminTeam"), "AdminTeam");
+const AdminOrganizations = lazyPage(() => import("@/pages/admin/AdminOrganizations"), "AdminOrganizations");
+const AdminCareers = lazyPage(() => import("@/pages/admin/AdminCareers"), "AdminCareers");
+const StaffLanding = lazyPage(() => import("@/pages/admin/StaffLanding"), "StaffLanding");
 
 const FullLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-[var(--c-paper)]">
@@ -116,14 +126,12 @@ function AdminProtected({ children }) {
 }
 
 function AdminIndex() {
-  // /admin -> Overview for super-admin, StaffLanding for staff.
   const { user } = useAuth();
   if (user?.role === "staff") return <StaffLanding />;
   return <AdminOverview />;
 }
 
 function IdleLogoutGuard() {
-  // Auto-sign-out after 10 minutes of inactivity (only fires for authenticated sessions).
   useIdleLogout({ idleMs: 10 * 60 * 1000, warnMs: 60 * 1000 });
   return null;
 }
@@ -132,78 +140,77 @@ function AppRoutes() {
   return (
     <>
       <IdleLogoutGuard />
-    <Routes>
-      <Route path="/" element={<Landing />} />
+      <Suspense fallback={<FullLoader />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
 
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/solutions" element={<Solutions />} />
-      <Route path="/solutions/real-estate" element={<RealEstate />} />
-      <Route path="/solutions/staffing-agency" element={<StaffingAgency />} />
-      <Route path="/solutions/legal" element={<Legal />} />
-      <Route path="/solutions/hr" element={<HR />} />
-      <Route path="/solutions/financial-services" element={<FinancialServices />} />
-      <Route path="/solutions/healthcare" element={<Healthcare />} />
-      <Route path="/solutions/charities" element={<Charities />} />
-      <Route path="/solutions/construction" element={<Construction />} />
-      <Route path="/solutions/education" element={<Education />} />
-      <Route path="/solutions/sales" element={<Sales />} />
-      <Route path="/solutions/freelancers" element={<Freelancers />} />
-      <Route path="/product/manage-pdf" element={<ManagePdfProduct />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/blog" element={<Blog />} />
-      <Route path="/blog/:slug" element={<BlogPost />} />
-      <Route path="/resources" element={<Resources />} />
-      <Route path="/careers" element={<Careers />} />
-      <Route path="/careers/:slug" element={<JobDetail />} />
-      <Route path="/legal/privacy" element={<PrivacyPolicy />} />
-      <Route path="/legal/terms" element={<Terms />} />
-      <Route path="/legal/cookies" element={<CookiePolicy />} />
-      <Route path="/legal/refunds" element={<RefundPolicy />} />
-      <Route path="/privacy" element={<Navigate to="/legal/privacy" replace />} />
-      <Route path="/terms" element={<Navigate to="/legal/terms" replace />} />
-      <Route path="/cookies" element={<Navigate to="/legal/cookies" replace />} />
-      <Route path="/refunds" element={<Navigate to="/legal/refunds" replace />} />
-      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-      <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
-      <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
-      <Route path="/sign/:token" element={<SignerFlow />} />
-      <Route path="/form/:slug" element={<PublicForm />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/accept-invite" element={<AcceptInvite />} />
-      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
-      <Route path="/documents" element={<Protected><Documents /></Protected>} />
-      <Route path="/documents/verify" element={<Navigate to="/documents?tab=sealed" replace />} />
-      <Route path="/templates" element={<Protected><Templates /></Protected>} />
-      <Route path="/contacts" element={<Protected><Contacts /></Protected>} />
-      <Route path="/manage-pdf" element={<Protected><ManagePdf /></Protected>} />
-      <Route path="/reports" element={<Protected><Reports /></Protected>} />
-      <Route path="/usage" element={<Protected><Usage /></Protected>} />
-      <Route path="/organisation" element={<Protected><OrganisationPortal /></Protected>} />
-      <Route path="/settings" element={<Protected><Settings /></Protected>} />
-      {/* Internal team sign-in lives on an unlisted path (not linked from the public UI). */}
-      <Route path="/admin/login" element={<AdminLogin />} />
-      <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
-        <Route index element={<AdminIndex />} />
-        <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
-        <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
-
-
-        <Route path="billing" element={<RequirePerm perm="billing"><AdminBilling /></RequirePerm>} />
-        <Route path="audit" element={<RequirePerm perm="audit"><AdminAuditLog /></RequirePerm>} />
-        <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
-        <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
-        <Route path="careers" element={<RequirePerm perm="careers"><AdminCareers /></RequirePerm>} />
-        <Route path="team" element={<RequirePerm perm="admin"><AdminTeam /></RequirePerm>} />
-        <Route path="organizations" element={<RequirePerm perm="admin"><AdminOrganizations /></RequirePerm>} />
-      </Route>
-      <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
-      <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />
-      <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/solutions" element={<Solutions />} />
+          <Route path="/solutions/real-estate" element={<RealEstate />} />
+          <Route path="/solutions/staffing-agency" element={<StaffingAgency />} />
+          <Route path="/solutions/legal" element={<Legal />} />
+          <Route path="/solutions/hr" element={<HR />} />
+          <Route path="/solutions/financial-services" element={<FinancialServices />} />
+          <Route path="/solutions/healthcare" element={<Healthcare />} />
+          <Route path="/solutions/charities" element={<Charities />} />
+          <Route path="/solutions/construction" element={<Construction />} />
+          <Route path="/solutions/education" element={<Education />} />
+          <Route path="/solutions/sales" element={<Sales />} />
+          <Route path="/solutions/freelancers" element={<Freelancers />} />
+          <Route path="/product/manage-pdf" element={<ManagePdfProduct />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/careers" element={<Careers />} />
+          <Route path="/careers/:slug" element={<JobDetail />} />
+          <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/cookies" element={<CookiePolicy />} />
+          <Route path="/legal/refunds" element={<RefundPolicy />} />
+          <Route path="/privacy" element={<Navigate to="/legal/privacy" replace />} />
+          <Route path="/terms" element={<Navigate to="/legal/terms" replace />} />
+          <Route path="/cookies" element={<Navigate to="/legal/cookies" replace />} />
+          <Route path="/refunds" element={<Navigate to="/legal/refunds" replace />} />
+          <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+          <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+          <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
+          <Route path="/sign/:token" element={<SignerFlow />} />
+          <Route path="/form/:slug" element={<PublicForm />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/new" element={<Protected><NewEnvelope /></Protected>} />
+          <Route path="/documents" element={<Protected><Documents /></Protected>} />
+          <Route path="/documents/verify" element={<Navigate to="/documents?tab=sealed" replace />} />
+          <Route path="/templates" element={<Protected><Templates /></Protected>} />
+          <Route path="/contacts" element={<Protected><Contacts /></Protected>} />
+          <Route path="/manage-pdf" element={<Protected><ManagePdf /></Protected>} />
+          <Route path="/reports" element={<Protected><Reports /></Protected>} />
+          <Route path="/usage" element={<Protected><Usage /></Protected>} />
+          <Route path="/organisation" element={<Protected><OrganisationPortal /></Protected>} />
+          <Route path="/settings" element={<Protected><Settings /></Protected>} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminProtected><AdminShell /></AdminProtected>}>
+            <Route index element={<AdminIndex />} />
+            <Route path="users" element={<RequirePerm perm="users-read"><AdminUsers /></RequirePerm>} />
+            <Route path="users/:userId" element={<RequirePerm perm="users-read"><AdminUserDetail /></RequirePerm>} />
+            <Route path="billing" element={<RequirePerm perm="billing"><AdminBilling /></RequirePerm>} />
+            <Route path="audit" element={<RequirePerm perm="audit"><AdminAuditLog /></RequirePerm>} />
+            <Route path="contacts" element={<RequirePerm perm="contacts"><AdminContacts /></RequirePerm>} />
+            <Route path="blog" element={<RequirePerm perm="blog"><AdminBlog /></RequirePerm>} />
+            <Route path="careers" element={<RequirePerm perm="careers"><AdminCareers /></RequirePerm>} />
+            <Route path="team" element={<RequirePerm perm="admin"><AdminTeam /></RequirePerm>} />
+            <Route path="organizations" element={<RequirePerm perm="admin"><AdminOrganizations /></RequirePerm>} />
+          </Route>
+          <Route path="/prepare/:id" element={<Protected><PrepareStudio /></Protected>} />
+          <Route path="/send/:id" element={<Protected><SendReview /></Protected>} />
+          <Route path="/envelope/:id" element={<Protected><EnvelopeDetail /></Protected>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }
