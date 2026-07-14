@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { Document } from "react-pdf";
-import { PdfPageLayer } from "@/components/PdfPageLayer";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
 import { publicApi, formatApiError, fetchPublicPdfBlobUrl, API_ORIGIN } from "@/lib/api";
@@ -19,6 +17,10 @@ import {
   Loader2, CheckCircle2, Download, PenLine, ChevronRight,
   XCircle, Fingerprint,
 } from "lucide-react";
+
+// Lazy so react-pdf + pdf.js (~109 KB gzip) don't block the signer shell.
+// Recipients see the branded page and consent immediately; the PDF streams in.
+const SignerPdfDocument = React.lazy(() => import(/* webpackPrefetch: true */ "@/components/SignerPdfDocument"));
 
 export default function SignerFlow() {
   const { token } = useParams();
@@ -391,17 +393,15 @@ export default function SignerFlow() {
             <Button variant="outline" size="sm" className="ml-auto" onClick={goNext}>Next</Button>
           </div>
           {blobUrl && (
-            <Document file={blobUrl} options={PDF_OPTIONS} loading={<Loader2 className="mt-10 h-8 w-8 animate-spin text-[var(--c-primary)]" />} error={<div className="mt-10 text-sm text-red-600">Failed to load document.</div>}>
-              {pages.map((_, i) => {
-                const pageFields = data.fields.filter((f) => f.page === i);
-                return (
-                  <PdfPageLayer
-                    key={`page-${i + 1}`}
-                    pageNumber={i + 1}
-                    width={pageWidth}
-                    loading={<div className="flex min-h-[480px] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--c-primary)]" /></div>}
-                  >
-                    {pageFields.map((f) => {
+            <React.Suspense fallback={<Loader2 className="mt-10 h-8 w-8 animate-spin text-[var(--c-primary)]" />}>
+              <SignerPdfDocument
+                file={blobUrl}
+                options={PDF_OPTIONS}
+                pages={pages}
+                pageWidth={pageWidth}
+                renderPageFields={(i) => {
+                  const pageFields = data.fields.filter((f) => f.page === i);
+                  return pageFields.map((f) => {
                         const px = { left: `${f.x * 100}%`, top: `${f.y * 100}%`, width: `${f.w * 100}%`, height: `${f.h * 100}%` };
                         const color = f.recipient_color || "#14B8A6";
                         const fontSize = "clamp(9px, 2.8vw, 13px)";
@@ -486,11 +486,10 @@ export default function SignerFlow() {
                             className="cs-field bg-white px-1 outline-none"
                             style={{ ...px, borderColor: color, background: hexToRgba(color, 0.06), color: "#122120", fontSize, boxShadow: `0 0 0 1.5px ${color}` }} />
                         );
-                      })}
-                  </PdfPageLayer>
-                );
-              })}
-            </Document>
+                  });
+                }}
+              />
+            </React.Suspense>
           )}
           <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]"><Fingerprint className="h-3.5 w-3.5" /> Secured & timestamped by CivicSign</div>
         </div>

@@ -30,9 +30,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AreaChart, Area, ResponsiveContainer, Tooltip, XAxis,
-} from "recharts";
+// Lazy so the recharts chunk (~97 KB gzip) doesn't block the dashboard shell.
+const EnvelopeTrendChart = React.lazy(() => import("@/components/portal/EnvelopeTrendChart"));
 import {
   FilePlus2, FileText, MoreVertical, Trash2, Send, Eye,
   CheckCircle2, Clock, Files, TrendingUp, Inbox, Crown, AlertTriangle, Building2,
@@ -317,19 +316,9 @@ export default function Dashboard() {
         >
           <p className="text-sm font-semibold text-[var(--c-ink)]">Envelopes sent · last 7 days</p>
           <div className="mt-3 h-32 pointer-events-none">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.series} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#14B8A6" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#14B8A6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#5C6B73" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1DDD1", fontSize: 12 }} />
-                <Area type="monotone" dataKey="count" stroke="#14B8A6" strokeWidth={2} fill="url(#g)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <React.Suspense fallback={<div className="h-full w-full animate-pulse rounded-lg bg-[var(--c-paper-2)]" />}>
+              <EnvelopeTrendChart data={stats.series} />
+            </React.Suspense>
           </div>
         </button>
       )}
