@@ -38,6 +38,7 @@
   },
   "scripts": {
     "start": "craco start",
+    "prebuild": "node ../scripts/generate-sitemap.mjs",
     "build": "craco build",
     "test": "craco test"
   },

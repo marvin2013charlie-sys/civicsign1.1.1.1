@@ -24,10 +24,13 @@ if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
 fi
 
 cd "$FRONTEND"
+echo "Regenerating sitemap..."
+node "$ROOT/scripts/generate-sitemap.mjs"
+
 if [[ ! -f build/index.html ]] || ! grep -q 'api\.civicsign\.co\.uk' build/static/js/main.*.js 2>/dev/null; then
   echo "Building production bundle..."
   REACT_APP_BACKEND_URL=https://api.civicsign.co.uk \
-  REACT_APP_SITE_URL=https://civicsign.co.uk \
+  REACT_APP_SITE_URL=https://www.civicsign.co.uk \
   REACT_APP_PRIVATE_BETA=true \
   npm run build
 fi

@@ -10,6 +10,7 @@ import { useIdleLogout } from "@/hooks/useIdleLogout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { SeoManager } from "@/components/SeoManager";
+import { GoogleSiteTags } from "@/components/GoogleSiteTags";
 
 const lazyPage = (loader, name) => lazy(() => loader().then((m) => ({ default: m.default })).catch((err) => {
   console.error(`Failed to load chunk: ${name}`, err);
@@ -221,6 +222,7 @@ function App() {
       <BrowserRouter>
         <ScrollToTop />
         <SeoManager />
+        <GoogleSiteTags />
         <ErrorBoundary>
           <AppRoutes />
         </ErrorBoundary>

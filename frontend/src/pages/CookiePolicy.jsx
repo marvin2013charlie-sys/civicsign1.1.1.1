@@ -31,6 +31,7 @@ const sections = [
         ["cs_refresh_token (cookie)", "Strictly necessary", "Refreshes your session securely", "Up to 30 days"],
         ["cs_cookie_consent (local)", "Functional", "Remembers your cookie preference choice", "Until cleared"],
         ["cs_product_tour_* (local)", "Functional", "Remembers product tour completion", "Persistent"],
+        ["_ga / _ga_* (Google Analytics)", "Analytics (optional)", "Aggregated page views and product usage when you accept all cookies", "Up to 2 years"],
         ["Optional analytics (if enabled)", "Analytics", "Aggregated usage and performance metrics", "As configured"],
       ],
     },
