@@ -869,6 +869,38 @@ async def update_subscription(request: Request, body: SubscriptionUpdate, user: 
         raise HTTPException(status_code=500, detail="Failed to update subscription")
 
 
+async def purge_user_data(database, uid: str) -> None:
+    """Delete all envelopes, templates, and stored files owned by a user."""
+    envs = await database.envelopes.find(
+        {"owner_id": uid}, {"_id": 0, "document": 1, "completed_file_id": 1}).to_list(10000)
+    for e in envs:
+        try:
+            fid = (e.get("document") or {}).get("file_id")
+            if fid:
+                await delete_file(fid)
+            if e.get("completed_file_id"):
+                await delete_file(e["completed_file_id"])
+        except Exception:
+            pass
+    await database.envelopes.delete_many({"owner_id": uid})
+
+    tpls = await database.templates.find(
+        {"owner_id": uid}, {"_id": 0, "document": 1}).to_list(5000)
+    for t in tpls:
+        try:
+            fid = (t.get("document") or {}).get("file_id")
+            if fid:
+                await delete_file(fid)
+        except Exception:
+            pass
+    await database.templates.delete_many({"owner_id": uid})
+    await database.contacts.delete_many({"owner_id": uid})
+    await database.payment_transactions.delete_many({"user_id": uid})
+    await database.usage_ledger.delete_many({"user_id": uid})
+    await database.comments.delete_many({"author_id": uid})
+    await database.signer_signatures.delete_many({"owner_id": uid})
+
+
 @auth_router.delete("/account")
 @limiter.limit("1/hour")
 async def delete_account(request: Request, body: AccountDelete, response: Response,
@@ -882,33 +914,7 @@ async def delete_account(request: Request, body: AccountDelete, response: Respon
             raise HTTPException(status_code=400, detail='Type "DELETE" to confirm account deletion')
 
         uid = user["user_id"]
-        
-        # Delete envelope documents from GridFS, then the envelopes
-        envs = await db.envelopes.find(
-            {"owner_id": uid}, {"_id": 0, "document": 1, "completed_file_id": 1}).to_list(10000)
-        for e in envs:
-            try:
-                fid = (e.get("document") or {}).get("file_id")
-                if fid:
-                    await delete_file(fid)
-                if e.get("completed_file_id"):
-                    await delete_file(e["completed_file_id"])
-            except Exception:
-                pass
-        await db.envelopes.delete_many({"owner_id": uid})
-
-        # Delete user-owned template documents, then templates
-        tpls = await db.templates.find(
-            {"owner_id": uid}, {"_id": 0, "document": 1}).to_list(5000)
-        for t in tpls:
-            try:
-                fid = (t.get("document") or {}).get("file_id")
-                if fid:
-                    await delete_file(fid)
-            except Exception:
-                pass
-        await db.templates.delete_many({"owner_id": uid})
-
+        await purge_user_data(db, uid)
         await db.users.delete_one({"user_id": uid})
         clear_auth_cookies(response)
         logger.warning(f"[auth] Account deleted: {user.get('email')}")
@@ -1225,7 +1231,14 @@ async def _seed_internal_admin_account(email, password, name, generate_plan_sign
 async def seed_admin():
     """Seed pilot accounts, demo sender, internal admin, and backfill account defaults."""
     try:
-        if os.environ.get("SEED_PILOT_ACCOUNTS", "").lower() in ("1", "true", "yes"):
+        if os.environ.get("CLEANUP_TEST_ACCOUNTS", "").lower() in ("1", "true", "yes"):
+            from pilot_accounts import cleanup_test_accounts
+            demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+            result = await cleanup_test_accounts(db, demo_email=demo_email)
+            logger.warning(
+                f"[auth] Test accounts cleaned up: removed {result.get('deleted_count', 0)} user(s)"
+            )
+        elif os.environ.get("SEED_PILOT_ACCOUNTS", "").lower() in ("1", "true", "yes"):
             from pilot_accounts import seed_pilot_accounts
             await seed_pilot_accounts(db)
             logger.info("[auth] Pilot accounts upserted (SEED_PILOT_ACCOUNTS)")
@@ -1237,10 +1250,11 @@ async def seed_admin():
         # Existing accounts predate email verification — grandfather them as verified.
         await db.users.update_many({"email_verified": {"$exists": False}}, {"$set": {"email_verified": True}})
 
-        # Demo sender account (regular user) — only seeded when credentials are explicitly set.
+        # Demo sender account — dev/QA only (never re-seed on production after cleanup).
         email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
         password = os.environ.get("ADMIN_PASSWORD", "").strip()
-        if email and password:
+        seed_demo = os.environ.get("SEED_DEMO_ACCOUNT", "").lower() in ("1", "true", "yes")
+        if email and password and (is_dev_mode() or seed_demo):
             existing = await db.users.find_one({"email": email})
             if not existing:
                 user_id = f"user_{uuid.uuid4().hex[:16]}"

@@ -1,6 +1,7 @@
 """Pilot / demo accounts for QA and private beta — upsert only, never wipes data."""
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -9,6 +10,33 @@ from plan_signing import generate_plan_signature
 
 ORG_NAME = "CivicSign Demo Organisation"
 ORG_ID = "org_civicsign_demo01"
+
+# Pilot logins seeded for QA (admin@civicbot.co.uk is kept — internal admin).
+PILOT_EMAILS = {spec["email"].lower() for spec in (
+    {"email": "free@civicbot.co.uk"},
+    {"email": "pro@civicbot.co.uk"},
+    {"email": "business@civicbot.co.uk"},
+    {"email": "org@civicbot.co.uk"},
+    {"email": "staff@civicbot.co.uk"},
+)}
+
+PILOT_TEST_NAMES = {
+    "Free Test User",
+    "Pro Test User",
+    "Business Test User",
+    "Organisation Owner",
+    "Organisation Staff",
+    "CivicSign Demo",
+    "Prod Test",
+    "Smoke Tester",
+    "Integration Check",
+}
+
+_TEST_EMAIL_PATTERNS = (
+    re.compile(r"^smoke_[^@]+@civicbot\.co\.uk$", re.I),
+    re.compile(r"^prodtest_[^@]+@civicbot\.co\.uk$", re.I),
+    re.compile(r"^integration-check-[^@]+@example\.com$", re.I),
+)
 
 PILOT_ACCOUNTS = {
     "free": {
@@ -137,3 +165,48 @@ async def seed_pilot_accounts(db) -> None:
     org_owner = await upsert_pilot_user(db, PILOT_ACCOUNTS["organisation"], created_by=admin["user_id"])
     await upsert_pilot_user(db, PILOT_ACCOUNTS["org_staff"], created_by=org_owner["user_id"])
     await upsert_pilot_organisation(db, org_owner, admin["user_id"])
+
+
+def is_test_account(user: dict, *, demo_email: str = "") -> bool:
+    """True for pilot/demo/smoke accounts — never real paying customers."""
+    email = (user.get("email") or "").lower().strip()
+    if not email:
+        return False
+    if email == "admin@civicbot.co.uk":
+        return False
+    if email in PILOT_EMAILS:
+        return True
+    if demo_email and email == demo_email.lower().strip():
+        return True
+    name = (user.get("name") or "").strip()
+    if name in PILOT_TEST_NAMES:
+        return True
+    return any(pat.match(email) for pat in _TEST_EMAIL_PATTERNS)
+
+
+async def delete_pilot_organisation(db) -> None:
+    await db.organizations.delete_one({"org_id": ORG_ID})
+    await db.org_invites.delete_many({"org_id": ORG_ID})
+    await db.org_usage_ledger.delete_many({"org_id": ORG_ID})
+
+
+async def cleanup_test_accounts(db, *, demo_email: str = "") -> dict:
+    """Remove pilot/demo/smoke users and the demo organisation."""
+    from auth import purge_user_data
+
+    deleted = []
+    kept = []
+    cursor = db.users.find({}, {"_id": 0, "user_id": 1, "email": 1, "name": 1, "role": 1})
+    async for user in cursor:
+        if user.get("role") == "admin":
+            kept.append(user.get("email"))
+            continue
+        if not is_test_account(user, demo_email=demo_email):
+            kept.append(user.get("email"))
+            continue
+        await purge_user_data(db, user["user_id"])
+        await db.users.delete_one({"user_id": user["user_id"]})
+        deleted.append(user.get("email"))
+
+    await delete_pilot_organisation(db)
+    return {"deleted": deleted, "deleted_count": len(deleted), "kept_sample": kept[:5]}

@@ -556,6 +556,80 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
         raise HTTPException(status_code=500, detail="Failed to update user")
 
 
+@admin_router.delete("/users/{user_id}")
+@limiter.limit("10/minute")
+async def delete_user(request: Request, user_id: str, admin: dict = Depends(require_admin)):
+    """Permanently delete a test/demo user and their data (not admins)."""
+    try:
+        if not isinstance(user_id, str) or len(user_id) > 50:
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        if user_id == admin["user_id"]:
+            raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+        target = await db.users.find_one({"user_id": user_id})
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        if target.get("role") == "admin":
+            raise HTTPException(status_code=403, detail="Admin accounts cannot be deleted from the portal")
+
+        from pilot_accounts import is_test_account
+        from auth import purge_user_data
+
+        demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+        if not is_test_account(target, demo_email=demo_email):
+            raise HTTPException(
+                status_code=403,
+                detail="Only pilot, demo, or smoke-test accounts can be deleted here. Use account self-delete for others.",
+            )
+
+        await purge_user_data(db, user_id)
+        await db.users.delete_one({"user_id": user_id})
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "user_delete",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "target_user_id": user_id,
+            "target_email": target.get("email"),
+            "at": _now(),
+        })
+        logger.warning(f"[admin] Deleted test user {target.get('email')} by {admin['email']}")
+        return {"ok": True, "deleted_email": target.get("email")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] delete_user error for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user")
+
+
+@admin_router.post("/maintenance/cleanup-test-accounts")
+@limiter.limit("3/hour")
+async def cleanup_test_accounts_endpoint(request: Request, admin: dict = Depends(require_admin)):
+    """Remove all pilot/demo/smoke accounts and the demo organisation."""
+    try:
+        from pilot_accounts import cleanup_test_accounts
+
+        demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+        result = await cleanup_test_accounts(db, demo_email=demo_email)
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "cleanup_test_accounts",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "deleted_count": result.get("deleted_count", 0),
+            "deleted": result.get("deleted", []),
+            "at": _now(),
+        })
+        logger.warning(
+            f"[admin] cleanup_test_accounts by {admin['email']}: "
+            f"removed {result.get('deleted_count', 0)} account(s)"
+        )
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.error(f"[admin] cleanup_test_accounts error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clean up test accounts")
+
+
 @admin_router.get("/users/{user_id}")
 @limiter.limit("20/minute")
 async def user_detail(request: Request, user_id: str, admin: dict = Depends(require_permission("users-read"))):

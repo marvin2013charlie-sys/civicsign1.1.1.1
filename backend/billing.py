@@ -84,27 +84,35 @@ def _plan_amount(plan_id: str, billing_interval: str) -> float:
     return float(plan["amount_monthly"])
 
 
+def _price_data(product_name: str, unit_ex_vat: float, *, description: str = "", recurring: dict | None = None) -> dict:
+    """Inline Stripe Price (ex-VAT) with explicit tax behaviour for live Checkout."""
+    product_data = {"name": product_name}
+    if description:
+        product_data["description"] = description
+    data = {
+        "currency": CURRENCY,
+        "product_data": product_data,
+        "unit_amount": int(round(float(unit_ex_vat) * 100)),
+        "tax_behavior": "exclusive",
+    }
+    if recurring:
+        data["recurring"] = recurring
+    return data
+
+
 def _stripe_line_items(product_name: str, unit_ex_vat: float, quantity: int = 1) -> list:
     """Checkout line items: net price + separate VAT line (prices excl. tax)."""
     total_ex = round(float(unit_ex_vat) * quantity, 2)
     tax = tax_breakdown(total_ex)
     items = [
         {
-            "price_data": {
-                "currency": CURRENCY,
-                "product_data": {"name": product_name},
-                "unit_amount": int(round(unit_ex_vat * 100)),
-            },
+            "price_data": _price_data(product_name, unit_ex_vat),
             "quantity": quantity,
         },
     ]
     if tax["vat_amount"] > 0:
         items.append({
-            "price_data": {
-                "currency": CURRENCY,
-                "product_data": {"name": f"VAT ({UK_VAT_PERCENT}%)"},
-                "unit_amount": int(round(tax["vat_amount"] * 100)),
-            },
+            "price_data": _price_data(f"VAT ({UK_VAT_PERCENT}%)", tax["vat_amount"]),
             "quantity": 1,
         })
     return items
@@ -120,28 +128,21 @@ def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_
     billed on the same interval so the whole subscription renews together."""
     interval = _stripe_interval(billing_interval)
     tax = tax_breakdown(float(unit_ex_vat))
-    product_data = {"name": product_name}
-    if product_description:
-        product_data["description"] = product_description
+    recurring = {"interval": interval}
     items = [
         {
-            "price_data": {
-                "currency": CURRENCY,
-                "product_data": product_data,
-                "unit_amount": int(round(unit_ex_vat * 100)),
-                "recurring": {"interval": interval},
-            },
+            "price_data": _price_data(
+                product_name,
+                unit_ex_vat,
+                description=product_description,
+                recurring=recurring,
+            ),
             "quantity": 1,
         },
     ]
     if tax["vat_amount"] > 0:
         items.append({
-            "price_data": {
-                "currency": CURRENCY,
-                "product_data": {"name": f"VAT ({UK_VAT_PERCENT}%)"},
-                "unit_amount": int(round(tax["vat_amount"] * 100)),
-                "recurring": {"interval": interval},
-            },
+            "price_data": _price_data(f"VAT ({UK_VAT_PERCENT}%)", tax["vat_amount"], recurring=recurring),
             "quantity": 1,
         })
     return items
@@ -193,7 +194,9 @@ def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> di
         "locale": "en-GB",
         "billing_address_collection": "required",
         "customer_update": {"address": "auto", "name": "auto"},
-        "payment_method_types": ["card"],
+        # Dashboard-managed payment methods require automatic_payment_methods
+        # (payment_method_types conflicts on live accounts).
+        "automatic_payment_methods": {"enabled": True, "allow_redirects": "never"},
         "phone_number_collection": {"enabled": False},
         "custom_text": {
             "submit": {
@@ -201,8 +204,6 @@ def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> di
             },
         },
     }
-    if mode == "subscription":
-        extras["submit_type"] = "subscribe"
     # Stripe disallows promotion codes when automatic discounts[] are also set.
     if allow_promo_codes:
         extras["allow_promotion_codes"] = True
@@ -430,21 +431,24 @@ async def _apply_document_credits(user_id: str, credits: int, session_id: str) -
 
 
 async def _get_or_create_customer(user: dict) -> str:
-    """Return the user's Stripe customer id, creating one if needed."""
-    cid = user.get("stripe_customer_id")
-    if cid:
-        return cid
-    customer = await asyncio.to_thread(
-        stripe.Customer.create,
-        email=user.get("email"),
-        name=user.get("name") or user.get("email"),
-        metadata={"user_id": user["user_id"]},
-    )
-    await db.users.update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"stripe_customer_id": customer.id, "updated_at": _now()}},
-    )
-    return customer.id
+    """Return a valid Stripe customer id (recreates if test/wrong-account id is stored)."""
+    return await _resolve_stripe_customer(user)
+
+
+def _stripe_checkout_error_detail(exc: Exception) -> str:
+    """Safe, user-facing detail for Stripe Checkout failures."""
+    if isinstance(exc, stripe.error.InvalidRequestError):
+        msg = (getattr(exc, "user_message", None) or str(exc) or "").strip()
+        low = msg.lower()
+        if "no such customer" in low:
+            return "Your billing profile needs to be refreshed. Please try again."
+        if "payment_method_types" in low or "automatic_payment_methods" in low:
+            return "Card checkout is not fully configured on Stripe yet. Please contact support."
+        if "tax_behavior" in low or "tax" in low:
+            return "Tax settings need a moment to sync. Please try again in a minute."
+        if msg and len(msg) < 200:
+            return msg
+    return "Could not start checkout. Please try again."
 
 
 def _sub_period_end_iso(subscription: dict) -> str | None:
@@ -1341,9 +1345,11 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         if discounts:
             session_kwargs["discounts"] = discounts
         session = await asyncio.to_thread(stripe.checkout.Session.create, **session_kwargs)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[billing] create_checkout_session failed: {e}")
-        raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
+        raise HTTPException(status_code=502, detail=_stripe_checkout_error_detail(e))
 
     # Create idempotent transaction record
     await db.payment_transactions.insert_one({
@@ -1474,9 +1480,11 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
             idempotency_key=f"doc_{tx_id}",
             **_checkout_session_extras(mode="payment"),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[billing] create_document_checkout failed: {e}")
-        raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
+        raise HTTPException(status_code=502, detail=_stripe_checkout_error_detail(e))
     await db.payment_transactions.insert_one({
         "tx_id": tx_id,
         "session_id": session.id,

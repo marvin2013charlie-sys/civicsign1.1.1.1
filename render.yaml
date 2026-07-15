@@ -35,6 +35,8 @@ services:
       - key: SENDER_NAME
         value: CivicSign
       - key: SEED_PILOT_ACCOUNTS
+        value: "false"
+      - key: CLEANUP_TEST_ACCOUNTS
         value: "true"
       # --- Secrets: set these in the Render dashboard (sync:false) ---
       - key: MONGO_URL
