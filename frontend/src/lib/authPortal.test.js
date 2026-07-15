@@ -1,4 +1,10 @@
-import { getAppHomePath, getPostAuthDestination, sanitizeNextUrl } from "./authPortal";
+import {
+  getAppHomePath,
+  getMarketingHeaderCta,
+  getPostAuthDestination,
+  isInternalTeamMember,
+  sanitizeNextUrl,
+} from "./authPortal";
 
 describe("authPortal", () => {
   describe("sanitizeNextUrl", () => {
@@ -15,12 +21,28 @@ describe("authPortal", () => {
     });
   });
 
+  describe("isInternalTeamMember", () => {
+    it("identifies staff and admin only", () => {
+      expect(isInternalTeamMember({ role: "user" })).toBe(false);
+      expect(isInternalTeamMember({ role: "staff" })).toBe(true);
+      expect(isInternalTeamMember({ role: "admin" })).toBe(true);
+    });
+  });
+
   describe("getAppHomePath", () => {
     it("routes internal team to admin and customers to dashboard", () => {
       expect(getAppHomePath({ role: "user" })).toBe("/dashboard");
       expect(getAppHomePath({ role: "staff" })).toBe("/admin");
       expect(getAppHomePath({ role: "admin" })).toBe("/admin");
       expect(getAppHomePath(false)).toBe("/login");
+    });
+  });
+
+  describe("getMarketingHeaderCta", () => {
+    it("shows Dashboard for any signed-in user on the marketing site", () => {
+      expect(getMarketingHeaderCta({ role: "user" }).label).toBe("Dashboard");
+      expect(getMarketingHeaderCta({ role: "staff" }).to).toBe("/dashboard");
+      expect(getMarketingHeaderCta(false).label).toBe("Start free");
     });
   });
 

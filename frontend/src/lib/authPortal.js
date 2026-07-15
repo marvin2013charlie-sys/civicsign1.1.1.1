@@ -12,11 +12,32 @@ export function sanitizeNextUrl(next) {
   return path;
 }
 
-/** Default app home for a signed-in user (role-aware). */
+/** True for internal team accounts (admin console), not customers. */
+export function isInternalTeamMember(user) {
+  return !!(user && user !== false && (user.role === "admin" || user.role === "staff"));
+}
+
+/** Customer portal entry — used on the public marketing header. */
+export const CUSTOMER_DASHBOARD_PATH = "/dashboard";
+
+/** Default app home after sign-in (role-aware). */
 export function getAppHomePath(user) {
   if (!user || user === false) return "/login";
-  if (user.role === "admin" || user.role === "staff") return "/admin";
-  return "/dashboard";
+  if (isInternalTeamMember(user)) return "/admin";
+  return CUSTOMER_DASHBOARD_PATH;
+}
+
+/** Marketing site header CTA — customers always see Dashboard, never Admin console. */
+export function getMarketingHeaderCta(user) {
+  if (!user || user === false) {
+    return { label: "Start free", shortLabel: "Free", to: "/register", testId: "nav-getstarted-button" };
+  }
+  return {
+    label: "Dashboard",
+    shortLabel: "Dashboard",
+    to: CUSTOMER_DASHBOARD_PATH,
+    testId: "nav-dashboard-button",
+  };
 }
 
 /** Where to land after sign-in / verification — never the public landing page. */

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { ALL_SOLUTIONS, solutionTestId } from "@/lib/solutionsNav";
 import { FooterLink } from "@/components/FooterLink";
-import { getAppHomePath } from "@/lib/authPortal";
+import { getMarketingHeaderCta } from "@/lib/authPortal";
 
 const PRODUCT_LINKS = [
   { label: "E-signatures", to: { pathname: "/", hash: "#features" } },
@@ -31,8 +31,7 @@ export const SiteHeader = () => {
   const location = useLocation();
   const { user } = useAuth();
   const isLoggedIn = Boolean(user && user !== false);
-  const isInternalTeam = isLoggedIn && (user.role === "admin" || user.role === "staff");
-  const appHome = isLoggedIn ? getAppHomePath(user) : "/register";
+  const headerCta = getMarketingHeaderCta(user);
 
   useEffect(() => {
     let observer;
@@ -197,20 +196,14 @@ export const SiteHeader = () => {
                 </Button>
               </Link>
             )}
-            <Link to={appHome} className="shrink-0">
+            <Link to={headerCta.to} className="shrink-0">
               <Button
-                data-testid={isLoggedIn ? "nav-open-app-button" : "nav-getstarted-button"}
+                data-testid={headerCta.testId}
                 className="h-9 px-3 text-sm sm:h-10 sm:px-4"
                 style={{ background: "var(--c-ink-solid)", color: "#fff" }}
               >
-                <span className="sm:hidden">
-                  {isLoggedIn ? (isInternalTeam ? "Admin" : "App") : "Free"}
-                </span>
-                <span className="hidden sm:inline">
-                  {isLoggedIn
-                    ? (isInternalTeam ? "Admin console" : "Open app")
-                    : "Start free"}
-                </span>
+                <span className="sm:hidden">{headerCta.shortLabel}</span>
+                <span className="hidden sm:inline">{headerCta.label}</span>
               </Button>
             </Link>
             <button
@@ -270,10 +263,10 @@ export const SiteHeader = () => {
               ))}
               {isLoggedIn ? (
                 <Link
-                  to={appHome}
+                  to={headerCta.to}
                   className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
                 >
-                  {isInternalTeam ? "Admin console" : "Open app"}
+                  {headerCta.label}
                 </Link>
               ) : (
                 <Link to="/login" className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]">
