@@ -183,6 +183,14 @@ def test_is_plan_purchase_tx():
     assert billing._is_plan_purchase_tx({"purchase_type": "extra_document"}) is False
 
 
+def test_production_requires_live_on_secure_deploy(monkeypatch):
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    monkeypatch.setenv("FRONTEND_URL", "https://civicsign.co.uk")
+    monkeypatch.delenv("STRIPE_REQUIRE_LIVE", raising=False)
+    assert billing._production_requires_live() is True
+
+
 def test_is_paid_upgrade_pro_to_business():
     assert billing._is_paid_upgrade("pro", "monthly", "business", "monthly") is True
     assert billing._is_paid_upgrade("pro", "yearly", "business", "yearly") is True

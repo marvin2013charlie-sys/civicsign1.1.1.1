@@ -158,16 +158,32 @@ def _stripe_key_mode(api_key: str | None = None) -> str | None:
     return "unknown"
 
 
+def _production_requires_live() -> bool:
+    """True when this deployment must use sk_live_ (production site, not local dev)."""
+    if is_dev_mode():
+        return False
+    if os.environ.get("STRIPE_REQUIRE_LIVE", "").lower() in ("1", "true", "yes"):
+        return True
+    frontend = (os.environ.get("FRONTEND_URL") or os.environ.get("PUBLIC_SITE_URL") or "").lower()
+    cookie_secure = os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes")
+    if cookie_secure and frontend and "localhost" not in frontend and "127.0.0.1" not in frontend:
+        return True
+    return False
+
+
 def _require_live_in_production(api_key: str) -> None:
-    """Block test keys on production when STRIPE_REQUIRE_LIVE is enabled."""
-    require_live = os.environ.get("STRIPE_REQUIRE_LIVE", "").lower() in ("1", "true", "yes")
-    if not require_live or is_dev_mode():
+    """Block test keys on production — fake/test cards must never grant paid plans."""
+    if not _production_requires_live():
         return
-    if _stripe_key_mode(api_key) != "live":
-        logger.error("[billing] production requires a live Stripe key (sk_live_...)")
+    mode = _stripe_key_mode(api_key)
+    if mode != "live":
+        logger.error(f"[billing] production blocked: Stripe key mode={mode}, live required")
         raise HTTPException(
             status_code=503,
-            detail="Live payments are not configured yet. Contact support.",
+            detail=(
+                "Live card payments are not enabled yet. "
+                "Upgrades are blocked until Stripe live keys (sk_live_) are configured."
+            ),
         )
 
 
@@ -794,8 +810,8 @@ async def _preview_plan_upgrade(user: dict, plan_id: str, billing_interval: str)
     }
 
 
-async def _finalize_and_collect_upgrade_invoice(invoice_id: str, origin: str) -> dict:
-    """Finalize an open proration invoice and return a hosted pay link when needed."""
+async def _verify_upgrade_invoice_payment(invoice_id: str) -> dict:
+    """Verify with Stripe that a proration invoice is actually paid before granting access."""
     inv = await asyncio.to_thread(stripe.Invoice.retrieve, invoice_id)
     inv_dict = _stripe_object_dict(inv)
     status = (inv_dict.get("status") or "").lower()
@@ -805,7 +821,19 @@ async def _finalize_and_collect_upgrade_invoice(invoice_id: str, origin: str) ->
         status = (inv_dict.get("status") or "").lower()
 
     amount_due_cents = int(inv_dict.get("amount_due") or 0)
-    if amount_due_cents <= 0 or inv_dict.get("paid"):
+    total_cents = int(inv_dict.get("total") or 0)
+
+    # Only trust Stripe invoice status — never assume paid by default.
+    if status == "paid" and amount_due_cents <= 0:
+        return {
+            "paid": True,
+            "amount_due": 0.0,
+            "url": None,
+            "invoice_id": invoice_id,
+        }
+
+    # Net credit covers the upgrade (rare on tier upgrades).
+    if total_cents <= 0 and amount_due_cents <= 0 and status in ("paid", "void"):
         return {
             "paid": True,
             "amount_due": 0.0,
@@ -814,15 +842,30 @@ async def _finalize_and_collect_upgrade_invoice(invoice_id: str, origin: str) ->
         }
 
     hosted_url = inv_dict.get("hosted_invoice_url")
-    if not hosted_url:
-        # Stripe may omit hosted URL until finalized; refresh once more.
+    if amount_due_cents > 0 and not hosted_url:
         inv = await asyncio.to_thread(stripe.Invoice.retrieve, invoice_id)
         inv_dict = _stripe_object_dict(inv)
         hosted_url = inv_dict.get("hosted_invoice_url")
 
+    if amount_due_cents > 0:
+        if not hosted_url:
+            logger.error(f"[billing] upgrade invoice {invoice_id} due but no hosted URL")
+            raise HTTPException(
+                status_code=502,
+                detail="Could not open the secure payment page for your upgrade. Please try again.",
+            )
+        return {
+            "paid": False,
+            "amount_due": round(amount_due_cents / 100, 2),
+            "url": hosted_url,
+            "invoice_id": invoice_id,
+        }
+
+    # open / uncollectible with nothing clearly paid — do not grant the upgrade
+    logger.warning(f"[billing] upgrade invoice {invoice_id} status={status} amount_due={amount_due_cents}")
     return {
         "paid": False,
-        "amount_due": round(amount_due_cents / 100, 2),
+        "amount_due": round(max(amount_due_cents, total_cents) / 100, 2),
         "url": hosted_url,
         "invoice_id": invoice_id,
     }
@@ -889,9 +932,21 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
     updated = await asyncio.to_thread(stripe.Subscription.modify, sub_id, **modify_kwargs)
     updated_dict = _stripe_object_dict(updated)
     invoice_id = updated_dict.get("latest_invoice")
-    payment = {"paid": True, "amount_due": 0.0, "url": None, "invoice_id": invoice_id}
-    if invoice_id and preview.get("requires_payment"):
-        payment = await _finalize_and_collect_upgrade_invoice(invoice_id, origin)
+    if not invoice_id:
+        logger.error(f"[billing] upgrade for {user['user_id']} produced no invoice")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not create an upgrade invoice. Please try again or contact support.",
+        )
+
+    # Always verify payment with Stripe — never activate on preview alone.
+    payment = await _verify_upgrade_invoice_payment(invoice_id)
+    sub_status = (updated_dict.get("status") or "").lower()
+    if not payment["paid"] and sub_status in ("incomplete", "past_due", "unpaid"):
+        logger.info(
+            f"[billing] upgrade for {user['user_id']} awaiting payment "
+            f"(sub={sub_status}, invoice={invoice_id})"
+        )
 
     tx_id = await _record_upgrade_transaction(
         user,
@@ -1125,15 +1180,17 @@ async def billing_config():
     """Public billing config — lets the UI show live vs test and checkout readiness."""
     api_key = os.environ.get("STRIPE_API_KEY", "").strip()
     mode = _stripe_key_mode(api_key)
-    require_live = os.environ.get("STRIPE_REQUIRE_LIVE", "").lower() in ("1", "true", "yes")
+    live_required = _production_requires_live()
     webhook_set = bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip())
-    ready = bool(api_key and webhook_set and (mode == "live" or not require_live or is_dev_mode()))
+    ready = bool(api_key and webhook_set and (mode == "live" or not live_required))
+    payments_blocked = live_required and mode != "live"
     return {
         "currency": CURRENCY,
         "stripe_configured": bool(api_key),
         "stripe_mode": mode,
-        "stripe_live_required": require_live and not is_dev_mode(),
-        "checkout_ready": ready,
+        "stripe_live_required": live_required,
+        "payments_blocked": payments_blocked,
+        "checkout_ready": ready and not payments_blocked,
         "promotion_codes_enabled": True,
         "brand_primary": STRIPE_BRAND_PRIMARY,
         "brand_accent": STRIPE_BRAND_ACCENT,

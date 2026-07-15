@@ -2251,6 +2251,20 @@ async def startup():
     # Credentials are never written to disk — configure ADMIN_EMAIL / ADMIN_PASSWORD in env.
     commit = os.environ.get("RENDER_GIT_COMMIT", "local")[:7]
     logger.info("CivicSign backend started (commit %s)", commit)
+    try:
+        from billing import _production_requires_live, _stripe_key_mode
+        mode = _stripe_key_mode()
+        if _production_requires_live():
+            if mode == "live":
+                logger.info("Stripe billing: LIVE mode (real card payments enabled)")
+            else:
+                logger.error(
+                    "Stripe billing: TEST/invalid key on production — upgrades blocked until sk_live_ is set"
+                )
+        elif mode:
+            logger.info("Stripe billing: %s mode (dev/local)", mode)
+    except Exception as e:
+        logger.warning("Stripe billing status check skipped: %s", e)
 
 
 @app.on_event("shutdown")

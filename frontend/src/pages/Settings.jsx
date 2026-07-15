@@ -963,8 +963,16 @@ function SubscriptionTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount to detect a returning Stripe session
 
+  const paymentsBlocked = billingConfig?.payments_blocked || (
+    billingConfig?.stripe_live_required && billingConfig?.stripe_mode !== "live"
+  );
+
   const choose = async (planId, intervalOverride) => {
     if (planId === current) return;
+    if (paymentsBlocked && planId !== "free") {
+      toast.error("Live card payments are not enabled yet. Upgrades are disabled until Stripe live keys are configured.");
+      return;
+    }
     setSwitching(planId);
     const checkoutInterval = intervalOverride || billingInterval;
     // Free is a downgrade — cancel the Stripe subscription (or downgrade locally
@@ -1164,12 +1172,13 @@ function SubscriptionTab() {
           Secure live payments via Stripe — UK cards only, VAT shown at checkout.
         </div>
       )}
-      {billingConfig?.stripe_live_required && billingConfig?.stripe_mode === "test" && (
+      {paymentsBlocked && (
         <div
-          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-950"
           data-testid="billing-test-warning"
         >
-          Payments are still in Stripe test mode. Add your live keys in Render to accept real cards.
+          <b>Upgrades disabled:</b> Stripe is still in test mode (test cards like 4242… can fake payment).
+          Set <code className="text-xs">sk_live_…</code> and a live webhook secret in Render before accepting real payments.
         </div>
       )}
       {verifying && (
