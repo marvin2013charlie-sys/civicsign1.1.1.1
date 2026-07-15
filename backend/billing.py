@@ -194,9 +194,7 @@ def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> di
         "locale": "en-GB",
         "billing_address_collection": "required",
         "customer_update": {"address": "auto", "name": "auto"},
-        # Dashboard-managed payment methods require automatic_payment_methods
-        # (payment_method_types conflicts on live accounts).
-        "automatic_payment_methods": {"enabled": True, "allow_redirects": "never"},
+        # Let Stripe use Dashboard payment-method settings (card-only is configured there).
         "phone_number_collection": {"enabled": False},
         "custom_text": {
             "submit": {
