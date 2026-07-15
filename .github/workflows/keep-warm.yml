@@ -1,0 +1,37 @@
+name: Keep backend warm
+
+# Render spins an idle service down (cold start = 30-50s on the next request,
+# which makes login/dashboard feel frozen). This pings the health endpoint on a
+# schedule so the instance stays awake. Cheap: one HEAD-ish GET every ~10 min.
+#
+# NOTE: GitHub cron is best-effort and can be delayed several minutes under load.
+# For a hard guarantee, use an external uptime monitor (UptimeRobot / Render's
+# own paid always-on plan). This workflow is a free backstop.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API health endpoint
+        run: |
+          URL="${KEEPWARM_URL:-https://api.civicsign.co.uk/api/health}"
+          echo "Pinging $URL"
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 60 --retry 2 --retry-delay 15 "$URL" || echo "000")
+          echo "HTTP $code"
+          # Don't fail the workflow on a transient blip — a cold instance may
+          # still be waking. The point is to send traffic, not to gate on it.
+          if [ "$code" = "200" ]; then echo "Backend awake."; else echo "::warning::Health check returned $code"; fi
+        env:
+          KEEPWARM_URL: ${{ vars.KEEPWARM_URL }}
