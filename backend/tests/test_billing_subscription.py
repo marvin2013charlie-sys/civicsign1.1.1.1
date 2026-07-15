@@ -318,6 +318,59 @@ def test_resolve_refund_target_uses_stored_charge():
     assert target == {"charge": "ch_test123"}
 
 
+def test_capture_checkout_payment_refs_from_subscription_invoice(monkeypatch):
+    """Subscription Checkout has no session.payment_intent — use invoice PI instead."""
+    updates = []
+
+    class FakePaymentTx:
+        async def update_one(self, query, update):
+            updates.append((query, update))
+            class _R:
+                matched_count = 1
+            return _R()
+
+    class FakeSession:
+        def to_dict(self):
+            return {
+                "id": "cs_test_subsession01",
+                "mode": "subscription",
+                "payment_intent": None,
+                "subscription": "sub_test123",
+                "invoice": "in_test123",
+            }
+
+    class FakeInvoice:
+        def to_dict(self):
+            return {
+                "id": "in_test123",
+                "payment_intent": "pi_from_invoice",
+                "charge": "ch_from_invoice",
+            }
+
+    monkeypatch.setenv("STRIPE_API_KEY", "sk_test_fake")
+    monkeypatch.setattr(billing, "db", type("DB", (), {"payment_transactions": FakePaymentTx()})())
+    monkeypatch.setattr(billing.stripe.checkout.Session, "retrieve", lambda *a, **k: FakeSession())
+    monkeypatch.setattr(billing.stripe.Invoice, "retrieve", lambda *a, **k: FakeInvoice())
+
+    patch = run(billing.capture_checkout_payment_refs("cs_test_subsession01"))
+    assert patch["payment_intent_id"] == "pi_from_invoice"
+    assert patch["charge_id"] == "ch_from_invoice"
+    assert patch["subscription_id"] == "sub_test123"
+    assert updates and updates[0][0] == {"session_id": "cs_test_subsession01"}
+
+
+def test_resolve_refund_target_falls_back_to_capture(monkeypatch):
+    tx = {"session_id": "cs_test_subsession01", "tx_id": "tx_abc"}
+    captured = {"payment_intent_id": "pi_from_invoice"}
+
+    async def fake_capture(session_id, session=None):
+        return captured
+
+    monkeypatch.setattr(billing, "capture_checkout_payment_refs", fake_capture)
+    target = run(billing.resolve_refund_target_for_tx(tx))
+    assert target == {"payment_intent": "pi_from_invoice"}
+
+
 def test_webhook_accepts_matching_checkout(monkeypatch):
     tx = {
         "session_id": "cs_test_session123",
