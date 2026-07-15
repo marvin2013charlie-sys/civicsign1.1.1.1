@@ -575,11 +575,14 @@ async def delete_user(request: Request, user_id: str, admin: dict = Depends(requ
         from pilot_accounts import is_test_account
         from auth import purge_user_data
 
+        from plan_signing import get_effective_plan
+
         demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
-        if not is_test_account(target, demo_email=demo_email):
+        is_free = get_effective_plan(target) == "free"
+        if not is_test_account(target, demo_email=demo_email) and not is_free:
             raise HTTPException(
                 status_code=403,
-                detail="Only pilot, demo, or smoke-test accounts can be deleted here. Use account self-delete for others.",
+                detail="Only test or free-plan accounts can be deleted here. Paid plans must cancel billing first.",
             )
 
         await purge_user_data(db, user_id)
@@ -628,6 +631,34 @@ async def cleanup_test_accounts_endpoint(request: Request, admin: dict = Depends
     except Exception as e:
         logger.error(f"[admin] cleanup_test_accounts error: {e}")
         raise HTTPException(status_code=500, detail="Failed to clean up test accounts")
+
+
+@admin_router.post("/maintenance/delete-free-accounts")
+@limiter.limit("3/hour")
+async def delete_free_accounts_endpoint(request: Request, admin: dict = Depends(require_admin)):
+    """Remove all non-admin accounts on the free plan (private-beta test signups)."""
+    try:
+        from pilot_accounts import cleanup_free_accounts
+
+        result = await cleanup_free_accounts(db)
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "delete_free_accounts",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "deleted_count": result.get("deleted_count", 0),
+            "deleted": result.get("deleted", []),
+            "kept": result.get("kept", []),
+            "at": _now(),
+        })
+        logger.warning(
+            f"[admin] delete_free_accounts by {admin['email']}: "
+            f"removed {result.get('deleted_count', 0)} account(s)"
+        )
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.error(f"[admin] delete_free_accounts error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete free accounts")
 
 
 @admin_router.get("/users/{user_id}")
