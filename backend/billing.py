@@ -549,6 +549,119 @@ def _is_plan_purchase_tx(tx: dict) -> bool:
     return bool(tx.get("plan_id")) and tx.get("purchase_type", "plan") != "extra_document"
 
 
+def _stripe_resource_id(value) -> str | None:
+    """Normalize a Stripe id field that may be a string or expanded object."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return value.get("id")
+    return getattr(value, "id", None)
+
+
+async def _invoice_payment_refs(invoice_id: str) -> dict:
+    """Return payment_intent_id and charge_id from a Stripe invoice."""
+    invoice = await asyncio.to_thread(
+        stripe.Invoice.retrieve,
+        invoice_id,
+        expand=["payment_intent", "charge"],
+    )
+    data = _stripe_object_dict(invoice)
+    return {
+        "payment_intent_id": _stripe_resource_id(data.get("payment_intent")),
+        "charge_id": _stripe_resource_id(data.get("charge")),
+        "invoice_id": invoice_id,
+    }
+
+
+async def capture_checkout_payment_refs(session_id: str, session=None) -> dict:
+    """Persist payment_intent / charge / subscription ids for later admin refunds."""
+    _require_stripe_key()
+    if session is None:
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.retrieve,
+            session_id,
+            expand=["payment_intent", "subscription", "invoice"],
+        )
+    data = _stripe_object_dict(session)
+    patch: dict = {"updated_at": _now()}
+
+    pi = _stripe_resource_id(data.get("payment_intent"))
+    if pi:
+        patch["payment_intent_id"] = pi
+
+    sub_id = _stripe_resource_id(data.get("subscription"))
+    if sub_id:
+        patch["subscription_id"] = sub_id
+
+    inv_id = _stripe_resource_id(data.get("invoice"))
+    if inv_id:
+        patch["invoice_id"] = inv_id
+        try:
+            refs = await _invoice_payment_refs(inv_id)
+            patch.update({k: v for k, v in refs.items() if v})
+        except Exception as e:
+            logger.warning(f"[billing] could not read invoice {inv_id} for {session_id}: {e}")
+
+    if sub_id and not patch.get("payment_intent_id") and not patch.get("charge_id"):
+        try:
+            subscription = await asyncio.to_thread(
+                stripe.Subscription.retrieve,
+                sub_id,
+                expand=["latest_invoice.payment_intent", "latest_invoice.charge"],
+            )
+            sub_data = _stripe_object_dict(subscription)
+            latest = sub_data.get("latest_invoice") or {}
+            if isinstance(latest, dict):
+                if not patch.get("payment_intent_id"):
+                    pi = _stripe_resource_id(latest.get("payment_intent"))
+                    if pi:
+                        patch["payment_intent_id"] = pi
+                if not patch.get("charge_id"):
+                    ch = _stripe_resource_id(latest.get("charge"))
+                    if ch:
+                        patch["charge_id"] = ch
+                inv_from_sub = _stripe_resource_id(latest)
+                if inv_from_sub:
+                    patch.setdefault("invoice_id", inv_from_sub)
+        except Exception as e:
+            logger.warning(f"[billing] could not read subscription {sub_id} for {session_id}: {e}")
+
+    if len(patch) > 1:
+        await db.payment_transactions.update_one({"session_id": session_id}, {"$set": patch})
+    return patch
+
+
+async def resolve_refund_target_for_tx(tx: dict) -> dict:
+    """Build stripe.Refund.create kwargs (payment_intent or charge) for a paid tx."""
+    if tx.get("payment_intent_id"):
+        return {"payment_intent": tx["payment_intent_id"]}
+    if tx.get("charge_id"):
+        return {"charge": tx["charge_id"]}
+
+    session_id = tx.get("session_id")
+    if not session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This transaction has no Stripe session — cannot issue a refund.",
+        )
+
+    patch = await capture_checkout_payment_refs(session_id)
+    if patch.get("payment_intent_id"):
+        return {"payment_intent": patch["payment_intent_id"]}
+    if patch.get("charge_id"):
+        return {"charge": patch["charge_id"]}
+
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Could not resolve the Stripe payment for this subscription checkout. "
+            "Open the transaction in Stripe Dashboard or contact support with the session id."
+        ),
+    )
+
+
 async def _user_for_subscription_event(subscription: dict) -> dict | None:
     """Resolve the owning user from a Stripe subscription object."""
     user_id = (subscription.get("metadata") or {}).get("user_id")
@@ -1550,15 +1663,12 @@ async def checkout_status(session_id: str, request: Request,
     # Never trust payment_status from user input - always re-verify with Stripe
     await _apply_plan_upgrade(session_id, session.payment_status, session.status)
 
-    # Best-effort: capture payment_intent on the tx so refunds can target it.
-    try:
-        pi = getattr(session, "payment_intent", None)
-        if session.payment_status == "paid" and pi and not tx.get("payment_intent_id"):
-            await db.payment_transactions.update_one(
-                {"session_id": session_id}, {"$set": {"payment_intent_id": pi, "updated_at": _now()}}
-            )
-    except Exception as _e:
-        logger.warning(f"[billing] could not capture payment_intent for {session_id}: {_e}")
+    # Best-effort: capture payment refs so admin refunds can target subscription invoices.
+    if session.payment_status == "paid":
+        try:
+            await capture_checkout_payment_refs(session_id, session=session)
+        except Exception as _e:
+            logger.warning(f"[billing] could not capture payment refs for {session_id}: {_e}")
 
     # For subscription checkouts, link the live subscription to the user so
     # future renewal / failure events resolve back to this account.
@@ -1703,6 +1813,10 @@ async def stripe_webhook(request: Request):
                 sub_id, cust_id = obj.get("subscription"), obj.get("customer")
                 if sub_id and obj.get("mode") == "subscription":
                     await _link_subscription_to_user(tx["user_id"], sub_id, cust_id)
+                try:
+                    await capture_checkout_payment_refs(session_id)
+                except Exception as ref_err:
+                    logger.warning(f"[billing] could not capture payment refs for {session_id}: {ref_err}")
                 logger.info(f"[billing] webhook processed checkout {session_id}")
         return {"received": True}
 

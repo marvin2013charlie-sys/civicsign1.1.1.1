@@ -300,6 +300,24 @@ def test_webhook_accepts_discounted_checkout_with_promo(monkeypatch):
     assert verified["user_id"] == "usr_real"
 
 
+def test_stripe_resource_id_handles_string_and_object():
+    assert billing._stripe_resource_id("pi_abc") == "pi_abc"
+    assert billing._stripe_resource_id({"id": "pi_abc"}) == "pi_abc"
+    assert billing._stripe_resource_id(None) is None
+
+
+def test_resolve_refund_target_uses_stored_payment_intent():
+    tx = {"payment_intent_id": "pi_test123", "session_id": "cs_test_abc123456"}
+    target = run(billing.resolve_refund_target_for_tx(tx))
+    assert target == {"payment_intent": "pi_test123"}
+
+
+def test_resolve_refund_target_uses_stored_charge():
+    tx = {"charge_id": "ch_test123", "session_id": "cs_test_abc123456"}
+    target = run(billing.resolve_refund_target_for_tx(tx))
+    assert target == {"charge": "ch_test123"}
+
+
 def test_webhook_accepts_matching_checkout(monkeypatch):
     tx = {
         "session_id": "cs_test_session123",

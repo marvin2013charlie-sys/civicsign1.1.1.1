@@ -33,7 +33,11 @@ from db import db
 from auth import require_admin, require_permission, _public_user, create_access_token, create_password_reset
 from security_utils import is_dev_mode, validate_redirect_base
 from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
-from billing import downgrade_user_for_plan_refund, _is_plan_purchase_tx
+from billing import (
+    downgrade_user_for_plan_refund,
+    _is_plan_purchase_tx,
+    resolve_refund_target_for_tx,
+)
 
 try:
     import stripe as stripe_sdk  # official Stripe SDK for refunds
@@ -1226,27 +1230,31 @@ async def refund_transaction(request: Request, tx_id: str, body: RefundRequest, 
         }
 
         try:
-            # Prefer payment_intent if we have it; otherwise refund by Checkout Session.
-            refund_kwargs = {"amount": amount_cents, "metadata": metadata}
-            if tx.get("payment_intent_id"):
-                refund_kwargs["payment_intent"] = tx["payment_intent_id"]
-            else:
-                # Look up the PI from the Checkout session
-                sess = stripe_sdk.checkout.Session.retrieve(tx["session_id"])
-                pi = sess.get("payment_intent") if isinstance(sess, dict) else getattr(sess, "payment_intent", None)
-                if not pi:
-                    raise HTTPException(status_code=400, detail="Could not resolve payment intent for this session")
-                refund_kwargs["payment_intent"] = pi
+            target = await resolve_refund_target_for_tx(tx)
+            refund = stripe_sdk.Refund.create(
+                amount=amount_cents,
+                metadata=metadata,
+                **target,
+            )
+            persist = {k: v for k, v in target.items() if k in ("payment_intent", "charge")}
+            if persist.get("payment_intent"):
                 await db.payment_transactions.update_one(
-                    {"tx_id": tx_id}, {"$set": {"payment_intent_id": pi}}
+                    {"tx_id": tx_id},
+                    {"$set": {"payment_intent_id": persist["payment_intent"], "updated_at": _now()}},
                 )
-            
-            refund = stripe_sdk.Refund.create(**refund_kwargs)
+            if persist.get("charge"):
+                await db.payment_transactions.update_one(
+                    {"tx_id": tx_id},
+                    {"$set": {"charge_id": persist["charge"], "updated_at": _now()}},
+                )
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"[admin] Stripe refund failed for tx={tx_id}: {e}")
-            raise HTTPException(status_code=502, detail=f"Stripe refund failed: {e}")
+            err = str(e).strip()
+            if hasattr(e, "user_message") and getattr(e, "user_message", None):
+                err = str(e.user_message)
+            raise HTTPException(status_code=502, detail=f"Stripe refund failed: {err}")
 
         new_total_refunded = round(already_ref + refund_amount, 2)
         new_status = "refunded" if abs(new_total_refunded - paid_amount) < 1e-6 else "partial"
@@ -1273,9 +1281,10 @@ async def refund_transaction(request: Request, tx_id: str, body: RefundRequest, 
             },
         )
 
-        # Plan refunds downgrade immediately — do not wait for billing period end.
+        # Plan refunds downgrade immediately on a full refund only.
         plan_changed = False
-        if body.downgrade_plan and tx.get("user_id") and _is_plan_purchase_tx(tx):
+        is_full_refund = abs(new_total_refunded - paid_amount) < 1e-6
+        if body.downgrade_plan and is_full_refund and tx.get("user_id") and _is_plan_purchase_tx(tx):
             plan_changed = await downgrade_user_for_plan_refund(
                 tx["user_id"],
                 reason=f"admin refund tx={tx_id}",

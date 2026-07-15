@@ -82,7 +82,8 @@ function RefundDialog({ tx, onClose, onRefunded }) {
     }
     setBusy(true);
     try {
-      const body = { reason, downgrade_plan: downgrade };
+      const isFullRefund = !partial || finalAmount >= remaining - 0.001;
+      const body = { reason, downgrade_plan: isFullRefund && downgrade };
       if (partial) body.amount = finalAmount;
       const { data } = await api.post(`/admin/transactions/${tx.tx_id}/refund`, body);
       toast.success(`Refund issued (${data.refund_status}). ${data.plan_downgraded ? "User plan was downgraded to Free." : ""}`);
