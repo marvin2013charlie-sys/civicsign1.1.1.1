@@ -37,7 +37,7 @@ services:
       - key: SEED_PILOT_ACCOUNTS
         value: "false"
       - key: CLEANUP_TEST_ACCOUNTS
-        value: "true"
+        value: "false"
       # --- Secrets: set these in the Render dashboard (sync:false) ---
       - key: MONGO_URL
         sync: false
