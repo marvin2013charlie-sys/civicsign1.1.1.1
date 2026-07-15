@@ -1,3 +1,4 @@
+import "@/lib/polyfills";
 import { pdfjs } from "react-pdf";
 
 // Serve the worker locally from /public as a `.js` file (NOT `.mjs`). Some

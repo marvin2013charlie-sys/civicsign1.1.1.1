@@ -94,10 +94,16 @@ const FullLoader = () => (
   </div>
 );
 
+const RouteLoader = () => (
+  <div className="flex min-h-[40vh] items-center justify-center bg-[var(--c-paper)]">
+    <Loader2 className="h-6 w-6 animate-spin text-[var(--c-primary)]" />
+  </div>
+);
+
 function Protected({ children }) {
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
   const location = useLocation();
-  if (user === null) return <FullLoader />;
+  if (!authReady) return <FullLoader />;
   if (!user) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?next=${next}`} replace />;
@@ -108,7 +114,6 @@ function Protected({ children }) {
 function PublicOnly({ children }) {
   const { user } = useAuth();
   const [params] = useSearchParams();
-  if (user === null) return <FullLoader />;
   if (user) {
     const dest = getPostAuthDestination(params.get("next"));
     return <Navigate to={dest} replace />;
@@ -117,8 +122,8 @@ function PublicOnly({ children }) {
 }
 
 function AdminProtected({ children }) {
-  const { user } = useAuth();
-  if (user === null) return <FullLoader />;
+  const { user, authReady } = useAuth();
+  if (!authReady) return <FullLoader />;
   if (!user) return <Navigate to="/admin/login" replace />;
   if (user.role !== "admin" && user.role !== "staff") {
     return <Navigate to="/admin/login" replace state={{ reason: "internal_only" }} />;
@@ -141,7 +146,7 @@ function AppRoutes() {
   return (
     <>
       <IdleLogoutGuard />
-      <Suspense fallback={<FullLoader />}>
+      <Suspense fallback={<RouteLoader />}>
         <Routes>
           <Route path="/" element={<Landing />} />
 

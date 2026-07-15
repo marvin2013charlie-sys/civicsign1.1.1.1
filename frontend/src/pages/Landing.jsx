@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { MarketingGradient } from "@/components/MarketingGradient";
@@ -6,10 +6,16 @@ import { MarketingCtaBanner, MarketingDarkSection, MarketingInkSurface } from "@
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
-import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { formatQuotaResetFaqAnswer } from "@/lib/pricing";
-import { PricingPlansSection } from "@/components/PricingPlansSection";
 import { MarketingFaqSection } from "@/components/MarketingFaqSection";
+import { loadDecorativeFonts } from "@/lib/signatureFonts";
+
+const PricingPlansSection = lazy(() =>
+  import("@/components/PricingPlansSection").then((m) => ({ default: m.PricingPlansSection })),
+);
+const FloatingAssistant = lazy(() =>
+  import("@/components/FloatingAssistant").then((m) => ({ default: m.FloatingAssistant })),
+);
 import {
   CTA_ACTIONS_CLASS,
   CTA_BANNER,
@@ -91,6 +97,9 @@ const FAQS = [
 const H_FONT = { fontFamily: "'Space Grotesk', ui-sans-serif, sans-serif" };
 
 export default function Landing() {
+  useEffect(() => {
+    loadDecorativeFonts();
+  }, []);
   useEffect(() => {
     if (!window.location.hash) window.scrollTo(0, 0);
   }, []);
@@ -486,7 +495,9 @@ export default function Landing() {
         </div>
       </section>
 
-      <PricingPlansSection embedded showComparison={false} className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24" />
+      <Suspense fallback={null}>
+        <PricingPlansSection embedded showComparison={false} className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24" />
+      </Suspense>
 
       {/* ================= TESTIMONIALS ================= */}
       <section className="border-y border-[var(--c-border)] bg-[var(--card)]">
@@ -556,7 +567,9 @@ export default function Landing() {
 
       <SiteFooter />
       <CookieBanner />
-      <FloatingAssistant />
+      <Suspense fallback={null}>
+        <FloatingAssistant />
+      </Suspense>
     </div>
   );
 }

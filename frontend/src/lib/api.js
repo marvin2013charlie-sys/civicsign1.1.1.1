@@ -106,13 +106,13 @@ api.interceptors.response.use(
 export async function restoreSession() {
   getAccessToken();
   try {
-    const { data } = await api.get("/auth/me");
+    const { data } = await api.get("/auth/me", { timeout: 10_000 });
     return data;
   } catch (err) {
     if (err.response?.status !== 401) throw err;
     try {
       await refreshAccessToken();
-      const { data } = await api.get("/auth/me");
+      const { data } = await api.get("/auth/me", { timeout: 10_000 });
       return data;
     } catch {
       clearTokens();

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Upload, Trash2, RotateCcw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { loadSignatureFonts } from "@/lib/signatureFonts";
 
 const TYPE_FONTS = [
   { key: "sig-allura", label: "Elegant", css: "'Allura', cursive" },
@@ -26,6 +27,10 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
   const [uploaded, setUploaded] = useState(null);
   const [tab, setTab] = useState("draw");
   const [remember, setRemember] = useState(true);
+
+  useEffect(() => {
+    if (open) loadSignatureFonts();
+  }, [open]);
 
   useEffect(() => {
     if (open) {

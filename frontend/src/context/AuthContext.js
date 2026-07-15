@@ -13,6 +13,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   // null = checking, false = not authenticated, object = authenticated
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [impersonation, setImpersonation] = useState(null);
 
   useEffect(() => {
@@ -40,7 +41,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let active = true;
     getAccessToken();
-    (async () => {
+
+    const resolveSession = async () => {
       try {
         const data = await restoreSession();
         if (!active) return;
@@ -58,9 +60,38 @@ export function AuthProvider({ children }) {
           setImpersonation(null);
           clearTokens();
         }
+      } finally {
+        if (active) setAuthReady(true);
       }
-    })();
-    return () => { active = false; };
+    };
+
+    const path = window.location.pathname;
+    const portalRoots = [
+      "/dashboard", "/admin", "/prepare", "/send", "/envelope", "/documents",
+      "/templates", "/contacts", "/manage-pdf", "/reports", "/usage",
+      "/organisation", "/settings", "/new",
+    ];
+    const needsImmediateAuth = portalRoots.some(
+      (root) => path === root || path.startsWith(`${root}/`),
+    );
+
+    let idleId;
+    let timeoutId;
+    if (needsImmediateAuth) {
+      resolveSession();
+    } else if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(() => { resolveSession(); }, { timeout: 1500 });
+    } else {
+      timeoutId = window.setTimeout(() => { resolveSession(); }, 0);
+    }
+
+    return () => {
+      active = false;
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -145,6 +176,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         user,
+        authReady,
         setUser,
         login,
         register,
