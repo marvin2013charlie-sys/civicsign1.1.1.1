@@ -377,6 +377,42 @@ def _stripe_subscription_missing(exc: Exception) -> bool:
     return "no such subscription" in msg or "resource_missing" in msg
 
 
+def _stripe_customer_missing(exc: Exception) -> bool:
+    if isinstance(exc, stripe.error.InvalidRequestError):
+        code = getattr(exc, "code", None) or ""
+        if code == "resource_missing":
+            return True
+    msg = str(exc).lower()
+    return "no such customer" in msg or "resource_missing" in msg
+
+
+async def _resolve_stripe_customer(user: dict) -> str:
+    """Return a valid Stripe customer id, recreating if the stored one is from test/wrong account."""
+    cid = user.get("stripe_customer_id")
+    _configure_stripe(enforce_live=False)
+    if cid:
+        try:
+            await asyncio.to_thread(stripe.Customer.retrieve, cid)
+            return cid
+        except Exception as e:
+            if not _stripe_customer_missing(e):
+                raise
+            logger.warning(
+                f"[billing] stripe customer {cid} missing for {user['user_id']} — creating a new one"
+            )
+    customer = await asyncio.to_thread(
+        stripe.Customer.create,
+        email=user.get("email"),
+        name=user.get("name") or user.get("email"),
+        metadata={"user_id": user["user_id"]},
+    )
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"stripe_customer_id": customer.id, "updated_at": _now()}},
+    )
+    return customer.id
+
+
 async def _apply_document_credits(user_id: str, credits: int, session_id: str) -> bool:
     if credits < 1:
         return False
@@ -1814,26 +1850,37 @@ async def billing_portal(body: BillingPortalRequest, request: Request,
     plan = (user.get("plan") or "free").lower().strip()
     if plan not in PLANS or plan == "free":
         raise HTTPException(status_code=400, detail="Subscribe to a paid plan before managing billing.")
-    customer_id = user.get("stripe_customer_id")
-    if not customer_id:
-        raise HTTPException(
-            status_code=400,
-            detail="No billing account on file. Contact support if you have an active subscription.",
-        )
     origin = validate_redirect_base(
         body.origin_url or "",
         fallback=request.headers.get("origin", ""),
     )
-    _require_stripe_key()
     try:
+        customer_id = await _resolve_stripe_customer(user)
         session = await asyncio.to_thread(
             stripe.billing_portal.Session.create,
             customer=customer_id,
             return_url=f"{origin}/settings?tab=subscription",
         )
-    except Exception as e:
-        logger.error(f"[billing] billing_portal failed for {customer_id}: {e}")
+    except stripe.error.InvalidRequestError as e:
+        msg = str(e).lower()
+        if "billing portal" in msg or "portal" in msg and "configuration" in msg:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Stripe Customer Portal is not configured yet. "
+                    "Use Cancel subscription here, or enable the portal in Stripe Dashboard → Settings → Billing → Customer portal."
+                ),
+            )
+        logger.error(f"[billing] billing_portal invalid request: {e}")
         raise HTTPException(status_code=502, detail="Could not open billing portal. Please try again.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[billing] billing_portal failed for {user['user_id']}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not open billing portal. Use Cancel subscription on this page instead.",
+        )
     return {"url": session.url}
 
 
