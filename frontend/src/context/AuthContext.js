@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext, useContext, useEffect, useState, useCallback, useRef,
+} from "react";
+import { useLocation } from "react-router-dom";
 import api, { restoreSession } from "@/lib/api";
 import {
   clearTokens,
@@ -10,17 +13,30 @@ import { getAppOrigin } from "@/lib/appOrigin";
 
 const AuthContext = createContext(null);
 
+const PORTAL_ROOTS = [
+  "/dashboard", "/admin", "/prepare", "/send", "/envelope", "/documents",
+  "/templates", "/contacts", "/manage-pdf", "/reports", "/usage",
+  "/organisation", "/settings", "/new",
+];
+
+function isPortalPath(path) {
+  return PORTAL_ROOTS.some((root) => path === root || path.startsWith(`${root}/`));
+}
+
 export function AuthProvider({ children }) {
   // null = checking, false = not authenticated, object = authenticated
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [impersonation, setImpersonation] = useState(null);
+  const location = useLocation();
+  const checkStartedRef = useRef(false);
+  const idleIdRef = useRef(null);
 
   useEffect(() => {
     purgeLegacyTokenStorage();
   }, []);
 
-  const checkAuth = useCallback(async () => {
+  const resolveSession = useCallback(async () => {
     try {
       const data = await restoreSession();
       if (data) {
@@ -35,70 +51,64 @@ export function AuthProvider({ children }) {
       setUser(false);
       setImpersonation(null);
       clearTokens();
+    } finally {
+      setAuthReady(true);
     }
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    getAccessToken();
-
-    const resolveSession = async () => {
-      try {
-        const data = await restoreSession();
-        if (!active) return;
-        if (data) {
-          setUser(data);
-          setImpersonation(null);
-        } else {
-          setUser(false);
-          setImpersonation(null);
-          clearTokens();
-        }
-      } catch {
-        if (active) {
-          setUser(false);
-          setImpersonation(null);
-          clearTokens();
-        }
-      } finally {
-        if (active) setAuthReady(true);
+  const startAuthCheck = useCallback(() => {
+    if (checkStartedRef.current) return;
+    checkStartedRef.current = true;
+    if (idleIdRef.current != null) {
+      if (typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleIdRef.current);
+      } else {
+        window.clearTimeout(idleIdRef.current);
       }
-    };
+      idleIdRef.current = null;
+    }
+    resolveSession();
+  }, [resolveSession]);
 
-    const path = window.location.pathname;
-    const portalRoots = [
-      "/dashboard", "/admin", "/prepare", "/send", "/envelope", "/documents",
-      "/templates", "/contacts", "/manage-pdf", "/reports", "/usage",
-      "/organisation", "/settings", "/new",
-    ];
-    const needsImmediateAuth = portalRoots.some(
-      (root) => path === root || path.startsWith(`${root}/`),
-    );
+  useEffect(() => {
+    if (authReady) return undefined;
 
-    let idleId;
-    let timeoutId;
-    if (needsImmediateAuth) {
-      resolveSession();
-    } else if (typeof window.requestIdleCallback === "function") {
-      idleId = window.requestIdleCallback(() => { resolveSession(); }, { timeout: 1500 });
+    if (isPortalPath(location.pathname)) {
+      startAuthCheck();
+      return undefined;
+    }
+
+    if (checkStartedRef.current) return undefined;
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleIdRef.current = window.requestIdleCallback(() => { startAuthCheck(); }, { timeout: 1500 });
     } else {
-      timeoutId = window.setTimeout(() => { resolveSession(); }, 0);
+      idleIdRef.current = window.setTimeout(() => { startAuthCheck(); }, 0);
     }
 
     return () => {
-      active = false;
-      if (idleId != null && typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
+      if (idleIdRef.current == null) return;
+      if (typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleIdRef.current);
+      } else {
+        window.clearTimeout(idleIdRef.current);
       }
-      if (timeoutId != null) window.clearTimeout(timeoutId);
+      idleIdRef.current = null;
     };
-  }, []);
+  }, [location.pathname, authReady, startAuthCheck]);
+
+  const checkAuth = useCallback(async () => {
+    checkStartedRef.current = true;
+    await resolveSession();
+  }, [resolveSession]);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     clearTokens();
     setImpersonation(null);
     if (data.access_token) setAccessToken(data.access_token);
+    checkStartedRef.current = true;
+    setAuthReady(true);
     setUser(data.user);
     return data;
   };
@@ -113,6 +123,8 @@ export function AuthProvider({ children }) {
     clearTokens();
     setImpersonation(null);
     if (data.access_token) setAccessToken(data.access_token);
+    checkStartedRef.current = true;
+    setAuthReady(true);
     setUser(data.user);
     return data;
   };
@@ -131,6 +143,8 @@ export function AuthProvider({ children }) {
 
   const setSession = (userObj, token) => {
     if (token) setAccessToken(token);
+    checkStartedRef.current = true;
+    setAuthReady(true);
     setUser(userObj);
   };
 
@@ -143,16 +157,19 @@ export function AuthProvider({ children }) {
     clearTokens();
     setImpersonation(null);
     setUser(false);
+    setAuthReady(true);
+    checkStartedRef.current = true;
   };
 
   const startImpersonation = (targetUser, token) => {
-    // Bearer overrides the admin's HttpOnly cookie on the backend.
     setAccessToken(token);
     setImpersonation({
       user_id: targetUser.user_id,
       name: targetUser.name || "",
       email: targetUser.email,
     });
+    checkStartedRef.current = true;
+    setAuthReady(true);
     setUser(targetUser);
   };
 
@@ -163,12 +180,14 @@ export function AuthProvider({ children }) {
       const data = await restoreSession();
       if (data && (data.role === "admin" || data.role === "staff")) {
         setUser(data);
+        setAuthReady(true);
         return { ok: true, user: data };
       }
     } catch {
       /* admin cookie may have expired */
     }
     setUser(false);
+    setAuthReady(true);
     return { ok: false };
   };
 

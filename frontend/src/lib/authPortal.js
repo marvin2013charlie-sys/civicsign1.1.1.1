@@ -12,9 +12,19 @@ export function sanitizeNextUrl(next) {
   return path;
 }
 
+/** Default app home for a signed-in user (role-aware). */
+export function getAppHomePath(user) {
+  if (!user || user === false) return "/login";
+  if (user.role === "admin" || user.role === "staff") return "/admin";
+  return "/dashboard";
+}
+
 /** Where to land after sign-in / verification — never the public landing page. */
-export function getPostAuthDestination(next, fallback = "/dashboard") {
-  return sanitizeNextUrl(next) || fallback;
+export function getPostAuthDestination(next, user = null, fallback = null) {
+  const safeNext = sanitizeNextUrl(next);
+  if (safeNext) return safeNext;
+  if (user && user !== false) return getAppHomePath(user);
+  return fallback || "/dashboard";
 }
 
 export function getAuthNext(searchParams) {

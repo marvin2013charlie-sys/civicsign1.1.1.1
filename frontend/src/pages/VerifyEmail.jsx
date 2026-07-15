@@ -51,7 +51,7 @@ export default function VerifyEmail() {
       sessionStorage.removeItem("cs_verify_dev_mode");
       requestProductTour("app", data?.user?.user_id);
       toast.success("Email verified, welcome to CivicSign!");
-      const dest = getPostAuthDestination(next);
+      const dest = getPostAuthDestination(next, data?.user);
       clearAuthNext();
       navigate(dest, { replace: true });
     } catch (err) {

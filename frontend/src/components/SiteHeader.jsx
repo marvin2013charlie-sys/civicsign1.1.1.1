@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { ALL_SOLUTIONS, solutionTestId } from "@/lib/solutionsNav";
 import { FooterLink } from "@/components/FooterLink";
+import { getAppHomePath } from "@/lib/authPortal";
 
 const PRODUCT_LINKS = [
   { label: "E-signatures", to: { pathname: "/", hash: "#features" } },
@@ -30,6 +31,8 @@ export const SiteHeader = () => {
   const location = useLocation();
   const { user } = useAuth();
   const isLoggedIn = Boolean(user && user !== false);
+  const isInternalTeam = isLoggedIn && (user.role === "admin" || user.role === "staff");
+  const appHome = isLoggedIn ? getAppHomePath(user) : "/register";
 
   useEffect(() => {
     let observer;
@@ -183,17 +186,7 @@ export const SiteHeader = () => {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            {isLoggedIn ? (
-              <Link to="/dashboard" className="hidden sm:block">
-                <Button
-                  variant="ghost"
-                  data-testid="nav-dashboard-button"
-                  className="font-medium text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)] hover:text-[var(--c-ink)]"
-                >
-                  Dashboard
-                </Button>
-              </Link>
-            ) : (
+            {!isLoggedIn && (
               <Link to="/login" className="hidden sm:block">
                 <Button
                   variant="ghost"
@@ -204,14 +197,20 @@ export const SiteHeader = () => {
                 </Button>
               </Link>
             )}
-            <Link to={isLoggedIn ? "/dashboard" : "/register"} className="shrink-0">
+            <Link to={appHome} className="shrink-0">
               <Button
                 data-testid={isLoggedIn ? "nav-open-app-button" : "nav-getstarted-button"}
                 className="h-9 px-3 text-sm sm:h-10 sm:px-4"
                 style={{ background: "var(--c-ink-solid)", color: "#fff" }}
               >
-                <span className="sm:hidden">{isLoggedIn ? "App" : "Free"}</span>
-                <span className="hidden sm:inline">{isLoggedIn ? "Open app" : "Start free"}</span>
+                <span className="sm:hidden">
+                  {isLoggedIn ? (isInternalTeam ? "Admin" : "App") : "Free"}
+                </span>
+                <span className="hidden sm:inline">
+                  {isLoggedIn
+                    ? (isInternalTeam ? "Admin console" : "Open app")
+                    : "Start free"}
+                </span>
               </Button>
             </Link>
             <button
@@ -270,8 +269,11 @@ export const SiteHeader = () => {
                 />
               ))}
               {isLoggedIn ? (
-                <Link to="/dashboard" className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]">
-                  Dashboard
+                <Link
+                  to={appHome}
+                  className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
+                >
+                  {isInternalTeam ? "Admin console" : "Open app"}
                 </Link>
               ) : (
                 <Link to="/login" className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]">

@@ -62,8 +62,8 @@ export default function Login() {
     }
   }, [params]);
 
-  const goAfterAuth = () => {
-    const dest = getPostAuthDestination(next);
+  const goAfterAuth = (signedInUser) => {
+    const dest = getPostAuthDestination(next, signedInUser);
     clearAuthNext();
     navigate(dest, { replace: true });
   };
@@ -72,10 +72,15 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const data = await login(email, password);
+      if (data?.user?.role === "admin" || data?.user?.role === "staff") {
+        toast.info("Internal team accounts use the admin console.");
+        goAfterAuth(data.user);
+        return;
+      }
       setRememberedEmail(email, remember);
       toast.success("Welcome back!");
-      goAfterAuth();
+      goAfterAuth(data.user);
     } catch (err) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail || "";

@@ -1,4 +1,4 @@
-import { getPostAuthDestination, sanitizeNextUrl } from "./authPortal";
+import { getAppHomePath, getPostAuthDestination, sanitizeNextUrl } from "./authPortal";
 
 describe("authPortal", () => {
   describe("sanitizeNextUrl", () => {
@@ -15,11 +15,25 @@ describe("authPortal", () => {
     });
   });
 
+  describe("getAppHomePath", () => {
+    it("routes internal team to admin and customers to dashboard", () => {
+      expect(getAppHomePath({ role: "user" })).toBe("/dashboard");
+      expect(getAppHomePath({ role: "staff" })).toBe("/admin");
+      expect(getAppHomePath({ role: "admin" })).toBe("/admin");
+      expect(getAppHomePath(false)).toBe("/login");
+    });
+  });
+
   describe("getPostAuthDestination", () => {
     it("defaults to dashboard when next is missing or landing", () => {
       expect(getPostAuthDestination(null)).toBe("/dashboard");
       expect(getPostAuthDestination("/")).toBe("/dashboard");
       expect(getPostAuthDestination("")).toBe("/dashboard");
+    });
+
+    it("uses role-aware home when user is provided", () => {
+      expect(getPostAuthDestination(null, { role: "staff" })).toBe("/admin");
+      expect(getPostAuthDestination(null, { role: "user" })).toBe("/dashboard");
     });
 
     it("honours safe in-app next paths", () => {

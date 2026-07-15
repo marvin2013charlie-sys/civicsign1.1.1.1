@@ -115,7 +115,7 @@ function PublicOnly({ children }) {
   const { user } = useAuth();
   const [params] = useSearchParams();
   if (user) {
-    const dest = getPostAuthDestination(params.get("next"));
+    const dest = getPostAuthDestination(params.get("next"), user);
     return <Navigate to={dest} replace />;
   }
   return children;
@@ -223,8 +223,8 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <ScrollToTop />
         <SeoManager />
         <GoogleSiteTags />
@@ -232,8 +232,8 @@ function App() {
           <AppRoutes />
         </ErrorBoundary>
         <Toaster position="top-right" richColors closeButton />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
