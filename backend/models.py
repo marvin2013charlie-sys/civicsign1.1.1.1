@@ -272,8 +272,14 @@ class AccountDelete(BaseModel):
 # ---- Billing (Stripe) ----
 class CheckoutRequest(BaseModel):
     plan_id: str            # pro | business
-    origin_url: str
+    origin_url: str = ""
     billing_interval: str = "monthly"  # monthly | yearly (yearly = 10 months paid)
+
+
+class UpgradeConfirmRequest(BaseModel):
+    plan_id: str
+    billing_interval: str = "monthly"
+    origin_url: str = ""
 
 
 class DocumentCheckoutRequest(BaseModel):

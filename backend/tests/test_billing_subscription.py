@@ -183,6 +183,31 @@ def test_is_plan_purchase_tx():
     assert billing._is_plan_purchase_tx({"purchase_type": "extra_document"}) is False
 
 
+def test_is_paid_upgrade_pro_to_business():
+    assert billing._is_paid_upgrade("pro", "monthly", "business", "monthly") is True
+    assert billing._is_paid_upgrade("pro", "yearly", "business", "yearly") is True
+    assert billing._is_paid_upgrade("business", "monthly", "pro", "monthly") is False
+    assert billing._is_paid_upgrade("pro", "monthly", "pro", "yearly") is True
+
+
+def test_parse_invoice_preview_credit_and_charge():
+    preview = {
+        "amount_due": 4200,
+        "currency": "gbp",
+        "lines": {
+            "data": [
+                {"amount": -1500, "proration": True, "description": "Unused time on Pro"},
+                {"amount": 5700, "proration": True, "description": "Remaining time on Business"},
+            ],
+        },
+    }
+    parsed = billing._parse_invoice_preview(preview)
+    assert parsed["credit"] == 15.0
+    assert parsed["charge"] == 57.0
+    assert parsed["amount_due"] == 42.0
+    assert parsed["requires_payment"] is True
+
+
 def test_valid_stripe_session_id():
     assert billing._valid_stripe_session_id("cs_test_abc123") is True
     assert billing._valid_stripe_session_id("not_a_session") is False

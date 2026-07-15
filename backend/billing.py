@@ -33,7 +33,13 @@ import stripe
 from db import db
 from auth import get_current_user, _public_user
 from security_utils import is_dev_mode, validate_redirect_base
-from models import BillingPortalRequest, CancelSubscriptionRequest, CheckoutRequest, DocumentCheckoutRequest
+from models import (
+    BillingPortalRequest,
+    CancelSubscriptionRequest,
+    CheckoutRequest,
+    DocumentCheckoutRequest,
+    UpgradeConfirmRequest,
+)
 from tax import UK_VAT_PERCENT, tax_breakdown
 
 logger = logging.getLogger("civicsign.billing")
@@ -64,6 +70,8 @@ PLANS = {
         "amount_yearly": BUSINESS_MONTHLY_GBP * YEARLY_MONTHS_PAID,
     },
 }
+
+PLAN_TIER = {"free": 0, "pro": 1, "business": 2}
 
 
 def _plan_amount(plan_id: str, billing_interval: str) -> float:
@@ -666,6 +674,294 @@ async def _verify_webhook_checkout_session(obj: dict) -> dict | None:
     return tx
 
 
+def _plan_tier(plan_id: str) -> int:
+    return PLAN_TIER.get((plan_id or "").lower().strip(), 0)
+
+
+def _is_paid_upgrade(
+    current_plan: str,
+    current_interval: str,
+    target_plan: str,
+    target_interval: str,
+) -> bool:
+    """True when moving to a higher plan or a materially higher-priced billing interval."""
+    cur_plan = (current_plan or "free").lower().strip()
+    tgt_plan = (target_plan or "").lower().strip()
+    cur_int = (current_interval or "monthly").lower().strip()
+    tgt_int = (target_interval or "monthly").lower().strip()
+    if _plan_tier(tgt_plan) > _plan_tier(cur_plan):
+        return True
+    if _plan_tier(tgt_plan) == _plan_tier(cur_plan) and cur_plan in PLANS:
+        if cur_int == "monthly" and tgt_int == "yearly":
+            return True
+    return False
+
+
+async def _build_subscription_modify_items(sub_id: str, plan_id: str, billing_interval: str) -> tuple[list, list]:
+    """Stripe items[] payload to swap an existing subscription onto a new plan."""
+    new_line_items, discounts, _amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
+    subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+    sub_dict = _stripe_object_dict(subscription)
+    existing_items = (sub_dict.get("items") or {}).get("data") or []
+    items_param = [{"id": item["id"], "deleted": True} for item in existing_items]
+    for li in new_line_items:
+        items_param.append({
+            "price_data": li["price_data"],
+            "quantity": li["quantity"],
+        })
+    return items_param, discounts
+
+
+def _parse_invoice_preview(invoice) -> dict:
+    """Extract proration credit/charge breakdown from a Stripe invoice preview."""
+    data = _stripe_object_dict(invoice)
+    lines = (data.get("lines") or {}).get("data") or []
+    credit_cents = 0
+    charge_cents = 0
+    credit_lines: list[dict] = []
+    charge_lines: list[dict] = []
+    for line in lines:
+        if not isinstance(line, dict):
+            line = _stripe_object_dict(line)
+        amount = int(line.get("amount") or 0)
+        if not line.get("proration"):
+            continue
+        desc = (line.get("description") or "Proration").strip()
+        if amount < 0:
+            credit_cents += abs(amount)
+            credit_lines.append({"description": desc, "amount": round(abs(amount) / 100, 2)})
+        elif amount > 0:
+            charge_cents += amount
+            charge_lines.append({"description": desc, "amount": round(amount / 100, 2)})
+    amount_due_cents = int(data.get("amount_due") or 0)
+    sub_ends = data.get("subscription_proration_date") or data.get("period_end")
+    period_end_iso = None
+    if sub_ends:
+        try:
+            period_end_iso = datetime.fromtimestamp(int(sub_ends), tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OSError):
+            period_end_iso = None
+    return {
+        "credit": round(credit_cents / 100, 2),
+        "charge": round(charge_cents / 100, 2),
+        "amount_due": round(amount_due_cents / 100, 2),
+        "currency": (data.get("currency") or CURRENCY).lower(),
+        "credit_lines": credit_lines,
+        "charge_lines": charge_lines,
+        "period_end": period_end_iso,
+        "requires_payment": amount_due_cents > 0,
+    }
+
+
+async def _preview_plan_upgrade(user: dict, plan_id: str, billing_interval: str) -> dict:
+    """Preview unused Pro credit and extra Business charge for the rest of this billing cycle."""
+    sub_id = user.get("stripe_subscription_id")
+    customer_id = user.get("stripe_customer_id")
+    if not sub_id or not customer_id:
+        raise HTTPException(status_code=400, detail="No active subscription to upgrade.")
+
+    current_plan = (user.get("plan") or "free").lower().strip()
+    current_interval = (user.get("billing_interval") or "monthly").lower().strip()
+    items_param, _discounts = await _build_subscription_modify_items(sub_id, plan_id, billing_interval)
+
+    _require_stripe_key()
+    try:
+        preview = await asyncio.to_thread(
+            stripe.Invoice.create_preview,
+            customer=customer_id,
+            subscription=sub_id,
+            subscription_details={
+                "items": items_param,
+                "proration_behavior": "create_prorations",
+                "billing_cycle_anchor": "unchanged",
+            },
+        )
+    except Exception as e:
+        logger.error(f"[billing] upgrade preview failed for {sub_id}: {e}")
+        raise HTTPException(status_code=502, detail="Could not calculate your upgrade total. Please try again.")
+
+    breakdown = _parse_invoice_preview(preview)
+    target_tax = tax_breakdown(_plan_amount(plan_id, billing_interval))
+    return {
+        "current_plan": current_plan,
+        "current_interval": current_interval,
+        "target_plan": plan_id,
+        "target_interval": billing_interval,
+        "target_plan_name": PLANS[plan_id]["name"],
+        "current_plan_name": PLANS.get(current_plan, {}).get("name", current_plan.title()),
+        "renewal_amount_inc_vat": target_tax["amount_inc_vat"],
+        **breakdown,
+    }
+
+
+async def _finalize_and_collect_upgrade_invoice(invoice_id: str, origin: str) -> dict:
+    """Finalize an open proration invoice and return a hosted pay link when needed."""
+    inv = await asyncio.to_thread(stripe.Invoice.retrieve, invoice_id)
+    inv_dict = _stripe_object_dict(inv)
+    status = (inv_dict.get("status") or "").lower()
+    if status == "draft":
+        inv = await asyncio.to_thread(stripe.Invoice.finalize_invoice, invoice_id)
+        inv_dict = _stripe_object_dict(inv)
+        status = (inv_dict.get("status") or "").lower()
+
+    amount_due_cents = int(inv_dict.get("amount_due") or 0)
+    if amount_due_cents <= 0 or inv_dict.get("paid"):
+        return {
+            "paid": True,
+            "amount_due": 0.0,
+            "url": None,
+            "invoice_id": invoice_id,
+        }
+
+    hosted_url = inv_dict.get("hosted_invoice_url")
+    if not hosted_url:
+        # Stripe may omit hosted URL until finalized; refresh once more.
+        inv = await asyncio.to_thread(stripe.Invoice.retrieve, invoice_id)
+        inv_dict = _stripe_object_dict(inv)
+        hosted_url = inv_dict.get("hosted_invoice_url")
+
+    return {
+        "paid": False,
+        "amount_due": round(amount_due_cents / 100, 2),
+        "url": hosted_url,
+        "invoice_id": invoice_id,
+    }
+
+
+async def _record_upgrade_transaction(
+    user: dict,
+    plan_id: str,
+    billing_interval: str,
+    *,
+    invoice_id: str | None,
+    preview: dict,
+    payment_status: str = "pending",
+) -> str:
+    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
+    charge_ex_vat = _plan_amount(plan_id, billing_interval)
+    tax = tax_breakdown(charge_ex_vat)
+    await db.payment_transactions.insert_one({
+        "tx_id": tx_id,
+        "invoice_id": invoice_id,
+        "user_id": user["user_id"],
+        "email": user.get("email"),
+        "plan_id": plan_id,
+        "billing_interval": billing_interval,
+        "purchase_type": "plan_upgrade",
+        "from_plan": preview.get("current_plan"),
+        "proration_credit": preview.get("credit"),
+        "proration_charge": preview.get("charge"),
+        "amount_ex_vat": charge_ex_vat,
+        "vat_amount": tax["vat_amount"],
+        "amount": preview.get("amount_due") or tax["amount_inc_vat"],
+        "currency": CURRENCY,
+        "status": "initiated",
+        "payment_status": payment_status,
+        "processed": payment_status == "paid",
+        "created_at": _now(),
+        "updated_at": _now(),
+    })
+    return tx_id
+
+
+async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str, preview: dict, origin: str) -> dict:
+    """Apply a prorated upgrade and collect any extra payment due today."""
+    sub_id = user.get("stripe_subscription_id")
+    items_param, discounts = await _build_subscription_modify_items(sub_id, plan_id, billing_interval)
+    metadata = {
+        "user_id": user["user_id"],
+        "email": user.get("email") or "",
+        "plan_id": plan_id,
+        "billing_interval": billing_interval,
+        "source": "civicsign_subscription_upgrade",
+        "from_plan": preview.get("current_plan"),
+    }
+    modify_kwargs = {
+        "items": items_param,
+        "proration_behavior": "always_invoice",
+        "payment_behavior": "pending_if_incomplete",
+        "metadata": metadata,
+        "cancel_at_period_end": False,
+    }
+    if discounts:
+        modify_kwargs["discounts"] = discounts
+
+    updated = await asyncio.to_thread(stripe.Subscription.modify, sub_id, **modify_kwargs)
+    updated_dict = _stripe_object_dict(updated)
+    invoice_id = updated_dict.get("latest_invoice")
+    payment = {"paid": True, "amount_due": 0.0, "url": None, "invoice_id": invoice_id}
+    if invoice_id and preview.get("requires_payment"):
+        payment = await _finalize_and_collect_upgrade_invoice(invoice_id, origin)
+
+    tx_id = await _record_upgrade_transaction(
+        user,
+        plan_id,
+        billing_interval,
+        invoice_id=invoice_id,
+        preview=preview,
+        payment_status="paid" if payment["paid"] else "pending",
+    )
+
+    if payment["paid"]:
+        await _activate_subscription(
+            user["user_id"],
+            plan_id,
+            subscription_id=sub_id,
+            customer_id=user.get("stripe_customer_id") or updated_dict.get("customer"),
+            billing_interval=billing_interval,
+            subscription_status=updated_dict.get("status") or "active",
+            period_end_iso=_sub_period_end_iso(updated_dict),
+        )
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {
+                "$set": {"subscription_cancel_at_period_end": False, "updated_at": _now()},
+                "$unset": {"pending_plan_upgrade": ""},
+            },
+        )
+        plan_name = PLANS[plan_id]["name"]
+        msg = f"Your plan is now {plan_name} ({billing_interval})."
+        if preview.get("credit", 0) > 0:
+            msg = (
+                f"Upgraded to {plan_name}. We credited £{preview['credit']:.2f} for unused "
+                f"{preview.get('current_plan_name', 'plan')} time this cycle."
+            )
+        return {
+            "changed": True,
+            "plan_id": plan_id,
+            "billing_interval": billing_interval,
+            "tx_id": tx_id,
+            "message": msg,
+            "preview": preview,
+        }
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "pending_plan_upgrade": {
+                "plan_id": plan_id,
+                "billing_interval": billing_interval,
+                "invoice_id": payment.get("invoice_id"),
+                "tx_id": tx_id,
+                "preview": preview,
+                "created_at": _now(),
+            },
+            "updated_at": _now(),
+        }},
+    )
+    return {
+        "payment_required": True,
+        "url": payment.get("url"),
+        "amount_due": payment.get("amount_due"),
+        "tx_id": tx_id,
+        "preview": preview,
+        "message": (
+            f"Pay £{payment['amount_due']:.2f} to finish upgrading to {PLANS[plan_id]['name']}. "
+            f"Includes credit for unused {preview.get('current_plan_name', 'plan')} time this billing cycle."
+        ),
+    }
+
+
 async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: str | None) -> None:
     if not user_id or not sub_id:
         return
@@ -680,7 +976,7 @@ async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: 
 
 
 async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: str) -> dict:
-    """Change plan on an existing Stripe subscription (avoids duplicate subscriptions)."""
+    """Downgrade or lateral plan change on an existing Stripe subscription."""
     sub_id = user.get("stripe_subscription_id")
     status = (user.get("subscription_status") or "").lower()
     if not sub_id or status not in ACTIVE_SUBSCRIPTION_STATES:
@@ -689,19 +985,9 @@ async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: 
             detail="No active subscription found. Use checkout to subscribe first.",
         )
 
-    new_line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
-
     _require_stripe_key()
     try:
-        subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
-        sub_dict = _stripe_object_dict(subscription)
-        existing_items = (sub_dict.get("items") or {}).get("data") or []
-        items_param = [{"id": item["id"], "deleted": True} for item in existing_items]
-        for li in new_line_items:
-            items_param.append({
-                "price_data": li["price_data"],
-                "quantity": li["quantity"],
-            })
+        items_param, discounts = await _build_subscription_modify_items(sub_id, plan_id, billing_interval)
         metadata = {
             "user_id": user["user_id"],
             "email": user.get("email") or "",
@@ -739,7 +1025,10 @@ async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: 
     )
     await db.users.update_one(
         {"user_id": user["user_id"]},
-        {"$set": {"subscription_cancel_at_period_end": False, "updated_at": _now()}},
+        {
+            "$set": {"subscription_cancel_at_period_end": False, "updated_at": _now()},
+            "$unset": {"pending_plan_upgrade": ""},
+        },
     )
     plan_name = PLANS[plan_id]["name"]
     return {
@@ -904,6 +1193,9 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     sub_id = user.get("stripe_subscription_id")
     sub_status = (user.get("subscription_status") or "").lower()
     if sub_id and sub_status in ACTIVE_SUBSCRIPTION_STATES:
+        if _is_paid_upgrade(current_plan, current_interval, plan_id, billing_interval):
+            preview = await _preview_plan_upgrade(user, plan_id, billing_interval)
+            return {"upgrade_confirmation_required": True, "preview": preview}
         return await _change_subscription_plan(user, plan_id, billing_interval)
 
     origin = validate_redirect_base(
@@ -967,6 +1259,62 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     })
 
     return {"url": session.url, "session_id": session.id, "tx_id": tx_id}
+
+
+@billing_router.post("/billing/upgrade-preview")
+@limiter.limit("30/hour")
+async def upgrade_preview(body: UpgradeConfirmRequest, request: Request,
+                          user: dict = Depends(get_current_user)):
+    """Preview prorated credit (unused Pro time) and extra due when upgrading mid-cycle."""
+    if is_organisation_member(user):
+        raise HTTPException(status_code=400, detail="Organisation plans are managed by your account manager.")
+    plan_id = (body.plan_id or "").lower().strip()
+    if plan_id not in PLANS:
+        raise HTTPException(status_code=400, detail="Choose a valid plan.")
+    billing_interval = (body.billing_interval or "monthly").lower().strip()
+    current_plan = (user.get("plan") or "free").lower().strip()
+    current_interval = (user.get("billing_interval") or "monthly").lower().strip()
+    if not _is_paid_upgrade(current_plan, current_interval, plan_id, billing_interval):
+        raise HTTPException(status_code=400, detail="This change does not require a prorated upgrade payment.")
+    preview = await _preview_plan_upgrade(user, plan_id, billing_interval)
+    return {"preview": preview}
+
+
+@billing_router.post("/billing/confirm-upgrade")
+@limiter.limit("12/hour")
+async def confirm_upgrade(body: UpgradeConfirmRequest, request: Request,
+                          user: dict = Depends(get_current_user)):
+    """Confirm a prorated upgrade (e.g. Pro → Business) and pay any extra due today."""
+    if is_organisation_member(user):
+        raise HTTPException(status_code=400, detail="Organisation plans are managed by your account manager.")
+    plan_id = (body.plan_id or "").lower().strip()
+    if plan_id not in PLANS:
+        raise HTTPException(status_code=400, detail="Choose a valid plan.")
+    billing_interval = (body.billing_interval or "monthly").lower().strip()
+    current_plan = (user.get("plan") or "free").lower().strip()
+    current_interval = (user.get("billing_interval") or "monthly").lower().strip()
+    if current_plan == plan_id and billing_interval == current_interval:
+        raise HTTPException(status_code=400, detail=f"You are already on the {PLANS[plan_id]['name']} plan.")
+    if not _is_paid_upgrade(current_plan, current_interval, plan_id, billing_interval):
+        return await _change_subscription_plan(user, plan_id, billing_interval)
+
+    origin = validate_redirect_base(
+        body.origin_url or "",
+        fallback=request.headers.get("origin", ""),
+    )
+    preview = await _preview_plan_upgrade(user, plan_id, billing_interval)
+    _require_stripe_key()
+    try:
+        result = await _execute_paid_upgrade(user, plan_id, billing_interval, preview, origin)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[billing] confirm_upgrade failed for {user['user_id']}: {e}")
+        raise HTTPException(status_code=502, detail="Could not complete your upgrade. Please try again.")
+    if result.get("changed"):
+        fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        result["user"] = _public_user(fresh) if fresh else None
+    return result
 
 
 @billing_router.post("/billing/checkout-document")
@@ -1125,6 +1473,70 @@ async def checkout_status(session_id: str, request: Request,
     }
 
 
+async def _complete_pending_upgrade_from_invoice(invoice_id: str, invoice_obj: dict) -> None:
+    """Fulfill a pending prorated upgrade once Stripe confirms invoice payment."""
+    if (invoice_obj.get("status") or "").lower() != "paid":
+        return
+    user = await db.users.find_one(
+        {"pending_plan_upgrade.invoice_id": invoice_id},
+        {"_id": 0},
+    )
+    if not user:
+        return
+    pending = user.get("pending_plan_upgrade") or {}
+    plan_id = (pending.get("plan_id") or "").lower().strip()
+    billing_interval = (pending.get("billing_interval") or "monthly").lower().strip()
+    if plan_id not in PLANS:
+        logger.warning(f"[billing] pending upgrade for {invoice_id} has invalid plan {plan_id}")
+        return
+
+    sub_id = user.get("stripe_subscription_id") or invoice_obj.get("subscription")
+    period_end_iso = None
+    sub_status = "active"
+    if sub_id:
+        try:
+            _require_stripe_key()
+            subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+            sub_dict = _stripe_object_dict(subscription)
+            period_end_iso = _sub_period_end_iso(sub_dict)
+            sub_status = sub_dict.get("status") or "active"
+        except Exception as e:
+            logger.warning(f"[billing] could not refresh subscription after upgrade invoice {invoice_id}: {e}")
+
+    await _activate_subscription(
+        user["user_id"],
+        plan_id,
+        subscription_id=sub_id,
+        customer_id=user.get("stripe_customer_id"),
+        billing_interval=billing_interval,
+        subscription_status=sub_status,
+        period_end_iso=period_end_iso,
+    )
+    now_ts = _now()
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {
+            "$set": {
+                "subscription_cancel_at_period_end": False,
+                "updated_at": now_ts,
+            },
+            "$unset": {"pending_plan_upgrade": ""},
+        },
+    )
+    tx_id = pending.get("tx_id")
+    if tx_id:
+        await db.payment_transactions.update_one(
+            {"tx_id": tx_id},
+            {"$set": {
+                "payment_status": "paid",
+                "processed": True,
+                "status": "complete",
+                "updated_at": now_ts,
+            }},
+        )
+    logger.info(f"[billing] completed pending upgrade to {plan_id} for {user['user_id']} (invoice {invoice_id})")
+
+
 @billing_router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     """
@@ -1204,7 +1616,14 @@ async def stripe_webhook(request: Request):
         await _handle_refund_event(obj)
         return {"received": True}
 
-    # 4) Failed renewal — revoke immediately rather than waiting for the status sync.
+    # 4) Prorated upgrade invoice paid — activate pending plan change.
+    if event_type == "invoice.payment_succeeded":
+        invoice_id = obj.get("id")
+        if invoice_id:
+            await _complete_pending_upgrade_from_invoice(invoice_id, obj)
+        return {"received": True}
+
+    # 5) Failed renewal — revoke immediately rather than waiting for the status sync.
     if event_type == "invoice.payment_failed":
         sub_id = obj.get("subscription")
         if sub_id:

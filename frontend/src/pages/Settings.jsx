@@ -3,7 +3,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api, { formatApiError, API_ORIGIN } from "@/lib/api";
 import { getAppOrigin } from "@/lib/appOrigin";
-import { assignStripeCheckout } from "@/lib/safeUrl";
+import { assignStripeCheckout, assignStripePayment } from "@/lib/safeUrl";
+import { getUpgradePlanOptions } from "@/lib/planTier";
+import { PlanUpgradeDialog } from "@/components/PlanUpgradeDialog";
 import { validatePassword } from "@/lib/password";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/context/AuthContext";
@@ -862,6 +864,10 @@ function SubscriptionTab() {
   const [managing, setManaging] = useState(false);
   const [checkoutRedirect, setCheckoutRedirect] = useState(null);
   const [billingConfig, setBillingConfig] = useState(null);
+  const [upgradePreview, setUpgradePreview] = useState(null);
+  const [upgradeTargetPlan, setUpgradeTargetPlan] = useState(null);
+  const [upgradeTargetInterval, setUpgradeTargetInterval] = useState("monthly");
+  const [confirmingUpgrade, setConfirmingUpgrade] = useState(false);
   const current = user?.plan || "free";
   const isPaid = current === "pro" || current === "business";
   const isOrgAccount = !!user?.org_id;
@@ -870,7 +876,8 @@ function SubscriptionTab() {
   const periodEndLabel = fmtPeriodEnd(user?.subscription_current_period_end);
   const cancelScheduled = !!user?.subscription_cancel_at_period_end;
   const currentPlan = buildPlanDefs(isPaid ? userInterval : billingInterval).find((p) => p.id === current);
-  const upgradePlans = buildPlanDefs(billingInterval).filter((p) => p.id !== "free");
+  const allPaidPlans = buildPlanDefs(billingInterval).filter((p) => p.id !== "free");
+  const upgradePlans = current === "free" ? allPaidPlans : getUpgradePlanOptions(allPaidPlans, current);
 
   useEffect(() => {
     if (intervalParam === "yearly" || intervalParam === "monthly") {
@@ -991,6 +998,13 @@ function SubscriptionTab() {
         billing_interval: checkoutInterval,
         origin_url: getAppOrigin(),
       });
+      if (data.upgrade_confirmation_required && data.preview) {
+        setUpgradeTargetPlan(planId);
+        setUpgradeTargetInterval(checkoutInterval);
+        setUpgradePreview(data.preview);
+        setSwitching("");
+        return;
+      }
       if (data.changed) {
         await checkAuth();
         toast.success(data.message || `You're now on the ${planId} plan`);
@@ -1068,6 +1082,35 @@ function SubscriptionTab() {
     }
   };
 
+  const confirmPlanUpgrade = async () => {
+    if (!upgradeTargetPlan || !upgradePreview) return;
+    setConfirmingUpgrade(true);
+    try {
+      const { data } = await api.post("/billing/confirm-upgrade", {
+        plan_id: upgradeTargetPlan,
+        billing_interval: upgradeTargetInterval,
+        origin_url: getAppOrigin(),
+      });
+      if (data.payment_required && data.url) {
+        setUpgradePreview(null);
+        toast.info(data.message || "Complete payment to finish your upgrade.");
+        assignStripePayment(data.url);
+        return;
+      }
+      if (data.changed) {
+        if (data.user) setUser(data.user);
+        else await checkAuth();
+        toast.success(data.message || `You're now on the ${upgradeTargetPlan} plan`);
+        setUpgradePreview(null);
+      }
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setConfirmingUpgrade(false);
+      setSwitching("");
+    }
+  };
+
   const openBillingPortal = async () => {
     setManaging(true);
     try {
@@ -1089,6 +1132,13 @@ function SubscriptionTab() {
 
   return (
     <div data-testid="self-serve-subscription-panel">
+      <PlanUpgradeDialog
+        open={!!upgradePreview}
+        onOpenChange={(open) => { if (!open) setUpgradePreview(null); }}
+        preview={upgradePreview}
+        confirming={confirmingUpgrade}
+        onConfirm={confirmPlanUpgrade}
+      />
       {checkoutRedirect && (
         <StripeCheckoutRedirect
           planLabel={checkoutRedirect.planLabel}
@@ -1096,7 +1146,7 @@ function SubscriptionTab() {
           billingInterval={checkoutRedirect.billingInterval}
         />
       )}
-      {billingConfig?.promotion_codes_enabled && current === "free" && (
+      {billingConfig?.promotion_codes_enabled && (current === "free" || upgradePlans.length > 0) && (
         <div
           className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-4 py-2.5 text-xs text-[var(--c-muted-fg)]"
           data-testid="billing-promo-hint"
@@ -1147,13 +1197,17 @@ function SubscriptionTab() {
         </div>
       )}
 
-      {!isPaid && (
+      {upgradePlans.length > 0 && (
         <div id="upgrade-plans-section" className="mt-8 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="upgrade-plans-section">
           <div className="flex flex-col gap-3 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">Upgrade your plan</h3>
+              <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">
+                {isPaid ? "Upgrade your subscription" : "Upgrade your plan"}
+              </h3>
               <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
-                Compare Pro and Business — pick the plan that fits how you send documents.
+                {isPaid
+                  ? "Pay only the prorated difference — unused time on your current plan is credited this billing cycle."
+                  : "Compare Pro and Business — pick the plan that fits how you send documents."}
               </p>
             </div>
             <BillingIntervalToggle

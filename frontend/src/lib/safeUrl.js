@@ -1,6 +1,11 @@
 import { getAppOrigin } from "@/lib/appOrigin";
 
-const STRIPE_HOSTS = new Set(["checkout.stripe.com", "billing.stripe.com", "pay.stripe.com"]);
+const STRIPE_HOSTS = new Set([
+  "checkout.stripe.com",
+  "billing.stripe.com",
+  "pay.stripe.com",
+  "invoice.stripe.com",
+]);
 
 /** Allow http(s) and same-site relative paths; block javascript/data URLs. */
 export function isSafeExternalHref(href) {
@@ -50,4 +55,9 @@ export function assignStripeCheckout(url) {
     throw new Error("Invalid checkout redirect URL");
   }
   window.location.assign(url);
+}
+
+/** Redirect to Stripe Checkout or hosted invoice payment pages. */
+export function assignStripePayment(url) {
+  assignStripeCheckout(url);
 }
