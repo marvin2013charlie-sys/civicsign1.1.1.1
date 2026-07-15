@@ -38,6 +38,8 @@ services:
         value: "false"
       - key: CLEANUP_TEST_ACCOUNTS
         value: "false"
+      - key: KEEP_SINGLE_ADMIN
+        value: "true"
       # --- Secrets: set these in the Render dashboard (sync:false) ---
       - key: MONGO_URL
         sync: false

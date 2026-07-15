@@ -244,3 +244,26 @@ async def cleanup_free_accounts(db) -> dict:
         deleted.append(user.get("email"))
 
     return {"deleted": deleted, "deleted_count": len(deleted), "kept": kept}
+
+
+MAIN_ADMIN_EMAIL = "admin@civicbot.co.uk"
+
+
+async def cleanup_extra_team(db, *, keep_email: str = MAIN_ADMIN_EMAIL) -> dict:
+    """Delete every staff/extra-admin account except the one main admin email."""
+    from auth import purge_user_data
+
+    keep = (keep_email or MAIN_ADMIN_EMAIL).lower().strip()
+    deleted = []
+    cursor = db.users.find(
+        {"role": {"$in": ["admin", "staff"]}},
+        {"_id": 0, "user_id": 1, "email": 1, "role": 1},
+    )
+    async for user in cursor:
+        email = (user.get("email") or "").lower().strip()
+        if email == keep:
+            continue
+        await purge_user_data(db, user["user_id"])
+        await db.users.delete_one({"user_id": user["user_id"]})
+        deleted.append(user.get("email"))
+    return {"deleted": deleted, "deleted_count": len(deleted), "kept": keep}

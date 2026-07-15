@@ -632,6 +632,47 @@ async def cleanup_test_accounts_endpoint(request: Request, admin: dict = Depends
         raise HTTPException(status_code=500, detail="Failed to clean up test accounts")
 
 
+@admin_router.post("/maintenance/keep-main-admin")
+@limiter.limit("3/hour")
+async def keep_main_admin_endpoint(request: Request, admin: dict = Depends(require_admin)):
+    """Remove all staff and extra admin logins except admin@civicbot.co.uk."""
+    try:
+        from pilot_accounts import MAIN_ADMIN_EMAIL, cleanup_extra_team, cleanup_test_accounts
+
+        if (admin.get("email") or "").lower().strip() != MAIN_ADMIN_EMAIL:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Only {MAIN_ADMIN_EMAIL} may run this maintenance action.",
+            )
+        team = await cleanup_extra_team(db)
+        demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+        pilots = await cleanup_test_accounts(db, demo_email=demo_email)
+        await db.admin_audit.insert_one({
+            "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
+            "action": "keep_main_admin",
+            "admin_id": admin["user_id"],
+            "admin_email": admin["email"],
+            "team_deleted": team.get("deleted", []),
+            "pilot_deleted": pilots.get("deleted", []),
+            "at": _now(),
+        })
+        logger.warning(
+            f"[admin] keep_main_admin by {admin['email']}: "
+            f"removed {team.get('deleted_count', 0)} team + {pilots.get('deleted_count', 0)} pilot account(s)"
+        )
+        return {
+            "ok": True,
+            "kept_admin": MAIN_ADMIN_EMAIL,
+            "team_removed": team,
+            "pilots_removed": pilots,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[admin] keep_main_admin error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to prune team accounts")
+
+
 @admin_router.post("/maintenance/delete-free-accounts")
 @limiter.limit("3/hour")
 async def delete_free_accounts_endpoint(request: Request, admin: dict = Depends(require_admin)):

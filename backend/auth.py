@@ -1293,8 +1293,15 @@ async def seed_admin():
         elif email or password:
             logger.warning("[auth] ADMIN_EMAIL and ADMIN_PASSWORD must both be set to seed demo account")
 
-        # Internal admin accounts (role=admin).
+        # Internal admin accounts (role=admin). Production keeps only the main admin.
+        from pilot_accounts import MAIN_ADMIN_EMAIL
+
         admin_accounts = _parse_internal_admin_accounts()
+        if not is_dev_mode():
+            admin_accounts = [
+                (e, p, n) for e, p, n in admin_accounts
+                if (e or "").lower().strip() == MAIN_ADMIN_EMAIL
+            ]
         if admin_accounts:
             for admin_email, admin_password, admin_name in admin_accounts:
                 await _seed_internal_admin_account(
@@ -1312,5 +1319,13 @@ async def seed_admin():
                 "[auth] Internal admin env vars are incomplete — "
                 "set INTERNAL_ADMIN_EMAIL + INTERNAL_ADMIN_PASSWORD and/or INTERNAL_ADMIN_ACCOUNTS"
             )
+
+        # Drop stale staff / duplicate admin rows on startup (keep admin@civicbot.co.uk only).
+        if os.environ.get("KEEP_SINGLE_ADMIN", "").lower() in ("1", "true", "yes"):
+            from pilot_accounts import cleanup_extra_team, cleanup_test_accounts, MAIN_ADMIN_EMAIL
+            await cleanup_extra_team(db)
+            demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+            await cleanup_test_accounts(db, demo_email=demo_email)
+            logger.info(f"[auth] Pruned team accounts — kept {MAIN_ADMIN_EMAIL}")
     except Exception as e:
         logger.error(f"[auth] seed_admin error: {str(e)[:100]}")
