@@ -575,11 +575,10 @@ async def delete_user(request: Request, user_id: str, admin: dict = Depends(requ
         from pilot_accounts import is_test_account
         from auth import purge_user_data
 
-        from plan_signing import get_effective_plan
+        from pilot_accounts import is_free_test_account
 
         demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
-        is_free = get_effective_plan(target) == "free"
-        if not is_test_account(target, demo_email=demo_email) and not is_free:
+        if not is_test_account(target, demo_email=demo_email) and not is_free_test_account(target):
             raise HTTPException(
                 status_code=403,
                 detail="Only test or free-plan accounts can be deleted here. Paid plans must cancel billing first.",

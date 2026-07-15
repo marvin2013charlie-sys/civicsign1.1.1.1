@@ -213,22 +213,30 @@ async def cleanup_test_accounts(db, *, demo_email: str = "") -> dict:
     return {"deleted": deleted, "deleted_count": len(deleted), "kept_sample": kept[:5]}
 
 
+def is_free_test_account(user: dict) -> bool:
+    """True when the stored plan is free (includes stale demo-org memberships)."""
+    if user.get("role") == "admin":
+        return False
+    stored = (user.get("plan") or "free").lower().strip()
+    if stored == "free":
+        return True
+    if user.get("org_id") == ORG_ID:
+        return True
+    return False
+
+
 async def cleanup_free_accounts(db) -> dict:
     """Remove every non-admin account on the free plan (private-beta test signups)."""
     from auth import purge_user_data
-    from plan_signing import get_effective_plan
 
     deleted = []
     kept = []
     cursor = db.users.find(
         {},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "role": 1, "plan": 1, "plan_signature": 1, "org_id": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "role": 1, "plan": 1, "org_id": 1},
     )
     async for user in cursor:
-        if user.get("role") == "admin":
-            kept.append(user.get("email"))
-            continue
-        if get_effective_plan(user) != "free":
+        if not is_free_test_account(user):
             kept.append(user.get("email"))
             continue
         await purge_user_data(db, user["user_id"])
