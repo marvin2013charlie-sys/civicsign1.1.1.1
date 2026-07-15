@@ -25,7 +25,7 @@ const DESKTOP_PANEL =
 const DEFAULT_HEADER_HEIGHT = 64;
 
 export const SiteHeader = () => {
-  const headerRef = useRef(null);
+  const topBarRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [spacerHeight, setSpacerHeight] = useState(DEFAULT_HEADER_HEIGHT);
   const location = useLocation();
@@ -33,15 +33,17 @@ export const SiteHeader = () => {
   const isLoggedIn = Boolean(user && user !== false);
   const headerCta = getMarketingHeaderCta(user);
 
+  // Measure only the top bar — mobile menu is a fixed overlay so opening it
+  // must not change --site-header-height (that caused resize feedback / blink).
   useEffect(() => {
     let observer;
     let rafId;
 
     const syncHeight = () => {
-      const header = headerRef.current;
-      if (!header) return false;
-      const h = Math.ceil(header.getBoundingClientRect().height);
-      setSpacerHeight(h);
+      const bar = topBarRef.current;
+      if (!bar) return false;
+      const h = Math.ceil(bar.getBoundingClientRect().height);
+      setSpacerHeight((prev) => (prev === h ? prev : h));
       document.documentElement.style.setProperty("--site-header-height", `${h}px`);
       return true;
     };
@@ -52,7 +54,7 @@ export const SiteHeader = () => {
         return;
       }
       observer = new ResizeObserver(syncHeight);
-      observer.observe(headerRef.current);
+      observer.observe(topBarRef.current);
     };
 
     attach();
@@ -61,7 +63,7 @@ export const SiteHeader = () => {
       if (rafId) cancelAnimationFrame(rafId);
       observer?.disconnect();
     };
-  }, [open]);
+  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -71,8 +73,13 @@ export const SiteHeader = () => {
     if (!open) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
 
@@ -87,14 +94,18 @@ export const SiteHeader = () => {
       active ? "text-[var(--c-ink)]" : "text-[var(--c-muted-fg)]"
     }`;
 
+  const closeMenu = () => setOpen(false);
+
   return (
     <>
       <header
-        ref={headerRef}
         data-testid="site-header"
-        className="site-header-fixed fixed inset-x-0 top-0 isolate w-full border-b border-[var(--c-border)] bg-[var(--c-paper)]"
+        className="site-header-fixed fixed inset-x-0 top-0 isolate z-[200] w-full border-b border-[var(--c-border)] bg-[var(--c-paper)]"
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-3.5">
+        <div
+          ref={topBarRef}
+          className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-3.5"
+        >
           <Logo />
           <nav className="hidden items-center gap-8 md:flex">
             <div className="group relative" data-testid="nav-product-menu">
@@ -212,32 +223,46 @@ export const SiteHeader = () => {
               onClick={() => setOpen((o) => !o)}
               aria-label={open ? "Close menu" : "Open menu"}
               aria-expanded={open}
+              aria-controls="site-mobile-nav"
             >
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
+      </header>
 
-        {open && (
-          <div className="border-t border-[var(--c-border)] bg-[var(--c-paper)] md:hidden max-h-[calc(100dvh-var(--site-header-height,64px))] overflow-y-auto overscroll-contain cs-scroll pb-[env(safe-area-inset-bottom,0px)]">
-            <nav className="flex flex-col gap-1 px-4 py-3">
+      {open && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[199] bg-[var(--c-ink-solid)]/20 md:hidden"
+            aria-label="Close menu"
+            onClick={closeMenu}
+          />
+          <div
+            id="site-mobile-nav"
+            data-testid="site-mobile-nav"
+            className="site-header-mobile-nav fixed inset-x-0 z-[200] border-b border-[var(--c-border)] bg-[var(--c-paper)] shadow-[0_20px_48px_rgba(18,33,32,.12)] md:hidden"
+            style={{ top: "var(--site-header-height, 64px)" }}
+          >
+            <nav className="mx-auto flex max-h-[calc(100dvh-var(--site-header-height,64px)-env(safe-area-inset-top,0px))] max-w-6xl flex-col gap-1 overflow-y-auto overscroll-contain cs-scroll px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">Product</p>
               <FooterLink
                 link={{ label: "E-signatures", to: { pathname: "/", hash: "#features" } }}
                 className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
-                onNavigate={() => setOpen(false)}
+                onNavigate={closeMenu}
               />
               <FooterLink
                 link={{ label: "Manage PDF", to: "/product/manage-pdf" }}
                 className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
-                onNavigate={() => setOpen(false)}
+                onNavigate={closeMenu}
               />
               <div className="my-2 border-t border-[var(--c-border)]" />
               <p className="px-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">Solutions</p>
               <Link
                 to="/solutions"
                 className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-semibold text-[var(--c-primary)]"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
               >
                 All industries
               </Link>
@@ -246,7 +271,7 @@ export const SiteHeader = () => {
                   key={s.to}
                   to={s.to}
                   className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--c-ink)] transition-colors hover:bg-[var(--c-paper-2)]"
-                  onClick={() => setOpen(false)}
+                  onClick={closeMenu}
                 >
                   <s.icon className="h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
                   {s.label}
@@ -258,25 +283,30 @@ export const SiteHeader = () => {
                   key={l.label}
                   link={l}
                   className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
-                  onNavigate={() => setOpen(false)}
+                  onNavigate={closeMenu}
                 />
               ))}
               {isLoggedIn ? (
                 <Link
                   to={headerCta.to}
                   className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
+                  onClick={closeMenu}
                 >
                   {headerCta.label}
                 </Link>
               ) : (
-                <Link to="/login" className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]">
+                <Link
+                  to="/login"
+                  className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
+                  onClick={closeMenu}
+                >
                   Sign in
                 </Link>
               )}
             </nav>
           </div>
-        )}
-      </header>
+        </>
+      )}
       <div
         aria-hidden="true"
         data-testid="site-header-spacer"
