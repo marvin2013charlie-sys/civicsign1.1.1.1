@@ -22,8 +22,6 @@ import os
 import uuid
 import asyncio
 import logging
-import hmac
-import hashlib
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -457,6 +455,149 @@ async def _handle_subscription_state(subscription: dict) -> None:
         )
 
 
+def _valid_stripe_session_id(session_id: str) -> bool:
+    return isinstance(session_id, str) and session_id.startswith("cs_") and 8 < len(session_id) <= 256
+
+
+def _stripe_object_dict(obj) -> dict:
+    if isinstance(obj, dict):
+        return obj
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    return dict(obj)
+
+
+def _assert_session_user(session, expected_user_id: str) -> None:
+    """Ensure Stripe Checkout metadata matches the authenticated user."""
+    meta = _stripe_object_dict(session).get("metadata") or {}
+    owner = meta.get("user_id")
+    if owner and owner != expected_user_id:
+        logger.warning(
+            f"[billing] session metadata user {owner} does not match {expected_user_id}"
+        )
+        raise HTTPException(status_code=403, detail="This payment session belongs to another account")
+
+
+async def _load_checkout_transaction(session_id: str) -> dict | None:
+    return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+
+
+async def _verify_webhook_checkout_session(obj: dict) -> dict | None:
+    """Reject spoofed or tampered checkout webhooks before fulfilling."""
+    session_id = obj.get("id")
+    if not _valid_stripe_session_id(session_id):
+        logger.warning("[billing] webhook checkout missing valid session id")
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+
+    tx = await _load_checkout_transaction(session_id)
+    if not tx:
+        logger.warning(f"[billing] webhook for unknown session {session_id} — ignoring")
+        return None
+
+    meta = obj.get("metadata") or {}
+    if meta.get("user_id") != tx.get("user_id"):
+        logger.error(f"[billing] webhook metadata user mismatch for {session_id}")
+        raise HTTPException(status_code=400, detail="Webhook metadata mismatch")
+
+    if obj.get("payment_status") == "paid":
+        amount_total = obj.get("amount_total")
+        expected_cents = int(round(float(tx.get("amount") or 0) * 100))
+        if amount_total is not None and expected_cents > 0 and int(amount_total) != expected_cents:
+            logger.error(
+                f"[billing] webhook amount mismatch session={session_id} "
+                f"got={amount_total} expected={expected_cents}"
+            )
+            raise HTTPException(status_code=400, detail="Webhook amount mismatch")
+
+    return tx
+
+
+async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: str | None) -> None:
+    if not user_id or not sub_id:
+        return
+    patch = {
+        "stripe_subscription_id": sub_id,
+        "subscription_status": "active",
+        "updated_at": _now(),
+    }
+    if cust_id:
+        patch["stripe_customer_id"] = cust_id
+    await db.users.update_one({"user_id": user_id}, {"$set": patch})
+
+
+async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: str) -> dict:
+    """Change plan on an existing Stripe subscription (avoids duplicate subscriptions)."""
+    sub_id = user.get("stripe_subscription_id")
+    status = (user.get("subscription_status") or "").lower()
+    if not sub_id or status not in ACTIVE_SUBSCRIPTION_STATES:
+        raise HTTPException(
+            status_code=400,
+            detail="No active subscription found. Use checkout to subscribe first.",
+        )
+
+    amount_ex_vat = _plan_amount(plan_id, billing_interval)
+    product_name = _plan_product_name(plan_id, billing_interval)
+    new_line_items = _stripe_recurring_line_items(product_name, amount_ex_vat, billing_interval)
+
+    _require_stripe_key()
+    try:
+        subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+        sub_dict = _stripe_object_dict(subscription)
+        existing_items = (sub_dict.get("items") or {}).get("data") or []
+        items_param = [{"id": item["id"], "deleted": True} for item in existing_items]
+        for li in new_line_items:
+            items_param.append({
+                "price_data": li["price_data"],
+                "quantity": li["quantity"],
+            })
+        metadata = {
+            "user_id": user["user_id"],
+            "email": user.get("email") or "",
+            "plan_id": plan_id,
+            "billing_interval": billing_interval,
+            "source": "civicsign_subscription_change",
+        }
+        updated = await asyncio.to_thread(
+            stripe.Subscription.modify,
+            sub_id,
+            items=items_param,
+            proration_behavior="create_prorations",
+            metadata=metadata,
+            cancel_at_period_end=False,
+        )
+        updated_dict = _stripe_object_dict(updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[billing] subscription change failed for {sub_id}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not change your plan. Try again or open billing portal.",
+        )
+
+    await _activate_subscription(
+        user["user_id"],
+        plan_id,
+        subscription_id=sub_id,
+        customer_id=user.get("stripe_customer_id") or updated_dict.get("customer"),
+        billing_interval=billing_interval,
+        subscription_status=updated_dict.get("status") or "active",
+        period_end_iso=_sub_period_end_iso(updated_dict),
+    )
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"subscription_cancel_at_period_end": False, "updated_at": _now()}},
+    )
+    plan_name = PLANS[plan_id]["name"]
+    return {
+        "changed": True,
+        "plan_id": plan_id,
+        "billing_interval": billing_interval,
+        "subscription_id": sub_id,
+        "message": f"Your plan is now {plan_name} ({billing_interval}).",
+    }
+
+
 async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str):
     """
     Idempotently update a transaction and fulfil checkout (plan upgrade or credits).
@@ -567,17 +708,35 @@ async def list_plans():
 
 
 @billing_router.post("/billing/checkout")
+@limiter.limit("12/hour")
 async def create_checkout(body: CheckoutRequest, request: Request,
                           user: dict = Depends(get_current_user)):
     """Create a Stripe checkout session for plan upgrade."""
+    if is_organisation_member(user):
+        raise HTTPException(
+            status_code=400,
+            detail="Organisation plans are managed by your account manager, not self-serve checkout.",
+        )
+
     plan_id = (body.plan_id or "").lower().strip()
     if plan_id not in PLANS:
         raise HTTPException(status_code=400, detail="Choose a paid plan to upgrade.")
-    if user.get("plan") == plan_id:
+
+    billing_interval = (body.billing_interval or "monthly").lower().strip()
+    current_plan = (user.get("plan") or "free").lower().strip()
+    current_interval = (user.get("billing_interval") or "monthly").lower().strip()
+    if current_plan == plan_id and billing_interval == current_interval:
         raise HTTPException(status_code=400, detail=f"You are already on the {PLANS[plan_id]['name']} plan.")
 
-    origin = validate_redirect_base(body.origin_url or "")
-    billing_interval = (body.billing_interval or "monthly").lower().strip()
+    sub_id = user.get("stripe_subscription_id")
+    sub_status = (user.get("subscription_status") or "").lower()
+    if sub_id and sub_status in ACTIVE_SUBSCRIPTION_STATES:
+        return await _change_subscription_plan(user, plan_id, billing_interval)
+
+    origin = validate_redirect_base(
+        body.origin_url or "",
+        fallback=request.headers.get("origin", ""),
+    )
     amount_ex_vat = _plan_amount(plan_id, billing_interval)
     tax = tax_breakdown(amount_ex_vat)
     amount = tax["amount_inc_vat"]
@@ -592,6 +751,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "source": "civicsign_subscription",
     }
 
+    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     _require_stripe_key()
     try:
         customer_id = await _get_or_create_customer(user)
@@ -599,18 +759,19 @@ async def create_checkout(body: CheckoutRequest, request: Request,
             stripe.checkout.Session.create,
             mode="subscription",
             customer=customer_id,
+            client_reference_id=user["user_id"],
             line_items=_stripe_recurring_line_items(product_name, amount_ex_vat, billing_interval),
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
             subscription_data={"metadata": metadata},
+            idempotency_key=f"checkout_{tx_id}",
         )
     except Exception as e:
         logger.error(f"[billing] create_checkout_session failed: {e}")
         raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
 
     # Create idempotent transaction record
-    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     await db.payment_transactions.insert_one({
         "tx_id": tx_id,
         "session_id": session.id,
@@ -634,14 +795,24 @@ async def create_checkout(body: CheckoutRequest, request: Request,
 
 
 @billing_router.post("/billing/checkout-document")
+@limiter.limit("30/hour")
 async def create_document_checkout(body: DocumentCheckoutRequest, request: Request,
                                  user: dict = Depends(get_current_user)):
     """One-time Stripe checkout for extra document credits (80p each)."""
+    if is_organisation_member(user):
+        raise HTTPException(
+            status_code=400,
+            detail="Organisation document limits are managed by your account manager.",
+        )
+
     quantity = int(body.quantity or 1)
     amount_ex_vat = round(EXTRA_DOCUMENT_PRICE_GBP * quantity, 2)
     tax = tax_breakdown(amount_ex_vat)
     amount = tax["amount_inc_vat"]
-    origin = validate_redirect_base(body.origin_url or "")
+    origin = validate_redirect_base(
+        body.origin_url or "",
+        fallback=request.headers.get("origin", ""),
+    )
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}&purchase=document"
     cancel_url = f"{origin}/usage"
     metadata = {
@@ -652,8 +823,10 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
         "source": "civicsign_extra_document",
     }
 
+    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     _require_stripe_key()
     try:
+        customer_id = await _get_or_create_customer(user)
         doc_product = (
             "CivicSign extra document"
             if quantity == 1
@@ -662,16 +835,17 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             mode="payment",
+            customer=customer_id,
+            client_reference_id=user["user_id"],
             line_items=_stripe_line_items(doc_product, EXTRA_DOCUMENT_PRICE_GBP, quantity=quantity),
             success_url=success_url,
             cancel_url=cancel_url,
             metadata=metadata,
+            idempotency_key=f"doc_{tx_id}",
         )
     except Exception as e:
         logger.error(f"[billing] create_document_checkout failed: {e}")
         raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
-
-    tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     await db.payment_transactions.insert_one({
         "tx_id": tx_id,
         "session_id": session.id,
@@ -706,11 +880,10 @@ async def checkout_status(session_id: str, request: Request,
     - Verifies session ownership
     - Only trusts Stripe's actual status response
     """
-    # Validate session_id format (basic sanity check)
-    if not isinstance(session_id, str) or len(session_id) > 256:
+    if not _valid_stripe_session_id(session_id):
         raise HTTPException(status_code=400, detail="Invalid session ID format")
 
-    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    tx = await _load_checkout_transaction(session_id)
     if not tx:
         raise HTTPException(status_code=404, detail="Payment session not found")
     
@@ -728,6 +901,8 @@ async def checkout_status(session_id: str, request: Request,
     except Exception as e:
         logger.error(f"[billing] get_checkout_status failed: {e}")
         raise HTTPException(status_code=502, detail="Could not verify payment status. Please try again.")
+
+    _assert_session_user(session, user["user_id"])
 
     # CRITICAL: Only apply upgrade if status truly shows "paid"
     # Never trust payment_status from user input - always re-verify with Stripe
@@ -749,15 +924,7 @@ async def checkout_status(session_id: str, request: Request,
         sub_id = getattr(session, "subscription", None)
         cust_id = getattr(session, "customer", None)
         if sub_id and getattr(session, "mode", None) == "subscription":
-            await db.users.update_one(
-                {"user_id": user["user_id"]},
-                {"$set": {
-                    "stripe_subscription_id": sub_id,
-                    "stripe_customer_id": cust_id or user.get("stripe_customer_id"),
-                    "subscription_status": "active",
-                    "updated_at": _now(),
-                }},
-            )
+            await _link_subscription_to_user(user["user_id"], sub_id, cust_id or user.get("stripe_customer_id"))
     except Exception as _e:
         logger.warning(f"[billing] could not link subscription for {session_id}: {_e}")
 
@@ -805,29 +972,30 @@ async def stripe_webhook(request: Request):
 
     # 1) Initial checkout completion (both one-time credits and first subscription payment).
     if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-        session_id = obj.get("id")
         payment_status = obj.get("payment_status")
-        if not session_id or not payment_status:
-            logger.warning("[billing] checkout webhook missing required fields")
+        if not payment_status:
+            logger.warning("[billing] checkout webhook missing payment_status")
             raise HTTPException(status_code=400, detail="Invalid webhook event structure")
-        if not isinstance(session_id, str) or len(session_id) > 256:
-            raise HTTPException(status_code=400, detail="Invalid session ID")
         if payment_status not in ("paid", "unpaid", "no_payment_required"):
             raise HTTPException(status_code=400, detail="Invalid payment status")
         if payment_status in ("paid", "no_payment_required"):
-            await _apply_plan_upgrade(session_id, "paid", "complete")
-            # Link the subscription so renewals/failures resolve to this user.
-            sub_id, cust_id = obj.get("subscription"), obj.get("customer")
-            if sub_id and obj.get("mode") == "subscription":
-                await db.users.update_one(
-                    {"stripe_customer_id": cust_id} if cust_id else {"stripe_subscription_id": sub_id},
-                    {"$set": {
-                        "stripe_subscription_id": sub_id,
-                        "subscription_status": "active",
-                        "updated_at": _now(),
-                    }},
-                )
-            logger.info(f"[billing] webhook processed checkout {session_id}")
+            tx = await _verify_webhook_checkout_session(obj)
+            if tx:
+                session_id = obj.get("id")
+                await _apply_plan_upgrade(session_id, "paid", "complete")
+                sub_id, cust_id = obj.get("subscription"), obj.get("customer")
+                if sub_id and obj.get("mode") == "subscription":
+                    await _link_subscription_to_user(tx["user_id"], sub_id, cust_id)
+                logger.info(f"[billing] webhook processed checkout {session_id}")
+        return {"received": True}
+
+    if event_type == "checkout.session.expired":
+        session_id = obj.get("id")
+        if _valid_stripe_session_id(session_id):
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"status": "expired", "payment_status": "expired", "updated_at": _now()}},
+            )
         return {"received": True}
 
     # 2) Subscription lifecycle — the gate that stops service when payment fails.
@@ -970,7 +1138,10 @@ async def billing_portal(body: BillingPortalRequest, request: Request,
             status_code=400,
             detail="No billing account on file. Contact support if you have an active subscription.",
         )
-    origin = validate_redirect_base(body.origin_url or "")
+    origin = validate_redirect_base(
+        body.origin_url or "",
+        fallback=request.headers.get("origin", ""),
+    )
     _require_stripe_key()
     try:
         session = await asyncio.to_thread(

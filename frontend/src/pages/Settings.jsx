@@ -887,7 +887,7 @@ function SubscriptionTab() {
   // payment is confirmed (polling is the source of truth for one-time checkout).
   useEffect(() => {
     const sessionId = params.get("session_id");
-    if (!sessionId) return;
+    if (!sessionId || !/^cs_[a-zA-Z0-9_]+$/.test(sessionId)) return;
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 8;
@@ -975,11 +975,17 @@ function SubscriptionTab() {
         billing_interval: checkoutInterval,
         origin_url: getAppOrigin(),
       });
+      if (data.changed) {
+        await checkAuth();
+        toast.success(data.message || `You're now on the ${planId} plan`);
+        setSwitching("");
+        return;
+      }
       if (data.url) {
         assignStripeCheckout(data.url);
-      } else {
-        throw new Error("No checkout URL received");
+        return;
       }
+      throw new Error("No checkout URL received");
     } catch (err) {
       toast.error(formatApiError(err));
       setSwitching("");
