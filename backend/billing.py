@@ -354,13 +354,27 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _require_stripe_key() -> str:
+def _configure_stripe(*, enforce_live: bool = True) -> str:
     api_key = os.environ.get("STRIPE_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="Billing is not configured")
-    _require_live_in_production(api_key)
+    if enforce_live:
+        _require_live_in_production(api_key)
     stripe.api_key = api_key
     return api_key
+
+
+def _require_stripe_key() -> str:
+    return _configure_stripe(enforce_live=True)
+
+
+def _stripe_subscription_missing(exc: Exception) -> bool:
+    if isinstance(exc, stripe.error.InvalidRequestError):
+        code = getattr(exc, "code", None) or ""
+        if code == "resource_missing":
+            return True
+    msg = str(exc).lower()
+    return "no such subscription" in msg or "resource_missing" in msg
 
 
 async def _apply_document_credits(user_id: str, credits: int, session_id: str) -> bool:
@@ -1846,42 +1860,86 @@ async def cancel_subscription(
 
     sub_id = user.get("stripe_subscription_id")
     status = (user.get("subscription_status") or "").lower()
+    api_key = os.environ.get("STRIPE_API_KEY", "").strip()
 
-    if sub_id and status in ACTIVE_SUBSCRIPTION_STATES:
-        _require_stripe_key()
+    async def _cancel_locally(reason: str) -> dict:
+        await _downgrade_user_to_free(user["user_id"], reason=reason, subscription_status="canceled")
+        fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        return {
+            "cancelled": True,
+            "cancel_at_period_end": False,
+            "message": "You're now on the Free plan.",
+            "user": _public_user(fresh) if fresh else None,
+        }
+
+    if sub_id and status in ACTIVE_SUBSCRIPTION_STATES and api_key:
+        # Cancellations must always work — do not block on live-key enforcement.
+        _configure_stripe(enforce_live=False)
         try:
+            try:
+                existing = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+                existing_dict = _stripe_object_dict(existing)
+            except Exception as retrieve_err:
+                if _stripe_subscription_missing(retrieve_err):
+                    logger.warning(
+                        f"[billing] cancel: subscription {sub_id} not in Stripe account "
+                        f"({retrieve_err}) — downgrading {user['user_id']} locally"
+                    )
+                    return await _cancel_locally(
+                        f"self-serve cancel (orphan subscription {sub_id})",
+                    )
+                raise
+
+            existing_status = (existing_dict.get("status") or "").lower()
+            if existing_dict.get("cancel_at_period_end"):
+                period_end = _sub_period_end_iso(existing_dict)
+                await db.users.update_one(
+                    {"user_id": user["user_id"]},
+                    {"$set": {
+                        "subscription_cancel_at_period_end": True,
+                        "subscription_current_period_end": period_end,
+                        "updated_at": _now(),
+                    }},
+                )
+                return {
+                    "cancelled": True,
+                    "cancel_at_period_end": True,
+                    "current_period_end": period_end,
+                    "message": "Cancellation is already scheduled for the end of your billing period.",
+                }
+
+            if existing_status in ("canceled", "incomplete_expired"):
+                return await _cancel_locally(f"self-serve cancel (stripe status={existing_status})")
+
             subscription = await asyncio.to_thread(
                 stripe.Subscription.modify, sub_id, cancel_at_period_end=True,
             )
+            period_end = _sub_period_end_iso(_stripe_object_dict(subscription))
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {
+                    "subscription_cancel_at_period_end": True,
+                    "subscription_current_period_end": period_end,
+                    "updated_at": _now(),
+                }},
+            )
+            logger.info(f"[billing] scheduled cancellation for user={user['user_id']} sub={sub_id}")
+            return {
+                "cancelled": True,
+                "cancel_at_period_end": True,
+                "current_period_end": period_end,
+                "message": "Your plan stays active until the end of the current billing period, then reverts to Free.",
+            }
         except Exception as e:
+            if _stripe_subscription_missing(e):
+                logger.warning(f"[billing] cancel: missing subscription {sub_id}: {e}")
+                return await _cancel_locally(f"self-serve cancel (missing subscription {sub_id})")
             logger.error(f"[billing] cancel_subscription failed for {sub_id}: {e}")
-            raise HTTPException(status_code=502, detail="Could not cancel your subscription. Please try again.")
-        period_end = _sub_period_end_iso(dict(subscription))
-        await db.users.update_one(
-            {"user_id": user["user_id"]},
-            {"$set": {
-                "subscription_cancel_at_period_end": True,
-                "subscription_current_period_end": period_end,
-                "updated_at": _now(),
-            }},
-        )
-        logger.info(f"[billing] scheduled cancellation for user={user['user_id']} sub={sub_id}")
-        return {
-            "cancelled": True,
-            "cancel_at_period_end": True,
-            "current_period_end": period_end,
-            "message": "Your plan stays active until the end of the current billing period, then reverts to Free.",
-        }
+            # Do not leave the customer stuck on a paid plan when Stripe is unreachable.
+            return await _cancel_locally(f"self-serve cancel (stripe error: {e})")
 
-    # No live subscription — downgrade immediately.
-    await _downgrade_user_to_free(user["user_id"], reason="self-serve cancel (no active subscription)", subscription_status="canceled")
-    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
-    return {
-        "cancelled": True,
-        "cancel_at_period_end": False,
-        "message": "You're now on the Free plan.",
-        "user": _public_user(fresh) if fresh else None,
-    }
+    # No Stripe subscription on file — downgrade immediately.
+    return await _cancel_locally("self-serve cancel (no active subscription)")
 
 
 @billing_router.get("/billing/user-plan-verify")

@@ -1080,6 +1080,7 @@ function SubscriptionTab() {
         } catch { /* next load will reflect it */ }
       } else {
         if (data.user) setUser(data.user);
+        else await checkAuth();
         toast.success(data.message || "You're now on the Free plan");
       }
       setCancelOpen(false);

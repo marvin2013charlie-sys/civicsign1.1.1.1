@@ -183,6 +183,15 @@ def test_is_plan_purchase_tx():
     assert billing._is_plan_purchase_tx({"purchase_type": "extra_document"}) is False
 
 
+def test_stripe_subscription_missing_detects_invalid_request():
+    class FakeInvalidRequestError(Exception):
+        code = "resource_missing"
+
+    billing.stripe.error.InvalidRequestError = FakeInvalidRequestError
+    err = FakeInvalidRequestError("No such subscription: sub_123")
+    assert billing._stripe_subscription_missing(err) is True
+
+
 def test_production_requires_live_on_secure_deploy(monkeypatch):
     monkeypatch.delenv("DEV_MODE", raising=False)
     monkeypatch.setenv("COOKIE_SECURE", "true")
