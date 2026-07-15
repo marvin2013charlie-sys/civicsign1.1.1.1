@@ -55,8 +55,14 @@ services:
         sync: false
       - key: INTERNAL_ADMIN_PASSWORD
         sync: false
-      # --- Stripe (add when billing goes live) ---
+      # --- Stripe LIVE payments (set sk_live_ + live whsec_ in dashboard) ---
+      - key: STRIPE_REQUIRE_LIVE
+        value: "true"
       - key: STRIPE_API_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      - key: STRIPE_BRAND_PRIMARY
+        value: "#122120"
+      - key: STRIPE_BRAND_ACCENT
+        value: "#2DD4BF"

@@ -34,6 +34,7 @@ import { extraDocumentLimitFeature, formatPlanDocumentLimit, formatProMonthlySho
 import { isOrgStaff, ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
 import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 import { normalizeBillingInterval, normalizePaidPlanId } from "@/lib/planCheckout";
+import { StripeCheckoutRedirect } from "@/components/StripeCheckoutRedirect";
 
 const EXTRA_DOC_FEATURE = extraDocumentLimitFeature();
 
@@ -859,6 +860,8 @@ function SubscriptionTab() {
   const [cancelling, setCancelling] = useState(false);
   const [acceptingOffer, setAcceptingOffer] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [checkoutRedirect, setCheckoutRedirect] = useState(null);
+  const [billingConfig, setBillingConfig] = useState(null);
   const current = user?.plan || "free";
   const isPaid = current === "pro" || current === "business";
   const isOrgAccount = !!user?.org_id;
@@ -874,6 +877,14 @@ function SubscriptionTab() {
       setBillingInterval(intervalParam);
     }
   }, [intervalParam]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/billing/config")
+      .then(({ data }) => { if (!cancelled) setBillingConfig(data); })
+      .catch(() => { /* non-fatal */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (autoCheckout || !upgradeTarget || current !== "free") return undefined;
@@ -968,8 +979,10 @@ function SubscriptionTab() {
       }
       return;
     }
-    // Paid plans go through Stripe Checkout.
+    // Paid plans go through Stripe Hosted Checkout (Emergent-style secure payment page).
     try {
+      const planDef = buildPlanDefs(checkoutInterval).find((p) => p.id === planId);
+      const priceDisplay = planDef ? getPlanPriceDisplay(planDef.name, checkoutInterval) : null;
       const { data } = await api.post("/billing/checkout", {
         plan_id: planId,
         billing_interval: checkoutInterval,
@@ -982,11 +995,21 @@ function SubscriptionTab() {
         return;
       }
       if (data.url) {
-        assignStripeCheckout(data.url);
+        setCheckoutRedirect({
+          planLabel: planDef ? `CivicSign ${planDef.name}` : `CivicSign ${planId}`,
+          priceLabel: priceDisplay?.tax?.amount_inc_vat
+            ? `£${priceDisplay.tax.amount_inc_vat.toFixed(2)} incl. VAT`
+            : priceDisplay?.price || null,
+          billingInterval: checkoutInterval,
+        });
+        window.setTimeout(() => {
+          assignStripeCheckout(data.url);
+        }, 450);
         return;
       }
       throw new Error("No checkout URL received");
     } catch (err) {
+      setCheckoutRedirect(null);
       toast.error(formatApiError(err));
       setSwitching("");
     }
@@ -1063,6 +1086,30 @@ function SubscriptionTab() {
 
   return (
     <div data-testid="self-serve-subscription-panel">
+      {checkoutRedirect && (
+        <StripeCheckoutRedirect
+          planLabel={checkoutRedirect.planLabel}
+          priceLabel={checkoutRedirect.priceLabel}
+          billingInterval={checkoutRedirect.billingInterval}
+        />
+      )}
+      {billingConfig?.stripe_mode === "live" && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-4 py-2.5 text-xs text-[var(--c-muted-fg)]"
+          data-testid="billing-live-badge"
+        >
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
+          Secure live payments via Stripe — UK cards only, VAT shown at checkout.
+        </div>
+      )}
+      {billingConfig?.stripe_live_required && billingConfig?.stripe_mode === "test" && (
+        <div
+          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          data-testid="billing-test-warning"
+        >
+          Payments are still in Stripe test mode. Add your live keys in Render to accept real cards.
+        </div>
+      )}
       {verifying && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--status-viewed-bg)] px-4 py-3 text-sm" data-testid="payment-verifying-banner">
           <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--c-primary)" }} />

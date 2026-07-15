@@ -32,7 +32,7 @@ import stripe
 
 from db import db
 from auth import get_current_user, _public_user
-from security_utils import validate_redirect_base
+from security_utils import is_dev_mode, validate_redirect_base
 from models import BillingPortalRequest, CancelSubscriptionRequest, CheckoutRequest, DocumentCheckoutRequest
 from tax import UK_VAT_PERCENT, tax_breakdown
 
@@ -47,6 +47,10 @@ EXTRA_DOCUMENT_PRICE_GBP = 0.80
 PRO_MONTHLY_GBP = 15.00
 BUSINESS_MONTHLY_GBP = 79.00
 YEARLY_MONTHS_PAID = 10  # pay 10 months, get 12
+ANNUAL_COUPON_ID = "civicsign_annual_2mo_free"
+ANNUAL_COUPON_PERCENT = round((12 - YEARLY_MONTHS_PAID) / 12 * 100, 4)
+STRIPE_BRAND_PRIMARY = os.environ.get("STRIPE_BRAND_PRIMARY", "#122120")
+STRIPE_BRAND_ACCENT = os.environ.get("STRIPE_BRAND_ACCENT", "#2DD4BF")
 
 PLANS = {
     "pro": {
@@ -103,16 +107,19 @@ def _stripe_interval(billing_interval: str) -> str:
     return "year" if (billing_interval or "monthly").lower().strip() == "yearly" else "month"
 
 
-def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_interval: str) -> list:
+def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_interval: str, *, product_description: str = "") -> list:
     """Recurring subscription line items: net price + separate VAT line, both
     billed on the same interval so the whole subscription renews together."""
     interval = _stripe_interval(billing_interval)
     tax = tax_breakdown(float(unit_ex_vat))
+    product_data = {"name": product_name}
+    if product_description:
+        product_data["description"] = product_description
     items = [
         {
             "price_data": {
                 "currency": CURRENCY,
-                "product_data": {"name": product_name},
+                "product_data": product_data,
                 "unit_amount": int(round(unit_ex_vat * 100)),
                 "recurring": {"interval": interval},
             },
@@ -130,6 +137,110 @@ def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_
             "quantity": 1,
         })
     return items
+
+
+def _stripe_key_mode(api_key: str | None = None) -> str | None:
+    key = (api_key or os.environ.get("STRIPE_API_KEY") or "").strip()
+    if not key:
+        return None
+    if key.startswith("sk_live_"):
+        return "live"
+    if key.startswith("sk_test_"):
+        return "test"
+    return "unknown"
+
+
+def _require_live_in_production(api_key: str) -> None:
+    """Block test keys on production when STRIPE_REQUIRE_LIVE is enabled."""
+    require_live = os.environ.get("STRIPE_REQUIRE_LIVE", "").lower() in ("1", "true", "yes")
+    if not require_live or is_dev_mode():
+        return
+    if _stripe_key_mode(api_key) != "live":
+        logger.error("[billing] production requires a live Stripe key (sk_live_...)")
+        raise HTTPException(
+            status_code=503,
+            detail="Live payments are not configured yet. Contact support.",
+        )
+
+
+def _checkout_session_extras(*, mode: str) -> dict:
+    """Emergent-style hosted checkout: UK address, clear CTA, subscription wording."""
+    extras = {
+        "locale": "en-GB",
+        "billing_address_collection": "required",
+        "customer_update": {"address": "auto", "name": "auto"},
+        "payment_method_types": ["card"],
+        "phone_number_collection": {"enabled": False},
+        "custom_text": {
+            "submit": {
+                "message": "Pay and subscribe" if mode == "subscription" else "Pay securely",
+            },
+        },
+    }
+    if mode == "subscription":
+        extras["submit_type"] = "subscribe"
+    return extras
+
+
+def _annual_savings_ex_vat(plan_id: str) -> float:
+    plan = PLANS[plan_id]
+    return round(float(plan["amount_monthly"]) * (12 - YEARLY_MONTHS_PAID), 2)
+
+
+async def _get_or_create_annual_coupon() -> str:
+    """Coupon shown on Stripe Checkout left panel (e.g. '2 months free')."""
+    env_id = os.environ.get("STRIPE_ANNUAL_COUPON_ID")
+    if env_id:
+        return env_id
+    _require_stripe_key()
+    try:
+        existing = await asyncio.to_thread(stripe.Coupon.retrieve, ANNUAL_COUPON_ID)
+        return existing.id
+    except stripe.error.InvalidRequestError:
+        pass
+    coupon = await asyncio.to_thread(
+        stripe.Coupon.create,
+        id=ANNUAL_COUPON_ID,
+        percent_off=ANNUAL_COUPON_PERCENT,
+        duration="forever",
+        name=f"Annual plan discount — {12 - YEARLY_MONTHS_PAID} months free",
+    )
+    return coupon.id
+
+
+async def _stripe_subscription_checkout_payload(plan_id: str, billing_interval: str) -> tuple[list, list, float]:
+    """Build line items for Emergent-style Stripe Checkout (clear titles + renewal note)."""
+    plan = PLANS[plan_id]
+    interval = (billing_interval or "monthly").lower().strip()
+    charge_ex_vat = _plan_amount(plan_id, billing_interval)
+    renewal_inc_vat = tax_breakdown(charge_ex_vat)["amount_inc_vat"]
+
+    if interval == "yearly":
+        list_ex_vat = float(plan["amount_monthly"]) * 12
+        savings = _annual_savings_ex_vat(plan_id)
+        product_name = f"Subscribe to CivicSign {plan['name']} Annual"
+        product_description = (
+            f"List £{list_ex_vat:.2f} excl. VAT · Annual plan discount −£{savings:.2f} "
+            f"({12 - YEARLY_MONTHS_PAID} months free) · "
+            f"Then £{renewal_inc_vat:.2f} per year incl. VAT"
+        )
+        line_items = _stripe_recurring_line_items(
+            product_name,
+            charge_ex_vat,
+            billing_interval,
+            product_description=product_description,
+        )
+        return line_items, [], charge_ex_vat
+
+    product_name = f"Subscribe to CivicSign {plan['name']}"
+    product_description = f"Then £{renewal_inc_vat:.2f} per month incl. VAT"
+    line_items = _stripe_recurring_line_items(
+        product_name,
+        charge_ex_vat,
+        billing_interval,
+        product_description=product_description,
+    )
+    return line_items, [], charge_ex_vat
 
 
 # Only these Stripe subscription states grant paid access. Anything else
@@ -181,9 +292,10 @@ def _now():
 
 
 def _require_stripe_key() -> str:
-    api_key = os.environ.get("STRIPE_API_KEY")
+    api_key = os.environ.get("STRIPE_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="Billing is not configured")
+    _require_live_in_production(api_key)
     stripe.api_key = api_key
     return api_key
 
@@ -535,9 +647,7 @@ async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: 
             detail="No active subscription found. Use checkout to subscribe first.",
         )
 
-    amount_ex_vat = _plan_amount(plan_id, billing_interval)
-    product_name = _plan_product_name(plan_id, billing_interval)
-    new_line_items = _stripe_recurring_line_items(product_name, amount_ex_vat, billing_interval)
+    new_line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
 
     _require_stripe_key()
     try:
@@ -557,14 +667,15 @@ async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: 
             "billing_interval": billing_interval,
             "source": "civicsign_subscription_change",
         }
-        updated = await asyncio.to_thread(
-            stripe.Subscription.modify,
-            sub_id,
-            items=items_param,
-            proration_behavior="create_prorations",
-            metadata=metadata,
-            cancel_at_period_end=False,
-        )
+        modify_kwargs = {
+            "items": items_param,
+            "proration_behavior": "create_prorations",
+            "metadata": metadata,
+            "cancel_at_period_end": False,
+        }
+        if discounts:
+            modify_kwargs["discounts"] = discounts
+        updated = await asyncio.to_thread(stripe.Subscription.modify, sub_id, **modify_kwargs)
         updated_dict = _stripe_object_dict(updated)
     except HTTPException:
         raise
@@ -678,6 +789,25 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
     return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
 
 
+@billing_router.get("/billing/config")
+async def billing_config():
+    """Public billing config — lets the UI show live vs test and checkout readiness."""
+    api_key = os.environ.get("STRIPE_API_KEY", "").strip()
+    mode = _stripe_key_mode(api_key)
+    require_live = os.environ.get("STRIPE_REQUIRE_LIVE", "").lower() in ("1", "true", "yes")
+    webhook_set = bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip())
+    ready = bool(api_key and webhook_set and (mode == "live" or not require_live or is_dev_mode()))
+    return {
+        "currency": CURRENCY,
+        "stripe_configured": bool(api_key),
+        "stripe_mode": mode,
+        "stripe_live_required": require_live and not is_dev_mode(),
+        "checkout_ready": ready,
+        "brand_primary": STRIPE_BRAND_PRIMARY,
+        "brand_accent": STRIPE_BRAND_ACCENT,
+    }
+
+
 @billing_router.get("/billing/plans")
 async def list_plans():
     """Public plan catalogue (amounts come from the server, excluding VAT)."""
@@ -737,10 +867,9 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         body.origin_url or "",
         fallback=request.headers.get("origin", ""),
     )
-    amount_ex_vat = _plan_amount(plan_id, billing_interval)
+    line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
     tax = tax_breakdown(amount_ex_vat)
     amount = tax["amount_inc_vat"]
-    product_name = _plan_product_name(plan_id, billing_interval)
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/settings?tab=subscription"
     metadata = {
@@ -755,18 +884,21 @@ async def create_checkout(body: CheckoutRequest, request: Request,
     _require_stripe_key()
     try:
         customer_id = await _get_or_create_customer(user)
-        session = await asyncio.to_thread(
-            stripe.checkout.Session.create,
-            mode="subscription",
-            customer=customer_id,
-            client_reference_id=user["user_id"],
-            line_items=_stripe_recurring_line_items(product_name, amount_ex_vat, billing_interval),
-            success_url=success_url,
-            cancel_url=cancel_url,
-            metadata=metadata,
-            subscription_data={"metadata": metadata},
-            idempotency_key=f"checkout_{tx_id}",
-        )
+        session_kwargs = {
+            "mode": "subscription",
+            "customer": customer_id,
+            "client_reference_id": user["user_id"],
+            "line_items": line_items,
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "metadata": metadata,
+            "subscription_data": {"metadata": metadata},
+            "idempotency_key": f"checkout_{tx_id}",
+            **_checkout_session_extras(mode="subscription"),
+        }
+        if discounts:
+            session_kwargs["discounts"] = discounts
+        session = await asyncio.to_thread(stripe.checkout.Session.create, **session_kwargs)
     except Exception as e:
         logger.error(f"[billing] create_checkout_session failed: {e}")
         raise HTTPException(status_code=502, detail="Could not start checkout. Please try again.")
@@ -842,6 +974,7 @@ async def create_document_checkout(body: DocumentCheckoutRequest, request: Reque
             cancel_url=cancel_url,
             metadata=metadata,
             idempotency_key=f"doc_{tx_id}",
+            **_checkout_session_extras(mode="payment"),
         )
     except Exception as e:
         logger.error(f"[billing] create_document_checkout failed: {e}")
