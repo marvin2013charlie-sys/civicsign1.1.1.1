@@ -108,6 +108,9 @@ def main() -> int:
         print("OK: STRIPE_WEBHOOK_SECRET is set")
 
     print()
+    print("Promo codes: Stripe Dashboard → Products → Coupons → Promotion codes")
+    print("  Create codes (e.g. LAUNCH50) — customers enter them on the Checkout page.")
+    print()
     print("LIVE payments ready. Set on Render:")
     print("  STRIPE_API_KEY=sk_live_...")
     print("  STRIPE_WEBHOOK_SECRET=whsec_...")

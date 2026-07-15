@@ -163,7 +163,7 @@ def _require_live_in_production(api_key: str) -> None:
         )
 
 
-def _checkout_session_extras(*, mode: str) -> dict:
+def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> dict:
     """Emergent-style hosted checkout: UK address, clear CTA, subscription wording."""
     extras = {
         "locale": "en-GB",
@@ -179,7 +179,46 @@ def _checkout_session_extras(*, mode: str) -> dict:
     }
     if mode == "subscription":
         extras["submit_type"] = "subscribe"
+    # Stripe disallows promotion codes when automatic discounts[] are also set.
+    if allow_promo_codes:
+        extras["allow_promotion_codes"] = True
     return extras
+
+
+def _promo_code_from_session(session) -> str | None:
+    """Return the human-readable promo code applied on a completed Checkout session."""
+    data = _stripe_object_dict(session)
+    total_details = data.get("total_details") or {}
+    if not total_details.get("amount_discount"):
+        return None
+    for discount in data.get("discounts") or []:
+        if not isinstance(discount, dict):
+            discount = _stripe_object_dict(discount)
+        promo = discount.get("promotion_code")
+        if isinstance(promo, dict):
+            code = promo.get("code")
+            if code:
+                return str(code)
+        coupon = discount.get("coupon")
+        if isinstance(coupon, dict) and coupon.get("name"):
+            return str(coupon["name"])
+    return None
+
+
+async def _record_checkout_promo(session_id: str, session) -> None:
+    promo_code = _promo_code_from_session(session)
+    if not promo_code:
+        return
+    data = _stripe_object_dict(session)
+    discount_cents = int((data.get("total_details") or {}).get("amount_discount") or 0)
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {
+            "promotion_code": promo_code,
+            "promotion_discount": round(discount_cents / 100, 2),
+            "updated_at": _now(),
+        }},
+    )
 
 
 def _annual_savings_ex_vat(plan_id: str) -> float:
@@ -614,12 +653,15 @@ async def _verify_webhook_checkout_session(obj: dict) -> dict | None:
     if obj.get("payment_status") == "paid":
         amount_total = obj.get("amount_total")
         expected_cents = int(round(float(tx.get("amount") or 0) * 100))
-        if amount_total is not None and expected_cents > 0 and int(amount_total) != expected_cents:
-            logger.error(
-                f"[billing] webhook amount mismatch session={session_id} "
-                f"got={amount_total} expected={expected_cents}"
-            )
-            raise HTTPException(status_code=400, detail="Webhook amount mismatch")
+        if amount_total is not None and expected_cents > 0:
+            paid_cents = int(amount_total)
+            discount_cents = int((obj.get("total_details") or {}).get("amount_discount") or 0)
+            if paid_cents > expected_cents or (paid_cents < expected_cents and discount_cents <= 0):
+                logger.error(
+                    f"[billing] webhook amount mismatch session={session_id} "
+                    f"got={amount_total} expected={expected_cents} discount={discount_cents}"
+                )
+                raise HTTPException(status_code=400, detail="Webhook amount mismatch")
 
     return tx
 
@@ -803,6 +845,7 @@ async def billing_config():
         "stripe_mode": mode,
         "stripe_live_required": require_live and not is_dev_mode(),
         "checkout_ready": ready,
+        "promotion_codes_enabled": True,
         "brand_primary": STRIPE_BRAND_PRIMARY,
         "brand_accent": STRIPE_BRAND_ACCENT,
     }
@@ -894,7 +937,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
             "metadata": metadata,
             "subscription_data": {"metadata": metadata},
             "idempotency_key": f"checkout_{tx_id}",
-            **_checkout_session_extras(mode="subscription"),
+            **_checkout_session_extras(mode="subscription", allow_promo_codes=not discounts),
         }
         if discounts:
             session_kwargs["discounts"] = discounts
@@ -1030,12 +1073,17 @@ async def checkout_status(session_id: str, request: Request,
 
     _require_stripe_key()
     try:
-        session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.retrieve,
+            session_id,
+            expand=["discounts.promotion_code", "discounts.coupon"],
+        )
     except Exception as e:
         logger.error(f"[billing] get_checkout_status failed: {e}")
         raise HTTPException(status_code=502, detail="Could not verify payment status. Please try again.")
 
     _assert_session_user(session, user["user_id"])
+    await _record_checkout_promo(session_id, session)
 
     # CRITICAL: Only apply upgrade if status truly shows "paid"
     # Never trust payment_status from user input - always re-verify with Stripe
@@ -1071,6 +1119,8 @@ async def checkout_status(session_id: str, request: Request,
         "plan_id": fresh_tx.get("plan_id") if fresh_tx else tx.get("plan_id"),
         "purchase_type": (fresh_tx or tx).get("purchase_type", "plan"),
         "document_credits": (fresh_tx or tx).get("document_credits"),
+        "promotion_code": (fresh_tx or tx).get("promotion_code"),
+        "promotion_discount": (fresh_tx or tx).get("promotion_discount"),
         "user": _public_user(fresh) if fresh else None,
     }
 
@@ -1116,6 +1166,15 @@ async def stripe_webhook(request: Request):
             if tx:
                 session_id = obj.get("id")
                 await _apply_plan_upgrade(session_id, "paid", "complete")
+                try:
+                    full_session = await asyncio.to_thread(
+                        stripe.checkout.Session.retrieve,
+                        session_id,
+                        expand=["discounts.promotion_code", "discounts.coupon"],
+                    )
+                    await _record_checkout_promo(session_id, full_session)
+                except Exception as promo_err:
+                    logger.warning(f"[billing] could not record promo for {session_id}: {promo_err}")
                 sub_id, cust_id = obj.get("subscription"), obj.get("customer")
                 if sub_id and obj.get("mode") == "subscription":
                     await _link_subscription_to_user(tx["user_id"], sub_id, cust_id)

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   User, CreditCard, LifeBuoy, Loader2, Save, KeyRound, Check, Mail,
-  MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2, Gift,
+  MessageCircleQuestion, ShieldCheck, Sparkles, Crown, Building2, Gift, Tag,
   Trash2, AlertTriangle, Camera, ImagePlus, ImageOff,
   Palette, Plug, Webhook, Headphones,
 } from "lucide-react";
@@ -916,12 +916,15 @@ function SubscriptionTab() {
         if (cancelled) return;
         if (data.payment_status === "paid") {
           await checkAuth();
+          const promoNote = data.promotion_code
+            ? ` Promo ${data.promotion_code} applied.`
+            : "";
           if (data.purchase_type === "extra_document") {
             const n = data.document_credits || 1;
-            toast.success(`Payment successful, ${n} extra document credit${n !== 1 ? "s" : ""} added`);
+            toast.success(`Payment successful, ${n} extra document credit${n !== 1 ? "s" : ""} added.${promoNote}`);
           } else {
             const name = (data.plan_id || "").charAt(0).toUpperCase() + (data.plan_id || "").slice(1);
-            toast.success(`Payment successful, you're now on the ${name} plan`);
+            toast.success(`Payment successful, you're now on the ${name} plan.${promoNote}`);
           }
           setVerifying(false);
           clearSessionParam();
@@ -1092,6 +1095,15 @@ function SubscriptionTab() {
           priceLabel={checkoutRedirect.priceLabel}
           billingInterval={checkoutRedirect.billingInterval}
         />
+      )}
+      {billingConfig?.promotion_codes_enabled && current === "free" && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-4 py-2.5 text-xs text-[var(--c-muted-fg)]"
+          data-testid="billing-promo-hint"
+        >
+          <Tag className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
+          Have a promo code? Enter it on the Stripe checkout page when you upgrade.
+        </div>
       )}
       {billingConfig?.stripe_mode === "live" && (
         <div

@@ -41,6 +41,9 @@ export function StripeCheckoutRedirect({ planLabel, priceLabel, billingInterval 
             <Loader2 className="h-5 w-5 shrink-0 animate-spin" style={{ color: "var(--c-primary)" }} />
             <span>Taking you to Stripe to pay securely…</span>
           </div>
+          <p className="text-xs text-[var(--c-muted-fg)]">
+            Have a promo code? You can enter it on the next screen before you pay.
+          </p>
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--c-muted-fg)]">
             <span className="inline-flex items-center gap-1.5">
               <Lock className="h-3.5 w-3.5" />

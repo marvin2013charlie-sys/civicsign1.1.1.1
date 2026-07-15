@@ -354,6 +354,12 @@ export default function AdminBilling() {
                       <td className="px-4 py-3 capitalize">{tx.plan_id}</td>
                       <td className="px-4 py-3">
                         <div className="font-medium">{fmtMoney(tx.amount, tx.currency || currency)}</div>
+                        {tx.promotion_code ? (
+                          <div className="text-xs text-[var(--c-primary)]">Promo: {tx.promotion_code}</div>
+                        ) : null}
+                        {Number(tx.promotion_discount || 0) > 0 ? (
+                          <div className="text-xs text-emerald-700">−{fmtMoney(tx.promotion_discount, tx.currency || currency)}</div>
+                        ) : null}
                         {Number(tx.refund_amount || 0) > 0 ? (
                           <div className="text-xs text-rose-600">-{fmtMoney(tx.refund_amount, tx.currency || currency)}</div>
                         ) : null}

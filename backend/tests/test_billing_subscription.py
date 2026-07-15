@@ -235,6 +235,29 @@ def test_webhook_rejects_amount_mismatch(monkeypatch):
     assert exc.value.status_code == 400
 
 
+def test_webhook_accepts_discounted_checkout_with_promo(monkeypatch):
+    tx = {
+        "session_id": "cs_test_session123",
+        "user_id": "usr_real",
+        "amount": 18.0,
+        "plan_id": "pro",
+    }
+    monkeypatch.setattr(
+        billing,
+        "db",
+        FakeDB(FakeUsers({}), FakePaymentTransactions(tx)),
+    )
+    obj = {
+        "id": "cs_test_session123",
+        "payment_status": "paid",
+        "amount_total": 900,
+        "total_details": {"amount_discount": 900},
+        "metadata": {"user_id": "usr_real"},
+    }
+    verified = run(billing._verify_webhook_checkout_session(obj))
+    assert verified["user_id"] == "usr_real"
+
+
 def test_webhook_accepts_matching_checkout(monkeypatch):
     tx = {
         "session_id": "cs_test_session123",
