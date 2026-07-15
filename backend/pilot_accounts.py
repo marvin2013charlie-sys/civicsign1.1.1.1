@@ -35,6 +35,7 @@ PILOT_TEST_NAMES = {
 _TEST_EMAIL_PATTERNS = (
     re.compile(r"^smoke_[^@]+@civicbot\.co\.uk$", re.I),
     re.compile(r"^prodtest_[^@]+@civicbot\.co\.uk$", re.I),
+    re.compile(r"^checkout-test-[^@]+@civicbot\.co\.uk$", re.I),
     re.compile(r"^integration-check-[^@]+@example\.com$", re.I),
 )
 
