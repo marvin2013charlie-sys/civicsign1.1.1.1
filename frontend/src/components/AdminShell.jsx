@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -16,12 +16,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { hasAdminAccess } from "@/components/RequirePerm";
-import { Logo } from "@/components/Logo";
 import { PortalHeaderActions } from "@/components/PortalHeaderActions";
 import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
 import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
-import { SidebarCollapseToggle } from "@/components/SidebarCollapseToggle";
+import { SidebarHeader } from "@/components/portal/SidebarHeader";
+import { SidebarNavSection } from "@/components/portal/SidebarNavSection";
+import { PortalSidebarAside, portalSidebarShellClass } from "@/components/portal/PortalSidebarAside";
 import { cn } from "@/lib/utils";
 
 const OVERVIEW_NAV = [
@@ -56,54 +57,34 @@ const NAV_SECTIONS = [
   { label: "Team", items: TEAM_NAV },
 ];
 
-function NavSection({ label, items, user, onNavigate, collapsed }) {
-  const visible = items.filter((item) => hasAdminAccess(user, item.perm));
-  if (!visible.length) return null;
-
-  return (
-    <div className="mb-3">
-      {!collapsed && <p className="cs-sidebar-section-label">{label}</p>}
-      <div className="space-y-1">
-        {visible.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            data-testid={item.testid}
-            onClick={onNavigate}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) =>
-              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
-            }
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            <span className="cs-sidebar-nav-label truncate">{item.label}</span>
-          </NavLink>
-        ))}
-      </div>
-    </div>
-  );
+function filterAdminItems(items, user) {
+  return items
+    .filter((item) => hasAdminAccess(user, item.perm))
+    .map(({ perm, ...item }) => item);
 }
 
-function SidebarContent({ user, onNavigate, goApp, collapsed = false }) {
+function SidebarContent({ user, onNavigate, goApp, collapsed, onToggle, showToggle }) {
   const isStaff = user?.role === "staff";
-  const visibleItems = NAV_SECTIONS
-    .flatMap((section) => section.items)
-    .filter((item) => hasAdminAccess(user, item.perm));
+  const sections = useMemo(
+    () => NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: filterAdminItems(section.items, user),
+    })),
+    [user],
+  );
+  const visibleCount = sections.reduce((sum, section) => sum + section.items.length, 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className={cn("pb-2 pt-5", collapsed ? "px-2 text-center" : "px-5")}>
-        <Logo dark compact={collapsed} className={collapsed ? "mx-auto" : ""} />
-      </div>
+      <SidebarHeader collapsed={collapsed} onToggle={onToggle} showToggle={showToggle} />
 
       <button
         type="button"
         onClick={goApp}
         data-testid="admin-back-to-app"
-        title={collapsed ? "Back to app" : undefined}
+        data-label="Back to app"
         className={cn(
-          "cs-sidebar-primary-cta mb-4 mt-1 flex items-center rounded-xl border font-semibold transition-all hover:-translate-y-px",
+          "cs-sidebar-primary-cta cs-sidebar-nav-link mb-4 mt-1 flex items-center rounded-xl border font-semibold transition-all hover:-translate-y-px",
           collapsed ? "mx-2 justify-center py-3" : "mx-4 justify-center gap-2 py-2.5 text-[13.5px]",
         )}
         style={{
@@ -112,22 +93,23 @@ function SidebarContent({ user, onNavigate, goApp, collapsed = false }) {
           color: "#F8F7F2",
         }}
       >
-        <ArrowLeft className="h-4 w-4 shrink-0" style={{ color: "#2DD4BF" }} />
+        <span className="cs-sidebar-nav-icon">
+          <ArrowLeft className="h-4 w-4 shrink-0" style={{ color: "#2DD4BF" }} aria-hidden />
+        </span>
         <span className="cs-sidebar-nav-label">Back to app</span>
       </button>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 cs-scroll">
-        {NAV_SECTIONS.map((section) => (
-          <NavSection
+        {sections.map((section) => (
+          <SidebarNavSection
             key={section.label}
             label={section.label}
             items={section.items}
-            user={user}
-            onNavigate={onNavigate}
             collapsed={collapsed}
+            onNavigate={onNavigate}
           />
         ))}
-        {!collapsed && isStaff && visibleItems.length <= 1 && (
+        {!collapsed && isStaff && visibleCount <= 1 && (
           <p className="px-3 py-3 text-xs leading-relaxed text-white/40">
             No areas granted yet. A super-admin can grant you access from Internal Team.
           </p>
@@ -205,26 +187,23 @@ export const AdminShell = () => {
             >
               <X className="h-5 w-5" />
             </button>
-            <SidebarContent user={user} goApp={goApp} onNavigate={() => setOpen(false)} />
+            <SidebarContent user={user} goApp={goApp} onNavigate={() => setOpen(false)} collapsed={false} />
           </div>
         </div>
       )}
 
-      <div
-        className={cn(
-          "cs-portal-shell min-h-screen lg:grid",
-          collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_minmax(0,1fr)]",
-        )}
-      >
-        <aside
-          className={cn(
-            "cs-portal-sidebar relative hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden",
-            collapsed && "cs-portal-sidebar-collapsed",
+      <div className={portalSidebarShellClass(collapsed)}>
+        <PortalSidebarAside collapsed={collapsed} onToggle={toggleSidebar}>
+          {({ collapsed: displayCollapsed }) => (
+            <SidebarContent
+              user={user}
+              goApp={goApp}
+              collapsed={displayCollapsed}
+              onToggle={toggleSidebar}
+              showToggle
+            />
           )}
-        >
-          <SidebarContent user={user} goApp={goApp} collapsed={collapsed} />
-          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleSidebar} />
-        </aside>
+        </PortalSidebarAside>
 
         <div className="cs-portal-main-panel relative min-h-screen min-w-0 overflow-x-clip">
           <header className="cs-portal-topbar sticky top-0 z-30 border-b border-[var(--c-border)]">

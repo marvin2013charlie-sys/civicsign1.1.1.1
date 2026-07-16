@@ -1326,22 +1326,118 @@ html[data-theme="dark"] {
     justify-content: center;
     padding: 0.5rem;
   }
-  .cs-sidebar-collapse-toggle {
+  .cs-portal-shell {
+    --cs-sidebar-width: 16rem;
+    --cs-sidebar-width-collapsed: 4.5rem;
+  }
+  @media (min-width: 1024px) {
+    .cs-portal-shell-expanded {
+      grid-template-columns: var(--cs-sidebar-width) minmax(0, 1fr);
+    }
+    .cs-portal-shell-collapsed {
+      grid-template-columns: var(--cs-sidebar-width-collapsed) minmax(0, 1fr);
+    }
+    .cs-portal-shell-expanded,
+    .cs-portal-shell-collapsed {
+      transition: grid-template-columns 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .cs-portal-shell-collapsed .cs-portal-sidebar {
+      overflow: visible;
+    }
+  }
+  .cs-portal-sidebar {
+    transition:
+      width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.24s ease;
+  }
+  .cs-portal-sidebar::after {
+    content: "";
     position: absolute;
-    top: 1.35rem;
-    right: -0.75rem;
-    z-index: 20;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(45, 212, 191, 0.06) 0%, transparent 28%, transparent 72%, rgba(255, 122, 92, 0.04) 100%);
+    opacity: 0.85;
+  }
+  .cs-portal-sidebar > * {
+    position: relative;
+    z-index: 1;
+  }
+  .cs-portal-sidebar-peek {
+    width: var(--cs-sidebar-width) !important;
+    z-index: 35;
+    box-shadow: 12px 0 36px rgba(18, 33, 32, 0.28);
+  }
+  .cs-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 1.25rem 1.25rem 0.5rem;
+  }
+  .cs-sidebar-header-collapsed {
+    justify-content: center;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .cs-sidebar-nav-link {
+    position: relative;
+  }
+  .cs-sidebar-nav-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.65rem;
+    background: rgba(248, 247, 242, 0.04);
+    color: inherit;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+  .cs-app-nav-link-active .cs-sidebar-nav-icon {
+    background: rgba(45, 212, 191, 0.18);
+    color: #2dd4bf;
+  }
+  .cs-sidebar-nav-link:hover .cs-sidebar-nav-icon {
+    background: rgba(248, 247, 242, 0.1);
+  }
+  .cs-sidebar-primary-cta .cs-sidebar-nav-icon-cta {
+    background: rgba(18, 33, 32, 0.12);
+  }
+  .cs-portal-sidebar:not(.cs-portal-sidebar-collapsed) .cs-sidebar-primary-cta .cs-sidebar-nav-icon {
+    display: none;
+  }
+  .cs-sidebar-section-divider {
+    height: 1px;
+    margin: 0.45rem 0.65rem 0.55rem;
+    background: rgba(248, 247, 242, 0.1);
+  }
+  .cs-sidebar-quota-ring {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cs-sidebar-quota-ring-value {
+    position: absolute;
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #f8f7f2;
+    line-height: 1;
+  }
+  .cs-sidebar-footer-toggle {
+    margin-top: auto;
+    padding: 0.35rem 0.5rem 0.75rem;
+  }
+  .cs-sidebar-collapse-toggle {
     display: none;
     align-items: center;
     justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 9999px;
+    border-radius: 0.7rem;
     border: 1px solid rgba(248, 247, 242, 0.14);
-    background: var(--c-ink-solid);
-    color: rgba(248, 247, 242, 0.75);
-    box-shadow: 0 4px 12px rgba(18, 33, 32, 0.22);
-    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    background: rgba(248, 247, 242, 0.05);
+    color: rgba(248, 247, 242, 0.72);
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
   @media (min-width: 1024px) {
     .cs-sidebar-collapse-toggle {
@@ -1351,23 +1447,86 @@ html[data-theme="dark"] {
   .cs-sidebar-collapse-toggle:hover {
     color: #f8f7f2;
     border-color: rgba(45, 212, 191, 0.35);
-    background: color-mix(in srgb, var(--c-ink-solid) 88%, #2dd4bf);
+    background: rgba(45, 212, 191, 0.12);
   }
-  .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
+  .cs-sidebar-collapse-toggle-header {
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+  }
+  .cs-sidebar-collapse-toggle-footer {
+    width: 100%;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .cs-sidebar-collapse-toggle-label {
     display: none;
   }
-  .cs-portal-sidebar-collapsed .cs-app-nav-link {
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity 0.18s ease, width 0.18s ease;
+  }
+  .cs-portal-sidebar-peek .cs-sidebar-nav-label,
+  .cs-portal-sidebar:not(.cs-portal-sidebar-collapsed) .cs-sidebar-nav-label {
+    width: auto;
+    opacity: 1;
+  }
+  .cs-portal-sidebar-collapsed .cs-app-nav-link,
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta {
     justify-content: center;
     gap: 0;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
   }
   .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-label {
     display: none;
   }
   .cs-portal-sidebar-collapsed nav {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link::after {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 0.55rem);
+    top: 50%;
+    z-index: 50;
+    transform: translateY(-50%) translateX(-4px);
+    border-radius: 0.55rem;
+    border: 1px solid rgba(248, 247, 242, 0.12);
+    background: color-mix(in srgb, var(--c-ink-solid) 92%, #2dd4bf);
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #f8f7f2;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgba(18, 33, 32, 0.24);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link:hover::after,
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link:focus-visible::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+  .cs-portal-sidebar-peek .cs-sidebar-nav-link::after {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cs-portal-shell-expanded,
+    .cs-portal-shell-collapsed,
+    .cs-portal-sidebar,
+    .cs-portal-sidebar-collapsed .cs-sidebar-nav-label,
+    .cs-portal-sidebar-collapsed .cs-sidebar-nav-link::after {
+      transition-duration: 0.01ms;
+    }
   }
 }
 

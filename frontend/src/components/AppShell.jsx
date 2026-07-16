@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, FilePlus2, FileText, Menu, X, LayoutTemplate, Eye, Loader2, BarChart3, Gauge, PenTool, Users, UserCog, Building2, Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -6,15 +6,17 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/Logo";
 import { PortalHeaderActions } from "@/components/PortalHeaderActions";
 import { PortalSubscriptionActions } from "@/components/PortalSubscriptionActions";
 import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
 import { hasPlanFeature } from "@/lib/planFeatures";
-import { formatQuotaRemainingLine } from "@/lib/quotaDisplay";
 import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
-import { SidebarCollapseToggle } from "@/components/SidebarCollapseToggle";
+import { SidebarHeader } from "@/components/portal/SidebarHeader";
+import { SidebarNavSection } from "@/components/portal/SidebarNavSection";
+import { SidebarNavLink } from "@/components/portal/SidebarNavLink";
+import { SidebarQuotaMini } from "@/components/portal/SidebarQuotaMini";
+import { PortalSidebarAside, portalSidebarShellClass } from "@/components/portal/PortalSidebarAside";
 import { cn } from "@/lib/utils";
 
 const WORKSPACE_NAV = [
@@ -31,116 +33,70 @@ const INSIGHTS_NAV = [
   { to: "/usage", label: "Usage", icon: Gauge, testid: "nav-usage" },
 ];
 
-function NavSection({ label, items, user, onNavigate, collapsed }) {
-  const visible = items.filter((n) => !n.feature || hasPlanFeature(user, n.feature));
-  if (!visible.length) return null;
-  return (
-    <div className="mb-3">
-      {!collapsed && <p className="cs-sidebar-section-label">{label}</p>}
-      <div className="space-y-1">
-        {visible.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            data-testid={n.testid}
-            onClick={onNavigate}
-            title={collapsed ? n.label : undefined}
-            className={({ isActive }) =>
-              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
-            }
-          >
-            <n.icon className="h-4 w-4 shrink-0" />
-            <span className="cs-sidebar-nav-label truncate">{n.label}</span>
-          </NavLink>
-        ))}
-      </div>
-    </div>
-  );
+function filterNavItems(items, user) {
+  return items.filter((item) => !item.feature || hasPlanFeature(user, item.feature));
 }
 
-function SidebarQuotaMini({ usage }) {
-  if (!usage || usage.unlimited || !usage.limit) return null;
-  const pct = Math.min(100, usage.percent || 0);
-  const isOrg = usage.scope === "organization";
-  return (
-    <div
-      className="mx-4 mb-3 rounded-[14px] border p-3.5"
-      style={{ background: "rgba(248,247,242,.06)", borderColor: "rgba(248,247,242,.1)" }}
-      data-testid="sidebar-quota-mini"
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-[1px]" style={{ color: "rgba(248,247,242,.6)" }}>
-          {isOrg ? "Organisation" : `${usage.plan || "Free"} plan`}
-        </span>
-        <span className="text-[11.5px] font-semibold" style={{ color: "#2DD4BF" }}>
-          {usage.used} / {usage.limit}
-        </span>
-      </div>
-      <div className="mt-2 h-[5px] overflow-hidden rounded-[3px]" style={{ background: "rgba(248,247,242,.12)" }}>
-        <div
-          className="h-full rounded-[3px] transition-all"
-          style={{ width: `${pct}%`, background: pct >= 90 ? "#FF7A5C" : "#2DD4BF" }}
-        />
-      </div>
-      <div className="mt-1.5 text-[10.5px]" style={{ color: "rgba(248,247,242,.45)" }}>
-        {formatQuotaRemainingLine(usage)}
-      </div>
-    </div>
-  );
-}
+function SidebarContent({ user, usage, onNavigate, collapsed, onToggle, showToggle }) {
+  const workspaceItems = useMemo(() => filterNavItems(WORKSPACE_NAV, user), [user]);
 
-function SidebarContent({ user, usage, onNavigate, collapsed = false }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className={cn("pb-2 pt-5", collapsed ? "px-2 text-center" : "px-5")}>
-        <Logo dark compact={collapsed} className={collapsed ? "mx-auto" : ""} />
-      </div>
+      <SidebarHeader collapsed={collapsed} onToggle={onToggle} showToggle={showToggle} />
+
       <NavLink
         to="/new"
         onClick={onNavigate}
         data-testid="sidebar-new-envelope"
-        title={collapsed ? "New envelope" : undefined}
+        data-label="New envelope"
         className={cn(
-          "cs-sidebar-primary-cta mb-4 mt-1 rounded-xl font-semibold transition-all hover:-translate-y-px hover:bg-white",
+          "cs-sidebar-primary-cta cs-sidebar-nav-link mb-4 mt-1 rounded-xl font-semibold transition-all hover:-translate-y-px hover:bg-white",
           collapsed ? "mx-2 flex items-center justify-center py-3" : "mx-4 py-3 text-center text-[13.5px]",
         )}
         style={{ background: "#2DD4BF", color: "#122120", boxShadow: "0 8px 20px rgba(45,212,191,.25)" }}
       >
-        {collapsed ? <Plus className="h-5 w-5" aria-hidden /> : "+ New envelope"}
+        <span className="cs-sidebar-nav-icon cs-sidebar-nav-icon-cta">
+          <Plus className="h-5 w-5" aria-hidden />
+        </span>
+        <span className="cs-sidebar-nav-label">+ New envelope</span>
       </NavLink>
+
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 cs-scroll">
-        <NavSection label="Workspace" items={WORKSPACE_NAV} user={user} onNavigate={onNavigate} collapsed={collapsed} />
-        <NavSection label="Insights" items={INSIGHTS_NAV} user={user} onNavigate={onNavigate} collapsed={collapsed} />
+        <SidebarNavSection
+          label="Workspace"
+          items={workspaceItems}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
+        <SidebarNavSection
+          label="Insights"
+          items={INSIGHTS_NAV}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
         {user?.org_id && (
-          <NavLink
+          <SidebarNavLink
             to="/organisation"
-            data-testid="nav-organisation"
+            label="Organisation"
+            icon={Building2}
+            testid="nav-organisation"
             onClick={onNavigate}
-            title={collapsed ? "Organisation" : undefined}
-            className={({ isActive }) =>
-              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
-            }
-          >
-            <Building2 className="h-4 w-4 shrink-0" />
-            <span className="cs-sidebar-nav-label truncate">Organisation</span>
-          </NavLink>
+          />
         )}
         {user?.role === "admin" && (
-          <NavLink
+          <SidebarNavLink
             to="/admin"
-            data-testid="nav-admin"
+            label="Admin Console"
+            icon={UserCog}
+            testid="nav-admin"
             onClick={onNavigate}
-            title={collapsed ? "Admin Console" : undefined}
-            className={({ isActive }) =>
-              cn("cs-app-nav-link mt-1", isActive && "cs-app-nav-link-active")
-            }
-          >
-            <UserCog className="h-4 w-4 shrink-0" />
-            <span className="cs-sidebar-nav-label truncate">Admin Console</span>
-          </NavLink>
+            className="mt-1"
+          />
         )}
       </nav>
-      {!collapsed && <SidebarQuotaMini usage={usage} />}
+
+      <SidebarQuotaMini usage={usage} collapsed={collapsed} />
+
       <div className={cn("mt-auto border-t", collapsed ? "p-2" : "p-3")} style={{ borderColor: "rgba(248,247,242,.1)" }}>
         <PortalSidebarProfile user={user} variant="dark" collapsed={collapsed} />
       </div>
@@ -215,26 +171,23 @@ export const AppShell = ({ children, title, actions, headerSearch }) => {
             <button className="absolute right-2 top-2 z-10 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--c-muted-fg)] hover:bg-[var(--c-paper-2)]" onClick={() => setOpen(false)} data-testid="mobile-menu-close" aria-label="Close navigation menu">
               <X className="h-5 w-5" />
             </button>
-            <SidebarContent user={user} usage={usage} onNavigate={() => setOpen(false)} />
+            <SidebarContent user={user} usage={usage} onNavigate={() => setOpen(false)} collapsed={false} />
           </div>
         </div>
       )}
 
-      <div
-        className={cn(
-          "cs-portal-shell min-h-screen lg:grid",
-          collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_minmax(0,1fr)]",
-        )}
-      >
-        <aside
-          className={cn(
-            "cs-portal-sidebar relative hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:block lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden",
-            collapsed && "cs-portal-sidebar-collapsed",
+      <div className={portalSidebarShellClass(collapsed)}>
+        <PortalSidebarAside collapsed={collapsed} onToggle={toggleSidebar}>
+          {({ collapsed: displayCollapsed }) => (
+            <SidebarContent
+              user={user}
+              usage={usage}
+              collapsed={displayCollapsed}
+              onToggle={toggleSidebar}
+              showToggle
+            />
           )}
-        >
-          <SidebarContent user={user} usage={usage} collapsed={collapsed} />
-          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleSidebar} />
-        </aside>
+        </PortalSidebarAside>
 
         <div className="cs-portal-main-panel relative z-[1] min-h-screen min-w-0 overflow-x-clip">
         {impersonation && (

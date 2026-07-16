@@ -41,19 +41,21 @@ export const Logo = ({ className = "", dark = false, to, compact = false }) => {
   return (
     <Link to={target} className={`inline-flex items-center ${className}`} data-testid="brand-logo" aria-label={ariaLabel}>
       {compact ? (
-        <span className="flex flex-col items-center gap-1" style={{ lineHeight: 1 }} aria-hidden="true">
-          <span
-            className="font-heading text-lg font-bold"
-            style={{ color: inkColor, letterSpacing: "-0.02em", lineHeight: 1 }}
-          >
-            C
-          </span>
-          <span className="flex items-center">
+        <span
+          className="cs-brand-logo-mark inline-flex h-9 w-9 items-center justify-center rounded-[11px]"
+          style={{
+            background: "linear-gradient(145deg, rgba(45,212,191,.22) 0%, rgba(255,122,92,.12) 100%)",
+            border: "1px solid rgba(248,247,242,.14)",
+            boxShadow: "0 6px 16px rgba(45,212,191,.18)",
+          }}
+          aria-hidden="true"
+        >
+          <span className="relative flex items-center">
             <span
               data-testid="brand-logo-line"
               style={{
                 height: "3px",
-                width: "1.25rem",
+                width: "0.95rem",
                 borderRadius: "9999px",
                 background: dotColor,
                 transition: "background-color 0.6s ease",

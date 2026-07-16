@@ -24,5 +24,19 @@ export function useCollapsibleSidebar(storageKey) {
     setCollapsed((prev) => !prev);
   }, []);
 
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "[" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      event.preventDefault();
+      toggle();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggle]);
+
   return { collapsed, toggle, setCollapsed };
 }
