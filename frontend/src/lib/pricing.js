@@ -5,6 +5,36 @@ export const BUSINESS_MONTHLY_GBP = 79;
 export const EXTRA_DOCUMENT_PRICE_GBP = 0.8;
 export const UK_VAT_RATE = 0.2;
 export const UK_VAT_PERCENT = 20;
+/** Default subscription trial — keep in sync with STRIPE_SUBSCRIPTION_TRIAL_DAYS. */
+export const SUBSCRIPTION_TRIAL_DAYS_DEFAULT = 30;
+
+export function isPaidPlanWithTrial(planName) {
+  return planName === "Pro" || planName === "Business";
+}
+
+/** Hero / pricing page pitch for first-time Pro or Business upgrades. */
+export function formatSubscriptionTrialPitch(trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
+  const days = Number(trialDays) || 0;
+  if (days <= 0) return null;
+  return `Try Pro or Business free for ${days} days on your first upgrade — card required, then billed as normal. Cancel anytime before day ${days + 1}.`;
+}
+
+/** Plan card line under the price slab, e.g. "£0 today · then £18/month incl. VAT". */
+export function formatPlanTrialPriceLabel(planName, interval = "monthly", trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
+  const days = Number(trialDays) || 0;
+  if (days <= 0 || !isPaidPlanWithTrial(planName)) return null;
+  const display = getPlanPriceDisplay(planName, interval);
+  if (!display?.tax) return null;
+  const after = formatGbp(display.tax.total);
+  const cadence = interval === "yearly" ? "year" : "month";
+  return `£0 today · then ${after}/${cadence} incl. VAT`;
+}
+
+export function formatSubscriptionTrialTag(trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
+  const days = Number(trialDays) || 0;
+  if (days <= 0) return null;
+  return days === 30 ? "30-day free trial on first upgrade" : `${days}-day free trial on first upgrade`;
+}
 
 export function formatExtraDocumentPrice({ includeTaxNote = false } = {}) {
   const base = EXTRA_DOCUMENT_PRICE_GBP < 1 ? "80p" : formatGbp(EXTRA_DOCUMENT_PRICE_GBP);

@@ -23,10 +23,12 @@ export function PlanPriceBreakdown({
           {savings}
         </span>
       )}
-      <div className="flex flex-wrap items-end gap-x-1 gap-y-1">
-        <span className={priceClassName}>{price}</span>
-        {note ? <span className={noteClassName}>{note}</span> : null}
-      </div>
+      {price ? (
+        <div className="flex flex-wrap items-end gap-x-1 gap-y-1">
+          <span className={priceClassName}>{price}</span>
+          {note ? <span className={noteClassName}>{note}</span> : null}
+        </div>
+      ) : null}
       {tax ? (
         <div
           className={`mt-2 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper)] ${

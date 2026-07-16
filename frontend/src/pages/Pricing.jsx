@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CheckCircle2, CreditCard, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, CreditCard, Gift, ShieldCheck } from "lucide-react";
 import { MarketingGradient } from "@/components/MarketingGradient";
 import { MarketingCtaBanner, MarketingDarkSection } from "@/components/MarketingDarkBand";
 import { PricingPlansSection } from "@/components/PricingPlansSection";
@@ -10,7 +10,8 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { PRICING_FAQS } from "@/lib/pricingPlans";
-import { formatFreePlanSignupPitch } from "@/lib/pricing";
+import api from "@/lib/api";
+import { formatFreePlanSignupPitch, formatSubscriptionTrialPitch, SUBSCRIPTION_TRIAL_DAYS_DEFAULT } from "@/lib/pricing";
 import {
   CTA_ACTIONS_CLASS,
   CTA_HEADLINE_CLASS,
@@ -36,8 +37,27 @@ const INCLUDED_EVERY_PLAN = [
 ];
 
 export default function Pricing() {
+  const [trialDays, setTrialDays] = useState(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
+  const trialPitch = formatSubscriptionTrialPitch(trialDays);
+
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/billing/config")
+      .then((data) => {
+        if (cancelled) return;
+        const days = data?.subscription_trial_enabled ? Number(data.subscription_trial_days) || 0 : 0;
+        setTrialDays(days > 0 ? days : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setTrialDays(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -47,10 +67,22 @@ export default function Pricing() {
       <section className="relative overflow-hidden border-b border-[var(--c-border)]">
         <MarketingGradient />
         <div className="relative mx-auto max-w-6xl px-4 py-12 text-center sm:px-6 sm:py-14 lg:py-20">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
-            <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
-            Transparent plans
-          </span>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
+              <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
+              Transparent plans
+            </span>
+            {trialDays > 0 ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+                style={{ background: "var(--c-primary)" }}
+                data-testid="pricing-trial-badge"
+              >
+                <Gift className="h-3.5 w-3.5" />
+                {trialDays}-day free trial on Pro &amp; Business
+              </span>
+            ) : null}
+          </div>
           <div
             className="mt-4"
             style={{ fontFamily: "'Caveat', cursive", fontSize: "30px", fontWeight: 600, color: "var(--c-primary-hover)" }}
@@ -62,6 +94,12 @@ export default function Pricing() {
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg leading-relaxed text-[var(--c-muted-fg)]">
             {formatFreePlanSignupPitch()}. Pro and Business unlock Manage PDF, higher limits, and team features — billed monthly or yearly.
+            {trialPitch ? (
+              <>
+                {" "}
+                <span className="font-medium text-[var(--c-ink)]">{trialPitch}</span>
+              </>
+            ) : null}
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link to="/register" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE} data-testid="pricing-hero-cta">
@@ -116,6 +154,7 @@ export default function Pricing() {
           </h2>
           <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.72)" }}>
             Create your account in minutes. No card required on the Free plan.
+            {trialDays > 0 ? ` Your first Pro or Business upgrade includes a ${trialDays}-day free trial.` : ""}
           </p>
           <div className={CTA_ACTIONS_CLASS}>
             <Link to="/register" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>

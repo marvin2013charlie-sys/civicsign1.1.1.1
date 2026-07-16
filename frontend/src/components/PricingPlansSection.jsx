@@ -1,11 +1,19 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Building2, Check, Sparkles, Zap } from "lucide-react";
 import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 import { buildPricingPlans, PRICING_COMPARISON_ROWS } from "@/lib/pricingPlans";
-import { formatFreePlanSignupPitch, getPlanPriceDisplay } from "@/lib/pricing";
+import {
+  formatFreePlanSignupPitch,
+  formatPlanTrialPriceLabel,
+  formatSubscriptionTrialPitch,
+  getPlanPriceDisplay,
+  isPaidPlanWithTrial,
+  SUBSCRIPTION_TRIAL_DAYS_DEFAULT,
+} from "@/lib/pricing";
 import { buildPlanCtaPath } from "@/lib/planCheckout";
 import { useAuth } from "@/context/AuthContext";
+import api from "@/lib/api";
 import { H_FONT, INK, MARKETING_CARD, PAPER_TEXT } from "@/lib/marketingUi";
 
 const PLAN_ICONS = {
@@ -24,10 +32,12 @@ function CompareCell({ value }) {
   return <span className="text-xs font-semibold text-[var(--c-ink)]">{value}</span>;
 }
 
-function PlanCard({ plan, billingInterval, ctaTo }) {
+function PlanCard({ plan, billingInterval, ctaTo, trialDays }) {
   const hot = plan.highlight;
   const Icon = PLAN_ICONS[plan.name] || Sparkles;
   const display = getPlanPriceDisplay(plan.name, billingInterval);
+  const trialPriceLabel = formatPlanTrialPriceLabel(plan.name, billingInterval, trialDays);
+  const showTrial = Boolean(trialPriceLabel && isPaidPlanWithTrial(plan.name));
 
   return (
     <div
@@ -77,10 +87,27 @@ function PlanCard({ plan, billingInterval, ctaTo }) {
       </div>
 
       <div className="mt-5">
+        {showTrial ? (
+          <div className="mb-3">
+            <div
+              className="font-heading text-[2.75rem] font-bold leading-none tracking-[-0.03em]"
+              style={{ color: hot ? "#2DD4BF" : "var(--c-primary)" }}
+            >
+              £0
+            </div>
+            <p className="mt-1 text-[13px] font-medium" style={{ color: hot ? "rgba(248,247,242,.82)" : "var(--c-ink)" }}>
+              {trialPriceLabel}
+            </p>
+            <p className="mt-1 text-[12px]" style={{ color: hot ? "rgba(248,247,242,.55)" : "var(--c-muted-fg)" }}>
+              {display.price} {display.note}
+              {display.savings ? ` · ${display.savings}` : ""}
+            </p>
+          </div>
+        ) : null}
         <PlanPriceBreakdown
-          price={display.price}
-          note={display.note}
-          savings={display.savings}
+          price={showTrial ? null : display.price}
+          note={showTrial ? null : display.note}
+          savings={showTrial ? null : display.savings}
           tax={display.tax}
           compact={hot}
           priceClassName={`font-heading text-[2.75rem] font-bold tracking-[-0.03em] leading-none ${
@@ -130,7 +157,25 @@ export function PricingPlansSection({
 }) {
   const { user } = useAuth();
   const [billingInterval, setBillingInterval] = useState("monthly");
-  const plans = buildPricingPlans(billingInterval);
+  const [trialDays, setTrialDays] = useState(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
+  const plans = buildPricingPlans(billingInterval, trialDays);
+  const trialPitch = formatSubscriptionTrialPitch(trialDays);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/billing/config")
+      .then((data) => {
+        if (cancelled) return;
+        const days = data?.subscription_trial_enabled ? Number(data.subscription_trial_days) || 0 : 0;
+        setTrialDays(days > 0 ? days : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setTrialDays(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section
@@ -145,13 +190,13 @@ export function PricingPlansSection({
             className="mt-4"
             style={{ fontFamily: "'Caveat', cursive", fontSize: "28px", fontWeight: 600, color: "var(--c-primary-hover)" }}
           >
-            No surprises. No trial traps.
+            No surprises. Try before you pay.
           </div>
           <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl lg:text-[42px]" style={H_FONT}>
             Simple, honest pricing<span style={{ color: "var(--c-accent)" }}>.</span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
-            {formatFreePlanSignupPitch()}. Upgrade when you grow. Extra documents from 80p excl. VAT when you run over.
+            {formatFreePlanSignupPitch()}. {trialPitch || "Upgrade when you grow."} Extra documents from 80p excl. VAT when you run over.
           </p>
 
           <div className="mt-7 flex w-full max-w-md flex-col gap-2 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-1 shadow-sm sm:mx-auto sm:inline-flex sm:w-auto sm:flex-row sm:rounded-full sm:p-[4px]">
@@ -182,6 +227,7 @@ export function PricingPlansSection({
             plan={plan}
             billingInterval={billingInterval}
             ctaTo={buildPlanCtaPath(plan.name, billingInterval, user || null)}
+            trialDays={trialDays}
           />
         ))}
       </div>
