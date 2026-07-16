@@ -25,8 +25,7 @@ const api = axios.create({
 export const publicApi = axios.create({ baseURL: API_BASE, withCredentials: false, timeout: 30_000 });
 
 api.interceptors.request.use((config) => {
-  const token = getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  // HttpOnly cookies are the primary auth mechanism. Bearer is not sent by default.
   return config;
 });
 
@@ -57,7 +56,7 @@ async function refreshAccessToken() {
       .post("/auth/refresh", {}, { _skipAuthRefresh: true })
       .then((res) => {
         if (res.data?.access_token) setAccessToken(res.data.access_token);
-        return res.data?.access_token;
+        return res.data?.access_token || true;
       })
       .finally(() => {
         refreshPromise = null;

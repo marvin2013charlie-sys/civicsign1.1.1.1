@@ -50,6 +50,7 @@ export default function Register() {
   const next = getAuthNext(params);
   const planIntent = normalizePaidPlanId(params.get("plan"));
   const billingIntent = normalizeBillingInterval(params.get("interval"));
+  const inviteCode = params.get("invite") || undefined;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -76,7 +77,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const data = await register(name, email, password);
+      const data = await register(name, email, password, inviteCode);
       if (data?.verification_required) {
         sessionStorage.setItem("cs_verify_email", data.email || email);
         if (data.dev_code) sessionStorage.setItem("cs_verify_dev_code", data.dev_code);

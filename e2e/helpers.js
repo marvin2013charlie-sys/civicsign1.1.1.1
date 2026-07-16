@@ -3,14 +3,26 @@ const { expect } = require("@playwright/test");
 const fs = require("fs");
 const { backendUrl, authFilePath } = require("./auth-env");
 
-/** Seeded by scripts/reset_dev_data.py — keep in sync with local dev DB. */
+const { authEnvSlug } = require("./auth-env");
+
+function e2ePassword(slot, localFallback) {
+  const envKey = `E2E_${slot.toUpperCase()}_PASSWORD`;
+  if (process.env[envKey]) return process.env[envKey];
+  if (process.env.E2E_PILOT_PASSWORD_DEV) return process.env.E2E_PILOT_PASSWORD_DEV;
+  if (authEnvSlug() === "production") {
+    throw new Error(`Missing ${envKey} (or E2E_PILOT_PASSWORD_DEV) for production E2E`);
+  }
+  return localFallback;
+}
+
+/** Local dev defaults match scripts/reset_dev_data.py — never used against production. */
 const USERS = {
-  free: { email: "free@civicbot.co.uk", password: "CivicSign2026!Free" },
-  pro: { email: "pro@civicbot.co.uk", password: "CivicSign2026!Pro" },
-  business: { email: "business@civicbot.co.uk", password: "CivicSign2026!Biz" },
-  orgOwner: { email: "org@civicbot.co.uk", password: "CivicSign2026!Org" },
-  orgStaff: { email: "staff@civicbot.co.uk", password: "CivicSign2026!Staff" },
-  admin: { email: "admin@civicbot.co.uk", password: "CivicSign2026!Admin" },
+  free: { email: "free@civicbot.co.uk", password: e2ePassword("free", "CivicSign2026!Free") },
+  pro: { email: "pro@civicbot.co.uk", password: e2ePassword("pro", "CivicSign2026!Pro") },
+  business: { email: "business@civicbot.co.uk", password: e2ePassword("business", "CivicSign2026!Biz") },
+  orgOwner: { email: "org@civicbot.co.uk", password: e2ePassword("org", "CivicSign2026!Org") },
+  orgStaff: { email: "staff@civicbot.co.uk", password: e2ePassword("staff", "CivicSign2026!Staff") },
+  admin: { email: "admin@civicbot.co.uk", password: e2ePassword("admin", "CivicSign2026!Admin") },
 };
 
 /** Remove product tour overlays and toasts that intercept Playwright clicks. */

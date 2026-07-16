@@ -30,7 +30,14 @@ from rate_limits import limiter, auth_limit
 import email_service
 from plan_signing import get_effective_plan, generate_plan_signature
 from db import db, delete_file, upload_file, download_file
-from security_utils import is_dev_mode, validate_redirect_base, cookie_secure, sniff_image_type
+from security_utils import (
+    is_dev_mode,
+    validate_redirect_base,
+    cookie_secure,
+    sniff_image_type,
+    assert_registration_allowed,
+)
+
 from plan_features import plan_features
 from models import (
     RegisterRequest, LoginRequest,
@@ -135,8 +142,8 @@ def create_refresh_token(user_id: str, *, token_version: int = 0) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def set_auth_cookies(response: Response, access: str, refresh: str):
-    """Set authentication cookies with security flags."""
+def set_access_cookie(response: Response, access: str):
+    """Set only the short-lived access cookie (e.g. impersonation handoff)."""
     secure = cookie_secure()
     response.set_cookie(
         "access_token",
@@ -147,6 +154,11 @@ def set_auth_cookies(response: Response, access: str, refresh: str):
         max_age=ACCESS_TTL_MIN * 60,
         path="/",
     )
+
+
+def set_auth_cookies(response: Response, access: str, refresh: str):
+    """Set authentication cookies with security flags."""
+    set_access_cookie(response, access)
     response.set_cookie(
         "refresh_token",
         refresh,
@@ -163,6 +175,19 @@ def clear_auth_cookies(response: Response):
     secure = cookie_secure()
     response.delete_cookie("access_token", path="/", samesite="strict", secure=secure)
     response.delete_cookie("refresh_token", path="/", samesite="strict", secure=secure)
+
+
+def _session_response(user: dict) -> dict:
+    """Auth success payload — access tokens are HttpOnly cookies only."""
+    return {"user": _public_user(user)}
+
+
+def _reject_impersonation_writes(user: dict) -> None:
+    if user.get("_impersonating"):
+        raise HTTPException(
+            status_code=403,
+            detail="This action is not allowed during a support viewing session.",
+        )
 
 
 def _public_user(doc: dict) -> dict:
@@ -387,6 +412,8 @@ auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 async def register(request: Request, body: RegisterRequest, response: Response):
     """Register new user with email verification."""
     try:
+        assert_registration_allowed(invite_code=body.invite_code)
+
         # Validate email format
         email = body.email.lower().strip()
         if not email or "@" not in email:
@@ -523,7 +550,7 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
         refresh = create_refresh_token(user["user_id"], token_version=tv)
         set_auth_cookies(response, access, refresh)
         logger.info(f"[auth] Email verified: {email}")
-        return {"user": _public_user(user), "access_token": access}
+        return _session_response(user)
     except HTTPException:
         raise
     except Exception as e:
@@ -574,7 +601,7 @@ async def login(request: Request, body: LoginRequest, response: Response):
         refresh = create_refresh_token(user["user_id"], token_version=tv)
         set_auth_cookies(response, access, refresh)
         logger.info(f"[auth] Login successful: {email}")
-        return {"user": _public_user(user), "access_token": access}
+        return _session_response(user)
     except HTTPException:
         raise
     except Exception as e:
@@ -683,12 +710,58 @@ async def refresh_token(request: Request, response: Response):
         )
         new_refresh = create_refresh_token(user["user_id"], token_version=user_tv)
         set_auth_cookies(response, access, new_refresh)
-        return {"access_token": access}
+        return {"ok": True}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"[auth] refresh_token error: {str(e)[:100]}")
         raise HTTPException(status_code=500, detail="Token refresh failed")
+
+
+@auth_router.post("/impersonation/exit")
+@limiter.limit("30/hour")
+async def exit_impersonation(request: Request, response: Response):
+    """End a support impersonation session and restore the staff refresh session."""
+    access = request.cookies.get("access_token")
+    if access:
+        try:
+            payload = jwt.decode(access, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+            if not payload.get("imp"):
+                return {"ok": True, "message": "Not in an impersonation session"}
+        except jwt.InvalidTokenError:
+            pass
+
+    token = request.cookies.get("refresh_token")
+    if not token or len(token) > 2048:
+        clear_auth_cookies(response)
+        raise HTTPException(status_code=401, detail="Session expired — please sign in again")
+
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid session")
+    except jwt.InvalidTokenError:
+        clear_auth_cookies(response)
+        raise HTTPException(status_code=401, detail="Session expired — please sign in again")
+
+    user = await db.users.find_one({"user_id": payload["sub"]}, {"_id": 0})
+    if not user:
+        clear_auth_cookies(response)
+        raise HTTPException(status_code=401, detail="User not found")
+    if user.get("role") not in ("admin", "staff"):
+        clear_auth_cookies(response)
+        raise HTTPException(status_code=403, detail="Only internal team sessions can exit impersonation here")
+
+    user_tv = int(user.get("token_version") or 0)
+    if int(payload.get("tv") or 0) != user_tv:
+        clear_auth_cookies(response)
+        raise HTTPException(status_code=401, detail="Session expired — please sign in again")
+
+    access = create_access_token(user["user_id"], user["email"], token_version=user_tv)
+    new_refresh = create_refresh_token(user["user_id"], token_version=user_tv)
+    set_auth_cookies(response, access, new_refresh)
+    logger.info(f"[auth] Impersonation exit: restored staff session for {user['email']}")
+    return _session_response(user)
 
 
 @auth_router.post("/logout")
@@ -794,6 +867,7 @@ async def update_profile(request: Request, body: ProfileUpdate, user: dict = Dep
 async def change_password(request: Request, body: PasswordChange, user: dict = Depends(get_current_user)):
     """Change user password."""
     try:
+        _reject_impersonation_writes(user)
         if not user.get("password_hash"):
             raise HTTPException(
                 status_code=400,
@@ -834,6 +908,7 @@ async def change_password(request: Request, body: PasswordChange, user: dict = D
 async def update_subscription(request: Request, body: SubscriptionUpdate, user: dict = Depends(get_current_user)):
     """Update user subscription plan (only for downgrading)."""
     try:
+        _reject_impersonation_writes(user)
         plan = (body.plan or "").lower().strip()
         if plan not in PLANS:
             raise HTTPException(status_code=400, detail="Unknown plan")
@@ -848,6 +923,12 @@ async def update_subscription(request: Request, body: SubscriptionUpdate, user: 
             raise HTTPException(
                 status_code=400,
                 detail="Use the billing system to upgrade your plan"
+            )
+
+        if current_plan != "free" and user.get("stripe_customer_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="Manage plan changes in Settings → Subscription (Stripe billing).",
             )
         
         patch = {
@@ -911,6 +992,7 @@ async def delete_account(request: Request, body: AccountDelete, response: Respon
     (envelopes, templates and stored documents). Requires typed confirmation.
     """
     try:
+        _reject_impersonation_writes(user)
         if (body.confirm or "").strip().upper() != "DELETE":
             raise HTTPException(status_code=400, detail='Type "DELETE" to confirm account deletion')
 

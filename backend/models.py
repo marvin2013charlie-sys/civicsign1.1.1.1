@@ -8,6 +8,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(min_length=8)
+    invite_code: Optional[str] = None
 
 
 class LoginRequest(BaseModel):

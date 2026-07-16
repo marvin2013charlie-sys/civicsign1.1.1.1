@@ -76,7 +76,7 @@ function ImpersonateDialog({ open, onOpenChange, userId, targetName }) {
       const { data } = await api.post(`/admin/users/${userId}/impersonate/verify`, {
         request_id: request.request_id, otp: otp.trim(),
       });
-      startImpersonation(data.user, data.access_token);
+      startImpersonation(data.user);
       // Hard-redirect so route guards re-evaluate against the impersonated user
       // (avoids the AdminProtected guard bouncing us back to the admin login).
       window.location.href = "/dashboard";

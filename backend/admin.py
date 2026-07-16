@@ -30,7 +30,14 @@ from html import escape
 
 import email_service
 from db import db
-from auth import require_admin, require_permission, _public_user, create_access_token, create_password_reset
+from auth import (
+    require_admin,
+    require_permission,
+    _public_user,
+    create_access_token,
+    create_password_reset,
+    set_access_cookie,
+)
 from security_utils import is_dev_mode, validate_redirect_base
 from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
 from billing import (
@@ -902,6 +909,7 @@ async def impersonate_request(request: Request, user_id: str,
 @admin_router.post("/users/{user_id}/impersonate/verify")
 @limiter.limit("5/minute")
 async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVerify,
+                             response: Response,
                              admin: dict = Depends(require_permission("impersonate"))):
     """Step 2: verify the OTP and mint an access token for the target user."""
     try:
@@ -977,8 +985,12 @@ async def impersonate_verify(request: Request, user_id: str, body: ImpersonateVe
         logger.warning(
             f"[admin] IMPERSONATION GRANTED: {admin['email']} -> {target['email']}"
         )
-        
-        return {"access_token": token, "user": _public_user(target)}
+
+        out = _public_user(target)
+        out["impersonating_session"] = True
+        out["document_access_restricted"] = True
+        set_access_cookie(response, token)
+        return {"user": out}
     except HTTPException:
         raise
     except Exception as e:

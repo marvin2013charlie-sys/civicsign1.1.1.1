@@ -106,15 +106,19 @@ export function AuthProvider({ children }) {
     const { data } = await api.post("/auth/login", { email, password });
     clearTokens();
     setImpersonation(null);
-    if (data.access_token) setAccessToken(data.access_token);
     checkStartedRef.current = true;
     setAuthReady(true);
     setUser(data.user);
     return data;
   };
 
-  const register = async (name, email, password) => {
-    const { data } = await api.post("/auth/register", { name, email, password });
+  const register = async (name, email, password, inviteCode) => {
+    const { data } = await api.post("/auth/register", {
+      name,
+      email,
+      password,
+      invite_code: inviteCode || undefined,
+    });
     return data;
   };
 
@@ -122,7 +126,6 @@ export function AuthProvider({ children }) {
     const { data } = await api.post("/auth/verify-email", { email, code });
     clearTokens();
     setImpersonation(null);
-    if (data.access_token) setAccessToken(data.access_token);
     checkStartedRef.current = true;
     setAuthReady(true);
     setUser(data.user);
@@ -161,8 +164,8 @@ export function AuthProvider({ children }) {
     checkStartedRef.current = true;
   };
 
-  const startImpersonation = (targetUser, token) => {
-    setAccessToken(token);
+  const startImpersonation = (targetUser) => {
+    clearTokens();
     setImpersonation({
       user_id: targetUser.user_id,
       name: targetUser.name || "",
@@ -177,11 +180,17 @@ export function AuthProvider({ children }) {
     clearTokens();
     setImpersonation(null);
     try {
-      const data = await restoreSession();
-      if (data && (data.role === "admin" || data.role === "staff")) {
-        setUser(data);
+      const { data } = await api.post("/auth/impersonation/exit");
+      if (data?.user && (data.user.role === "admin" || data.user.role === "staff")) {
+        setUser(data.user);
         setAuthReady(true);
-        return { ok: true, user: data };
+        return { ok: true, user: data.user };
+      }
+      const restored = await restoreSession();
+      if (restored && (restored.role === "admin" || restored.role === "staff")) {
+        setUser(restored);
+        setAuthReady(true);
+        return { ok: true, user: restored };
       }
     } catch {
       /* admin cookie may have expired */

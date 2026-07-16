@@ -1,17 +1,18 @@
 """Pilot / demo accounts for QA and private beta — upsert only, never wipes data."""
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from datetime import datetime, timezone
 
 from auth import hash_password
 from plan_signing import generate_plan_signature
+from security_utils import is_dev_mode
 
 ORG_NAME = "CivicSign Demo Organisation"
 ORG_ID = "org_civicsign_demo01"
 
-# Pilot logins seeded for QA (admin@civicbot.co.uk is kept — internal admin).
 PILOT_EMAILS = {spec["email"].lower() for spec in (
     {"email": "free@civicbot.co.uk"},
     {"email": "pro@civicbot.co.uk"},
@@ -39,31 +40,27 @@ _TEST_EMAIL_PATTERNS = (
     re.compile(r"^integration-check-[^@]+@example\.com$", re.I),
 )
 
-PILOT_ACCOUNTS = {
+PILOT_ACCOUNT_SPECS = {
     "free": {
         "email": "free@civicbot.co.uk",
-        "password": "CivicSign2026!Free",
         "name": "Free Test User",
         "plan": "free",
         "role": "user",
     },
     "pro": {
         "email": "pro@civicbot.co.uk",
-        "password": "CivicSign2026!Pro",
         "name": "Pro Test User",
         "plan": "pro",
         "role": "user",
     },
     "business": {
         "email": "business@civicbot.co.uk",
-        "password": "CivicSign2026!Biz",
         "name": "Business Test User",
         "plan": "business",
         "role": "user",
     },
     "organisation": {
         "email": "org@civicbot.co.uk",
-        "password": "CivicSign2026!Org",
         "name": "Organisation Owner",
         "plan": "business",
         "role": "user",
@@ -73,7 +70,6 @@ PILOT_ACCOUNTS = {
     },
     "org_staff": {
         "email": "staff@civicbot.co.uk",
-        "password": "CivicSign2026!Staff",
         "name": "Organisation Staff",
         "plan": "business",
         "role": "user",
@@ -83,12 +79,33 @@ PILOT_ACCOUNTS = {
     },
     "admin": {
         "email": "admin@civicbot.co.uk",
-        "password": "CivicSign2026!Admin",
         "name": "CivicSign Admin",
         "plan": "business",
         "role": "admin",
     },
 }
+
+
+def _pilot_password(slot: str) -> str:
+    """Resolve pilot password from env — never hardcoded in source."""
+    env_key = f"PILOT_PASSWORD_{slot.upper()}"
+    value = (os.environ.get(env_key) or "").strip()
+    if value:
+        return value
+    if is_dev_mode():
+        shared = (os.environ.get("PILOT_PASSWORD_DEV") or "").strip()
+        if shared:
+            return shared
+    raise RuntimeError(
+        f"Missing {env_key} (or PILOT_PASSWORD_DEV in DEV_MODE) — "
+        "set passwords in backend/.env or run scripts/reset_dev_data.py",
+    )
+
+
+def pilot_account(slot: str) -> dict:
+    spec = dict(PILOT_ACCOUNT_SPECS[slot])
+    spec["password"] = _pilot_password(slot)
+    return spec
 
 
 def _now() -> str:
@@ -159,12 +176,12 @@ async def upsert_pilot_organisation(db, owner: dict, admin_id: str) -> dict:
 
 async def seed_pilot_accounts(db) -> None:
     """Create or refresh standard pilot logins (idempotent)."""
-    admin = await upsert_pilot_user(db, PILOT_ACCOUNTS["admin"])
-    await upsert_pilot_user(db, PILOT_ACCOUNTS["free"])
-    await upsert_pilot_user(db, PILOT_ACCOUNTS["pro"])
-    await upsert_pilot_user(db, PILOT_ACCOUNTS["business"])
-    org_owner = await upsert_pilot_user(db, PILOT_ACCOUNTS["organisation"], created_by=admin["user_id"])
-    await upsert_pilot_user(db, PILOT_ACCOUNTS["org_staff"], created_by=org_owner["user_id"])
+    admin = await upsert_pilot_user(db, pilot_account("admin"))
+    await upsert_pilot_user(db, pilot_account("free"))
+    await upsert_pilot_user(db, pilot_account("pro"))
+    await upsert_pilot_user(db, pilot_account("business"))
+    org_owner = await upsert_pilot_user(db, pilot_account("organisation"), created_by=admin["user_id"])
+    await upsert_pilot_user(db, pilot_account("org_staff"), created_by=org_owner["user_id"])
     await upsert_pilot_organisation(db, org_owner, admin["user_id"])
 
 

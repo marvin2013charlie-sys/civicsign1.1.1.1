@@ -2178,6 +2178,12 @@ async def apply_security_headers(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def impersonation_readonly_guard(request: Request, call_next):
+    from impersonation_guard import impersonation_readonly_middleware
+    return await impersonation_readonly_middleware(request, call_next)
+
+
 async def _process_auto_reminders():
     """Send scheduled reminder emails for envelopes with auto_remind enabled."""
     import email_service

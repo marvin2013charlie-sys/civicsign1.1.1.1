@@ -17,6 +17,35 @@ def is_dev_mode() -> bool:
     return os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes")
 
 
+def registration_is_enabled() -> bool:
+    """When false, POST /api/auth/register is rejected (private beta / invite-only)."""
+    return os.environ.get("REGISTRATION_ENABLED", "true").lower() in ("1", "true", "yes")
+
+
+def registration_invite_code() -> str | None:
+    """Optional invite code required when registration is enabled but gated."""
+    code = (os.environ.get("REGISTRATION_INVITE_CODE") or "").strip()
+    return code or None
+
+
+def assert_registration_allowed(*, invite_code: str | None = None) -> None:
+    """Raise 403 when open registration is disabled or invite code is wrong."""
+    if not registration_is_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="Registration is currently closed. Contact us for early access.",
+        )
+    required = registration_invite_code()
+    if not required:
+        return
+    provided = (invite_code or "").strip()
+    if not provided or provided != required:
+        raise HTTPException(
+            status_code=403,
+            detail="A valid invite code is required to register.",
+        )
+
+
 def _normalize_redirect_origin(url: str) -> str | None:
     """Return scheme://host[:port] or None if invalid."""
     candidate = (url or "").strip().rstrip("/")

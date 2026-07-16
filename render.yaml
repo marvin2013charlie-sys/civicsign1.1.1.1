@@ -40,6 +40,8 @@ services:
         value: "false"
       - key: KEEP_SINGLE_ADMIN
         value: "true"
+      - key: REGISTRATION_ENABLED
+        value: "false"
       # --- Secrets: set these in the Render dashboard (sync:false) ---
       - key: MONGO_URL
         sync: false
