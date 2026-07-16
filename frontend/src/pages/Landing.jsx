@@ -118,9 +118,9 @@ export default function Landing() {
       <SiteHeader />
 
       {/* ================= HERO ================= */}
-      <section className="relative overflow-x-hidden">
+      <section className="relative overflow-visible">
         <MarketingGradient />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 lg:grid-cols-2 lg:py-24">
+        <div className="relative mx-auto grid max-w-6xl items-start gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 lg:grid-cols-2 lg:gap-16 lg:py-24">
           <div className="lv3-anim" style={{ animation: "lv3-fadeUp .7s ease both" }}>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-4 py-1.5 text-[12.5px] font-semibold text-[var(--badge-teal-fg)] shadow-sm">
               <span className="h-[7px] w-[7px] rounded-full" style={{ background: "#16A34A", boxShadow: "0 0 0 3px rgba(22,163,74,.18)" }} />
@@ -163,14 +163,14 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* hero mock — badges sit above/below card so nothing is clipped or overlapped */}
-          <div className="lv3-anim relative" style={{ animation: "lv3-fadeUp .7s .15s ease both" }}>
-            <div
-              className="lv3-anim mb-3 flex justify-end sm:mb-4"
-              style={{ animation: "lv3-floaty 5s ease-in-out infinite" }}
-            >
+          {/* hero mock — badges in document flow above/below card (no absolute overlap) */}
+          <div
+            className="lv3-anim relative mx-auto w-full max-w-[440px] py-2 sm:max-w-none sm:py-4 lg:mx-0 lg:max-w-none"
+            style={{ animation: "lv3-fadeUp .7s .15s ease both" }}
+          >
+            <div className="mb-5 flex justify-end sm:mb-6">
               <div
-                className="inline-flex items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-3 py-2.5 sm:px-4 sm:py-3"
+                className="inline-flex max-w-full items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-3 py-2.5 sm:px-4 sm:py-3"
                 style={{ boxShadow: "0 10px 26px rgba(18,33,32,.14)" }}
               >
                 <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]" style={{ background: "var(--badge-success-bg)" }}>🔒</span>
@@ -180,12 +180,15 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-            <div className="relative">
+            <div className="relative overflow-visible">
               <div
                 className="pointer-events-none absolute rounded-3xl opacity-[.14] -inset-y-2 inset-x-4 sm:inset-[12px_-24px_-12px_28px]"
                 style={{ background: "linear-gradient(135deg,#14B8A6,#0D9488)", transform: "rotate(2deg)" }}
               />
-            <div className="relative rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] p-5 sm:p-7" style={{ boxShadow: "0 30px 70px rgba(18,33,32,.16)" }}>
+            <div
+              className="lv3-anim relative rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] p-5 sm:p-7"
+              style={{ animation: "lv3-floaty 6s ease-in-out infinite", boxShadow: "0 30px 70px rgba(18,33,32,.16)" }}
+            >
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] text-base" style={{ background: "var(--badge-coral-bg)" }}>📄</span>
@@ -228,12 +231,9 @@ export default function Landing() {
               </div>
             </div>
             </div>
-            <div
-              className="lv3-anim mt-3 flex justify-start sm:mt-4"
-              style={{ animation: "lv3-floaty 6s .8s ease-in-out infinite" }}
-            >
+            <div className="mt-5 flex justify-start sm:mt-6">
               <div
-                className="inline-flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white sm:px-4 sm:py-3"
+                className="inline-flex max-w-full items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white sm:px-4 sm:py-3"
                 style={{ background: INK, boxShadow: "0 12px 30px rgba(18,33,32,.28)" }}
               >
                 <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]" style={{ background: "rgba(45,212,191,.18)" }}>⚡️</span>
