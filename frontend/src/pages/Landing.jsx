@@ -118,9 +118,9 @@ export default function Landing() {
       <SiteHeader />
 
       {/* ================= HERO ================= */}
-      <section className="relative overflow-visible">
+      <section className="relative overflow-x-clip pb-2 sm:pb-4">
         <MarketingGradient />
-        <div className="relative mx-auto grid max-w-6xl items-start gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 lg:grid-cols-2 lg:gap-16 lg:py-24">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 lg:grid-cols-2 lg:items-start lg:gap-16 lg:py-24">
           <div className="lv3-anim" style={{ animation: "lv3-fadeUp .7s ease both" }}>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-4 py-1.5 text-[12.5px] font-semibold text-[var(--badge-teal-fg)] shadow-sm">
               <span className="h-[7px] w-[7px] rounded-full" style={{ background: "#16A34A", boxShadow: "0 0 0 3px rgba(22,163,74,.18)" }} />
@@ -180,7 +180,7 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-            <div className="relative overflow-visible">
+            <div className="relative">
               <div
                 className="pointer-events-none absolute rounded-3xl opacity-[.14] -inset-y-2 inset-x-4 sm:inset-[12px_-24px_-12px_28px]"
                 style={{ background: "linear-gradient(135deg,#14B8A6,#0D9488)", transform: "rotate(2deg)" }}

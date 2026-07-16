@@ -36,6 +36,6 @@ if [[ ! -f build/index.html ]] || ! grep -q 'api\.civicsign\.co\.uk' build/stati
 fi
 
 echo "Deploying to Cloudflare Pages project: $PROJECT"
-npx wrangler pages deploy build --project-name="$PROJECT" --branch=production --commit-dirty=true
+npx wrangler pages deploy build --project-name="$PROJECT" --branch=main --commit-dirty=true
 
 echo "Done. Attach custom domain in Cloudflare → Pages → $PROJECT → Custom domains."
