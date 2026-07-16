@@ -28,20 +28,44 @@ class FakeUsers:
         self.last_set = None
 
     async def find_one(self, query, projection=None):
-        # Match by any field present in both query and the stored user.
         for key, val in query.items():
-            if self._user.get(key) != val:
+            if key.startswith("billing_emails_sent."):
+                subkey = key.split(".", 1)[1]
+                exists = subkey in (self._user.get("billing_emails_sent") or {})
+                if val == {"$exists": False} and exists:
+                    return None
+                if val == {"$exists": False}:
+                    continue
+            elif self._user.get(key) != val:
                 return None
         return dict(self._user)
 
     async def update_one(self, query, update):
-        self.last_set = update.get("$set", {})
-        self._user.update(self.last_set)
+        for key, val in query.items():
+            if key.startswith("billing_emails_sent."):
+                subkey = key.split(".", 1)[1]
+                exists = subkey in (self._user.get("billing_emails_sent") or {})
+                if val == {"$exists": False} and exists:
+                    class _R:
+                        matched_count = 0
+                        modified_count = 0
+                    return _R()
+        patch = {}
+        for dotted, val in (update.get("$set") or {}).items():
+            if dotted.startswith("billing_emails_sent."):
+                subkey = dotted.split(".", 1)[1]
+                self._user.setdefault("billing_emails_sent", {})[subkey] = val
+            else:
+                patch[dotted] = val
+        if patch:
+            self.last_set = {**(self.last_set or {}), **patch}
+            self._user.update(patch)
         for key in update.get("$unset", {}):
             self._user.pop(key, None)
 
         class _R:
             matched_count = 1
+            modified_count = 1
         return _R()
 
 

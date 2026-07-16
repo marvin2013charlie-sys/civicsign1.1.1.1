@@ -202,3 +202,118 @@ def send_declined(to_email, doc_title, decliner, reason=None):
     )
     html = _shell("A signer declined", body)
     return _send(to_email, f"Declined: {doc_title}", html)
+
+
+def send_plan_upgrade_confirmation(
+    to_email,
+    name,
+    plan_name,
+    billing_interval,
+    settings_url,
+    *,
+    previous_plan_name=None,
+    credit_gbp=None,
+):
+    change_line = (
+        f"<p>Your plan has been upgraded from <b>{esc(previous_plan_name)}</b> to "
+        f"<b>{esc(plan_name)}</b> ({esc(billing_interval)} billing).</p>"
+        if previous_plan_name
+        else f"<p>You're now on the <b>{esc(plan_name)}</b> plan ({esc(billing_interval)} billing).</p>"
+    )
+    credit_line = ""
+    if credit_gbp and credit_gbp > 0:
+        credit_line = (
+            f"<p>We credited <b>£{credit_gbp:.2f}</b> for unused time on your previous plan "
+            f"this billing cycle.</p>"
+        )
+    body = (
+        f"<p>Hi {esc(name or 'there')},</p>"
+        f"{change_line}"
+        f"{credit_line}"
+        f"<p>Your new features and document allowance are active now. "
+        f"You can review billing and invoices anytime in Settings.</p>"
+    )
+    html = _shell("Your plan has been upgraded", body, "View subscription", settings_url)
+    return _send(to_email, f"Upgraded to CivicSign {plan_name}", html)
+
+
+def send_plan_downgrade_confirmation(
+    to_email,
+    name,
+    plan_name,
+    billing_interval,
+    settings_url,
+    *,
+    previous_plan_name=None,
+    effective="immediate",
+    period_end_label=None,
+):
+    if effective == "period_end" and period_end_label:
+        timing = (
+            f"Your plan will change on <b>{esc(period_end_label)}</b>. "
+            f"Until then, your current features stay active."
+        )
+    else:
+        timing = "Your plan change is effective immediately."
+    prev_line = (
+        f" from <b>{esc(previous_plan_name)}</b>"
+        if previous_plan_name
+        else ""
+    )
+    body = (
+        f"<p>Hi {esc(name or 'there')},</p>"
+        f"<p>We've updated your subscription{prev_line} to "
+        f"<b>{esc(plan_name)}</b> ({esc(billing_interval)} billing).</p>"
+        f"<p>{timing}</p>"
+        f"<p>You can review your plan or billing details in Settings.</p>"
+    )
+    html = _shell("Your plan has changed", body, "View subscription", settings_url)
+    return _send(to_email, f"Plan updated: CivicSign {plan_name}", html)
+
+
+def send_subscription_cancellation_scheduled(
+    to_email,
+    name,
+    plan_name,
+    billing_interval,
+    period_end_label,
+    settings_url,
+):
+    body = (
+        f"<p>Hi {esc(name or 'there')},</p>"
+        f"<p>We've scheduled your <b>{esc(plan_name)}</b> ({esc(billing_interval)} billing) "
+        f"subscription to end on <b>{esc(period_end_label)}</b>.</p>"
+        f"<p>You'll keep full access until that date. After then, your account moves to the "
+        f"<b>Free</b> plan automatically — no further charges.</p>"
+        f"<p>Changed your mind? You can resubscribe from Settings before the end date.</p>"
+    )
+    html = _shell("Cancellation scheduled", body, "Manage subscription", settings_url)
+    return _send(to_email, "Your CivicSign cancellation is scheduled", html)
+
+
+def send_renewal_reminder(
+    to_email,
+    name,
+    plan_name,
+    billing_interval,
+    amount_label,
+    payment_date_label,
+    settings_url,
+):
+    amount_line = (
+        f"<p>Estimated charge: <b>{esc(amount_label)}</b> (incl. VAT where applicable).</p>"
+        if amount_label
+        else ""
+    )
+    body = (
+        f"<p>Hi {esc(name or 'there')},</p>"
+        f"<p>Your <b>{esc(plan_name)}</b> ({esc(billing_interval)} billing) subscription "
+        f"renews on <b>{esc(payment_date_label)}</b>.</p>"
+        f"{amount_line}"
+        f"<p>We'll charge the card on file unless you update billing or cancel before then. "
+        f"This reminder is sent about 7 days before payment.</p>"
+        f"<p style=\"color:#8a9299;font-size:13px\">Trials ending soon are billed the same way — "
+        f"cancel anytime before the date above to avoid charges.</p>"
+    )
+    html = _shell("Upcoming subscription payment", body, "Manage billing", settings_url)
+    return _send(to_email, f"Reminder: CivicSign {plan_name} renews on {payment_date_label}", html)

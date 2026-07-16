@@ -41,6 +41,7 @@ from models import (
     UpgradeConfirmRequest,
 )
 from tax import UK_VAT_PERCENT, tax_breakdown
+import billing_emails
 
 logger = logging.getLogger("civicsign.billing")
 
@@ -605,6 +606,11 @@ async def _activate_subscription(
 async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status: str = "canceled") -> None:
     """Revoke paid access. Clearing plan_signature makes get_effective_plan()
     return 'free' everywhere, so quotas and features immediately revert."""
+    user_before = await db.users.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "email": 1, "name": 1, "plan": 1, "billing_interval": 1, "user_id": 1},
+    )
+    previous_plan = (user_before or {}).get("plan")
     now_ts = _now()
     await db.users.update_one(
         {"user_id": user_id},
@@ -627,6 +633,15 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
         },
     )
     logger.info(f"[billing] downgraded user={user_id} to free ({reason}, status={subscription_status})")
+    if user_before and previous_plan in PLANS:
+        await billing_emails.notify_plan_downgrade(
+            user_before,
+            plan_id="free",
+            billing_interval="monthly",
+            dedupe_key=f"downgrade_free_{user_id}_{subscription_status}",
+            previous_plan=previous_plan,
+            effective="immediate",
+        )
 
 
 async def downgrade_user_for_plan_refund(user_id: str, *, reason: str, cancel_stripe: bool = True) -> bool:
@@ -1241,6 +1256,14 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
                 "$unset": {"pending_plan_upgrade": ""},
             },
         )
+        await billing_emails.notify_plan_upgrade(
+            user,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+            dedupe_key=f"upgrade_invoice_{invoice_id}",
+            previous_plan=preview.get("current_plan"),
+            credit_gbp=preview.get("credit"),
+        )
         plan_name = PLANS[plan_id]["name"]
         msg = f"Your plan is now {plan_name} ({billing_interval})."
         if preview.get("credit", 0) > 0:
@@ -1307,6 +1330,8 @@ async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: 
 
 async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: str) -> dict:
     """Downgrade or lateral plan change on an existing Stripe subscription."""
+    previous_plan = (user.get("plan") or "free").lower().strip()
+    previous_interval = (user.get("billing_interval") or "monthly").lower().strip()
     sub_id = user.get("stripe_subscription_id")
     status = (user.get("subscription_status") or "").lower()
     if not sub_id or status not in ACTIVE_SUBSCRIPTION_STATES:
@@ -1360,6 +1385,24 @@ async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: 
             "$unset": {"pending_plan_upgrade": ""},
         },
     )
+    dedupe_key = f"change_{sub_id}_{plan_id}_{billing_interval}"
+    if _is_paid_upgrade(previous_plan, previous_interval, plan_id, billing_interval):
+        await billing_emails.notify_plan_upgrade(
+            user,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+            dedupe_key=dedupe_key,
+            previous_plan=previous_plan,
+        )
+    else:
+        await billing_emails.notify_plan_downgrade(
+            user,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+            dedupe_key=dedupe_key,
+            previous_plan=previous_plan,
+            effective="immediate",
+        )
     plan_name = PLANS[plan_id]["name"]
     return {
         "changed": True,
@@ -1410,6 +1453,12 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
         logger.error(f"[billing] missing user_id for session {session_id}")
         return tx
 
+    user_before = await db.users.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "email": 1, "name": 1, "plan": 1, "billing_interval": 1, "user_id": 1},
+    )
+    previous_plan = (user_before or {}).get("plan")
+
     purchase_type = tx.get("purchase_type", "plan")
     if purchase_type == "extra_document":
         credits = int(tx.get("document_credits") or 1)
@@ -1447,6 +1496,14 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
         f"[billing] upgraded user={user_id} -> plan={plan_id} "
         f"(session {session_id}) with signature verification"
     )
+    if user_before:
+        await billing_emails.notify_plan_upgrade(
+            user_before,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+            dedupe_key=f"upgrade_session_{session_id}",
+            previous_plan=previous_plan if previous_plan in PLANS else None,
+        )
     return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
 
 
@@ -1901,6 +1958,50 @@ async def _complete_pending_upgrade_from_invoice(invoice_id: str, invoice_obj: d
             }},
         )
     logger.info(f"[billing] completed pending upgrade to {plan_id} for {user['user_id']} (invoice {invoice_id})")
+    pending_preview = pending.get("preview") or {}
+    await billing_emails.notify_plan_upgrade(
+        user,
+        plan_id=plan_id,
+        billing_interval=billing_interval,
+        dedupe_key=f"upgrade_invoice_{invoice_id}",
+        previous_plan=pending_preview.get("current_plan"),
+        credit_gbp=pending_preview.get("credit"),
+    )
+
+
+async def _handle_invoice_upcoming(invoice: dict) -> None:
+    """Send a renewal reminder ~7 days before Stripe takes payment."""
+    sub_id = _stripe_resource_id(invoice.get("subscription"))
+    customer_id = _stripe_resource_id(invoice.get("customer"))
+    user = None
+    if sub_id:
+        user = await db.users.find_one({"stripe_subscription_id": sub_id}, {"_id": 0})
+    if not user and customer_id:
+        user = await db.users.find_one({"stripe_customer_id": customer_id}, {"_id": 0})
+    if not user:
+        logger.info("[billing] invoice.upcoming: no matching user")
+        return
+    if user.get("subscription_cancel_at_period_end"):
+        return
+    status = (user.get("subscription_status") or "").lower()
+    if status not in ACTIVE_SUBSCRIPTION_STATES:
+        return
+    plan_id = (user.get("plan") or "").lower().strip()
+    if plan_id not in PLANS:
+        return
+    period_end = invoice.get("period_end") or invoice.get("next_payment_attempt")
+    amount_due = invoice.get("amount_due")
+    if amount_due is not None and int(amount_due) <= 0:
+        return
+    dedupe_key = f"renewal_{sub_id or customer_id}_{period_end}"
+    await billing_emails.notify_renewal_reminder(
+        user,
+        plan_id=plan_id,
+        billing_interval=user.get("billing_interval") or "monthly",
+        amount_due_pence=amount_due,
+        payment_date=period_end,
+        dedupe_key=dedupe_key,
+    )
 
 
 @billing_router.post("/webhook/stripe")
@@ -1986,14 +2087,19 @@ async def stripe_webhook(request: Request):
         await _handle_refund_event(obj)
         return {"received": True}
 
-    # 4) Prorated upgrade invoice paid — activate pending plan change.
+    # 4) Upcoming renewal — email ~7 days before payment (Stripe Dashboard default).
+    if event_type == "invoice.upcoming":
+        await _handle_invoice_upcoming(obj)
+        return {"received": True}
+
+    # 5) Prorated upgrade invoice paid — activate pending plan change.
     if event_type == "invoice.payment_succeeded":
         invoice_id = obj.get("id")
         if invoice_id:
             await _complete_pending_upgrade_from_invoice(invoice_id, obj)
         return {"received": True}
 
-    # 5) Failed renewal — revoke immediately rather than waiting for the status sync.
+    # 6) Failed renewal — revoke immediately rather than waiting for the status sync.
     if event_type == "invoice.payment_failed":
         sub_id = obj.get("subscription")
         if sub_id:
@@ -2234,6 +2340,13 @@ async def cancel_subscription(
                 }},
             )
             logger.info(f"[billing] scheduled cancellation for user={user['user_id']} sub={sub_id}")
+            await billing_emails.notify_cancellation_scheduled(
+                user,
+                plan_id=(user.get("plan") or "pro").lower().strip(),
+                billing_interval=user.get("billing_interval") or "monthly",
+                period_end=period_end,
+                dedupe_key=f"cancel_scheduled_{period_end}",
+            )
             return {
                 "cancelled": True,
                 "cancel_at_period_end": True,

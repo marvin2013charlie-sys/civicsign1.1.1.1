@@ -102,7 +102,8 @@ def main() -> int:
         print("NEXT: Create a LIVE webhook in Stripe Dashboard:")
         print("  URL: https://api.civicsign.co.uk/api/webhook/stripe")
         print("  Events: checkout.session.completed, checkout.session.expired,")
-        print("          customer.subscription.*, invoice.payment_failed, charge.refunded")
+        print("          customer.subscription.*, invoice.upcoming, invoice.payment_succeeded,")
+        print("          invoice.payment_failed, charge.refunded")
         print("  Copy whsec_... into Render -> STRIPE_WEBHOOK_SECRET")
     else:
         print("OK: STRIPE_WEBHOOK_SECRET is set")
