@@ -47,7 +47,7 @@ export default function Pricing() {
   useEffect(() => {
     let cancelled = false;
     api.get("/billing/config")
-      .then((data) => {
+      .then(({ data }) => {
         if (cancelled) return;
         const days = data?.subscription_trial_enabled ? Number(data.subscription_trial_days) || 0 : 0;
         setTrialDays(days > 0 ? days : 0);

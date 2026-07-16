@@ -164,7 +164,7 @@ export function PricingPlansSection({
   useEffect(() => {
     let cancelled = false;
     api.get("/billing/config")
-      .then((data) => {
+      .then(({ data }) => {
         if (cancelled) return;
         const days = data?.subscription_trial_enabled ? Number(data.subscription_trial_days) || 0 : 0;
         setTrialDays(days > 0 ? days : 0);
@@ -200,7 +200,7 @@ export function PricingPlansSection({
           </p>
 
           <div className="mt-7 flex w-full max-w-md flex-col gap-2 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-1 shadow-sm sm:mx-auto sm:inline-flex sm:w-auto sm:flex-row sm:rounded-full sm:p-[4px]">
-            {[["monthly", "Monthly"], ["yearly", "Yearly — 2 months free", "Yearly (2 mo. free)"]].map(([val, label, shortLabel]) => {
+            {[["monthly", "Monthly"], ["yearly", "Annual — 2 months free", "Annual (2 mo. free)"]].map(([val, label, shortLabel]) => {
               const active = billingInterval === val;
               return (
                 <button

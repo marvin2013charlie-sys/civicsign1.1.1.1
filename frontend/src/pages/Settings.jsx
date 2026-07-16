@@ -32,13 +32,30 @@ import { ContactEmailLink, RichTextWithContactEmail } from "@/components/BrandTe
 import { MarketingFaqSection } from "@/components/MarketingFaqSection";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
-import { extraDocumentLimitFeature, formatPlanDocumentLimit, formatProMonthlyShort, getPlanPriceDisplay } from "@/lib/pricing";
+import {
+  extraDocumentLimitFeature,
+  formatGbp,
+  formatPlanDocumentLimit,
+  formatPlanTrialPriceLabel,
+  formatProMonthlyShort,
+  getPlanPriceDisplay,
+  isPaidPlanWithTrial,
+  SUBSCRIPTION_TRIAL_DAYS_DEFAULT,
+} from "@/lib/pricing";
 import { isOrgStaff, ORG_STAFF_ESCALATION_NOTE } from "@/lib/orgLabels";
 import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBreakdown";
 import { normalizeBillingInterval, normalizePaidPlanId } from "@/lib/planCheckout";
 import { StripeCheckoutRedirect } from "@/components/StripeCheckoutRedirect";
 
 const EXTRA_DOC_FEATURE = extraDocumentLimitFeature();
+
+function buildCheckoutPriceLabel(planName, billingInterval, trialDays = 0) {
+  const trialLabel = trialDays > 0 ? formatPlanTrialPriceLabel(planName, billingInterval, trialDays) : null;
+  if (trialLabel) return trialLabel;
+  const display = getPlanPriceDisplay(planName, billingInterval);
+  if (display?.tax?.total) return `${formatGbp(display.tax.total)} incl. VAT`;
+  return display?.price || null;
+}
 
 function buildPlanDefs(billingInterval) {
   return [
@@ -103,9 +120,21 @@ function fmtPeriodEnd(iso) {
   }
 }
 
-function PlanCard({ plan, billingInterval, isCurrent, switching, verifying, onSelect, showAction = true, highlighted = false }) {
+function PlanCard({
+  plan,
+  billingInterval,
+  trialDays = 0,
+  isCurrent,
+  switching,
+  verifying,
+  onSelect,
+  showAction = true,
+  highlighted = false,
+}) {
   const Icon = plan.icon;
   const { price, note, savings, tax } = getPlanPriceDisplay(plan.name, billingInterval);
+  const trialPriceLabel = formatPlanTrialPriceLabel(plan.name, billingInterval, trialDays);
+  const showTrial = Boolean(trialPriceLabel && isPaidPlanWithTrial(plan.name) && plan.id !== "free");
   const borderColor = isCurrent || highlighted ? "var(--c-primary)" : "var(--c-portal-border)";
   return (
     <div
@@ -127,10 +156,20 @@ function PlanCard({ plan, billingInterval, isCurrent, switching, verifying, onSe
       <p className="text-sm text-[var(--c-muted-fg)]">{plan.tagline}</p>
       {plan.id !== "free" && (
         <div className="mt-3">
+          {showTrial ? (
+            <div className="mb-3">
+              <div className="font-heading text-3xl font-bold text-[var(--c-primary)]">£0</div>
+              <p className="mt-1 text-sm font-medium text-[var(--c-ink)]">{trialPriceLabel}</p>
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
+                {price} {note}
+                {savings ? ` · ${savings}` : ""}
+              </p>
+            </div>
+          ) : null}
           <PlanPriceBreakdown
-            price={price}
-            note={note}
-            savings={savings}
+            price={showTrial ? null : price}
+            note={showTrial ? null : note}
+            savings={showTrial ? null : savings}
             tax={tax}
             priceClassName="font-heading text-3xl font-bold text-[var(--c-ink)]"
             compact
@@ -863,6 +902,7 @@ function SubscriptionTab() {
   const [acceptingOffer, setAcceptingOffer] = useState(false);
   const [managing, setManaging] = useState(false);
   const [checkoutRedirect, setCheckoutRedirect] = useState(null);
+  const [continuingCheckout, setContinuingCheckout] = useState(false);
   const [billingConfig, setBillingConfig] = useState(null);
   const [upgradePreview, setUpgradePreview] = useState(null);
   const [upgradeTargetPlan, setUpgradeTargetPlan] = useState(null);
@@ -875,6 +915,9 @@ function SubscriptionTab() {
   const userInterval = user?.billing_interval || "monthly";
   const periodEndLabel = fmtPeriodEnd(user?.subscription_current_period_end);
   const cancelScheduled = !!user?.subscription_cancel_at_period_end;
+  const subscriptionTrialDays = billingConfig?.subscription_trial_enabled
+    ? Number(billingConfig.subscription_trial_days) || SUBSCRIPTION_TRIAL_DAYS_DEFAULT
+    : 0;
   const currentPlan = buildPlanDefs(isPaid ? userInterval : billingInterval).find((p) => p.id === current);
   const allPaidPlans = buildPlanDefs(billingInterval).filter((p) => p.id !== "free");
   const upgradePlans = current === "free" ? allPaidPlans : getUpgradePlanOptions(allPaidPlans, current);
@@ -1021,18 +1064,14 @@ function SubscriptionTab() {
       }
       if (data.url) {
         setCheckoutRedirect({
+          planId,
+          url: data.url,
           planLabel: planDef ? `CivicSign ${planDef.name}` : `CivicSign ${planId}`,
-          priceLabel: data.trial_days
-            ? `£0 today · then £${priceDisplay?.tax?.amount_inc_vat?.toFixed(2) ?? "—"} incl. VAT`
-            : priceDisplay?.tax?.amount_inc_vat
-              ? `£${priceDisplay.tax.amount_inc_vat.toFixed(2)} incl. VAT`
-              : priceDisplay?.price || null,
+          priceLabel: buildCheckoutPriceLabel(planDef?.name, checkoutInterval, data.trial_days || 0),
           billingInterval: checkoutInterval,
           trialDays: data.trial_days || 0,
         });
-        window.setTimeout(() => {
-          assignStripeCheckout(data.url);
-        }, 450);
+        setContinuingCheckout(false);
         return;
       }
       throw new Error("No checkout URL received");
@@ -1123,6 +1162,17 @@ function SubscriptionTab() {
     }
   };
 
+  const continueCheckout = () => {
+    if (!checkoutRedirect?.url) return;
+    setContinuingCheckout(true);
+    assignStripeCheckout(checkoutRedirect.url);
+  };
+
+  const handleCheckoutIntervalChange = (interval) => {
+    if (!checkoutRedirect?.planId || interval === checkoutRedirect.billingInterval) return;
+    choose(checkoutRedirect.planId, interval);
+  };
+
   const openBillingPortal = async () => {
     setManaging(true);
     try {
@@ -1157,6 +1207,10 @@ function SubscriptionTab() {
           priceLabel={checkoutRedirect.priceLabel}
           billingInterval={checkoutRedirect.billingInterval}
           trialDays={checkoutRedirect.trialDays}
+          onBillingIntervalChange={handleCheckoutIntervalChange}
+          onContinue={continueCheckout}
+          continuing={continuingCheckout}
+          preparing={Boolean(switching && checkoutRedirect.planId === switching)}
         />
       )}
       {billingConfig?.promotion_codes_enabled && (current === "free" || upgradePlans.length > 0) && (
@@ -1205,6 +1259,7 @@ function SubscriptionTab() {
           <PlanCard
             plan={currentPlan}
             billingInterval={isPaid ? userInterval : billingInterval}
+            trialDays={subscriptionTrialDays}
             isCurrent
             showAction={false}
           />
@@ -1212,23 +1267,35 @@ function SubscriptionTab() {
       )}
 
       {upgradePlans.length > 0 && (
-        <div id="upgrade-plans-section" className="mt-8 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="upgrade-plans-section">
-          <div className="flex flex-col gap-3 border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">
-                {isPaid ? "Upgrade your subscription" : "Upgrade your plan"}
-              </h3>
-              <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
-                {isPaid
-                  ? "Pay only the prorated difference — unused time on your current plan is credited this billing cycle."
-                  : "Compare Pro and Business — pick the plan that fits how you send documents."}
-              </p>
-            </div>
-            <BillingIntervalToggle
-              className="shrink-0 justify-start"
-              value={billingInterval}
-              onChange={setBillingInterval}
-            />
+        <div
+          className="mt-6 flex flex-col gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          data-testid="subscription-billing-interval"
+        >
+          <div>
+            <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">Monthly or annual billing</p>
+            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+              Annual plans bill once a year at 10 months&apos; price (2 months free). Prices update below when you switch.
+            </p>
+          </div>
+          <BillingIntervalToggle
+            className="shrink-0 justify-start"
+            value={billingInterval}
+            onChange={setBillingInterval}
+          />
+        </div>
+      )}
+
+      {upgradePlans.length > 0 && (
+        <div id="upgrade-plans-section" className="mt-6 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="upgrade-plans-section">
+          <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
+            <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">
+              {isPaid ? "Upgrade your subscription" : "Upgrade your plan"}
+            </h3>
+            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+              {isPaid
+                ? "Pay only the prorated difference — unused time on your current plan is credited this billing cycle."
+                : "Compare Pro and Business — pick the plan that fits how you send documents."}
+            </p>
           </div>
           <div className="grid gap-4 p-5 md:grid-cols-2">
             {upgradePlans.map((p) => (
@@ -1236,6 +1303,7 @@ function SubscriptionTab() {
                 key={p.id}
                 plan={p}
                 billingInterval={billingInterval}
+                trialDays={subscriptionTrialDays}
                 switching={switching}
                 verifying={verifying}
                 onSelect={choose}
@@ -1303,8 +1371,8 @@ function SubscriptionTab() {
         <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
         Payments are processed securely by Stripe. Cancelling keeps access until the end of your paid period.
         {(isPaid ? userInterval : billingInterval) === "yearly"
-          ? " Annual Pro and Business are billed at 10 months\u2019 price (2 months free) and include 12× the monthly document allowance for the year."
-          : ""}
+          ? " Annual Pro and Business are billed at 10 months\u2019 price (2 months free) and include 12\u00d7 the monthly document allowance for the year."
+          : " Choose monthly or annual above before checkout — annual saves 2 months on Pro and Business."}
       </p>
       <p className="mt-2 text-xs text-[var(--c-muted-fg)]">
         Refunds and billing disputes are covered in our{" "}

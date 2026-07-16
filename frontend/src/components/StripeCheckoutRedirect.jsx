@@ -1,27 +1,33 @@
 import React from "react";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { BillingIntervalToggle } from "@/components/BillingIntervalToggle";
+import { Button } from "@/components/ui/button";
 
 /**
- * Full-screen handoff while redirecting to Stripe Hosted Checkout.
- * Emergent-style polish before the secure payment page loads.
+ * Full-screen handoff before Stripe Hosted Checkout — choose monthly or annual, then continue.
  */
 export function StripeCheckoutRedirect({
   planLabel,
   priceLabel,
   billingInterval = "monthly",
   trialDays = 0,
+  onBillingIntervalChange,
+  onContinue,
+  continuing = false,
+  preparing = false,
 }) {
   const intervalNote = billingInterval === "yearly" ? "Annual billing · 2 months free" : "Monthly billing";
   const hasTrial = Number(trialDays) > 0;
+  const canChangeInterval = typeof onBillingIntervalChange === "function";
 
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--c-paper)] px-4"
       data-testid="stripe-checkout-redirect"
       role="alertdialog"
-      aria-busy="true"
-      aria-label="Redirecting to secure checkout"
+      aria-busy={preparing || continuing}
+      aria-label="Choose billing and continue to secure checkout"
     >
       <div className="cs-auth-form-glow cs-auth-form-glow-a" aria-hidden />
       <div className="cs-auth-form-glow cs-auth-form-glow-b" aria-hidden />
@@ -45,17 +51,30 @@ export function StripeCheckoutRedirect({
         </div>
 
         <div className="space-y-4 px-6 py-8 sm:px-8">
-          <div className="flex items-center gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] px-4 py-3 text-sm text-[var(--c-ink)]">
-            <Loader2 className="h-5 w-5 shrink-0 animate-spin" style={{ color: "var(--c-primary)" }} />
-            <span>
-              {hasTrial
-                ? "Taking you to Stripe to start your free trial…"
-                : "Taking you to Stripe to pay securely…"}
-            </span>
-          </div>
+          {canChangeInterval ? (
+            <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] px-4 py-4">
+              <p className="text-sm font-semibold text-[var(--c-ink)]">Billing frequency</p>
+              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
+                Switch between monthly and annual before you continue. Annual saves 2 months.
+              </p>
+              <BillingIntervalToggle
+                className="mt-4 w-full justify-center"
+                value={billingInterval}
+                onChange={onBillingIntervalChange}
+              />
+            </div>
+          ) : null}
+
+          {preparing ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] px-4 py-3 text-sm text-[var(--c-ink)]">
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin" style={{ color: "var(--c-primary)" }} />
+              <span>Updating your checkout…</span>
+            </div>
+          ) : null}
+
           {hasTrial && (
             <p className="text-xs text-[var(--c-muted-fg)]">
-              Card required. You will not be charged until your {trialDays}-day trial ends. Cancel anytime from Settings.
+              Card required. You will not be charged until your {trialDays}-day trial ends. After that, payment continues at your chosen plan price unless you cancel from Settings.
             </p>
           )}
           <p className="text-xs text-[var(--c-muted-fg)]">
@@ -71,6 +90,24 @@ export function StripeCheckoutRedirect({
               Powered by Stripe
             </span>
           </div>
+
+          <Button
+            type="button"
+            className="h-12 w-full rounded-2xl text-base font-semibold"
+            style={{ background: "var(--c-primary)", color: "#fff" }}
+            disabled={preparing || continuing || !onContinue}
+            onClick={onContinue}
+            data-testid="stripe-checkout-continue"
+          >
+            {continuing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Opening Stripe…
+              </>
+            ) : (
+              "Continue to secure checkout"
+            )}
+          </Button>
         </div>
       </div>
     </div>

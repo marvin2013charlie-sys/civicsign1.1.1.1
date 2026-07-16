@@ -43,7 +43,7 @@ export function BillingIntervalToggle({ value, onChange, className = "" }) {
           data-testid="billing-interval-yearly"
           aria-pressed={yearly}
         >
-          Yearly
+          Annual
         </button>
       </div>
       <span
@@ -54,7 +54,7 @@ export function BillingIntervalToggle({ value, onChange, className = "" }) {
           border: yearly ? "1px solid rgba(20,184,166,0.25)" : "1px solid transparent",
         }}
       >
-        {yearly ? "2 months free on annual" : "Save with yearly billing"}
+        {yearly ? "2 months free on annual" : "Save with annual billing"}
       </span>
     </div>
   );
