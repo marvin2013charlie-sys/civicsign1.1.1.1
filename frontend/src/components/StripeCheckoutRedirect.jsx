@@ -6,8 +6,14 @@ import { Logo } from "@/components/Logo";
  * Full-screen handoff while redirecting to Stripe Hosted Checkout.
  * Emergent-style polish before the secure payment page loads.
  */
-export function StripeCheckoutRedirect({ planLabel, priceLabel, billingInterval = "monthly" }) {
+export function StripeCheckoutRedirect({
+  planLabel,
+  priceLabel,
+  billingInterval = "monthly",
+  trialDays = 0,
+}) {
   const intervalNote = billingInterval === "yearly" ? "Annual billing · 2 months free" : "Monthly billing";
+  const hasTrial = Number(trialDays) > 0;
 
   return (
     <div
@@ -33,14 +39,25 @@ export function StripeCheckoutRedirect({ planLabel, priceLabel, billingInterval 
           {priceLabel && (
             <p className="mt-2 text-lg font-semibold text-[#2DD4BF]">{priceLabel}</p>
           )}
-          <p className="mt-1 text-sm text-white/55">{intervalNote}</p>
+          <p className="mt-1 text-sm text-white/55">
+            {hasTrial ? `${trialDays}-day free trial · ${intervalNote.toLowerCase()}` : intervalNote}
+          </p>
         </div>
 
         <div className="space-y-4 px-6 py-8 sm:px-8">
           <div className="flex items-center gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] px-4 py-3 text-sm text-[var(--c-ink)]">
             <Loader2 className="h-5 w-5 shrink-0 animate-spin" style={{ color: "var(--c-primary)" }} />
-            <span>Taking you to Stripe to pay securely…</span>
+            <span>
+              {hasTrial
+                ? "Taking you to Stripe to start your free trial…"
+                : "Taking you to Stripe to pay securely…"}
+            </span>
           </div>
+          {hasTrial && (
+            <p className="text-xs text-[var(--c-muted-fg)]">
+              Card required. You will not be charged until your {trialDays}-day trial ends. Cancel anytime from Settings.
+            </p>
+          )}
           <p className="text-xs text-[var(--c-muted-fg)]">
             Have a promo code? You can enter it on the next screen before you pay.
           </p>

@@ -118,7 +118,7 @@ export default function Landing() {
       <SiteHeader />
 
       {/* ================= HERO ================= */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-x-hidden">
         <MarketingGradient />
         <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 lg:grid-cols-2 lg:py-24">
           <div className="lv3-anim" style={{ animation: "lv3-fadeUp .7s ease both" }}>
@@ -163,22 +163,38 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* hero mock */}
-          <div className="lv3-anim relative overflow-hidden" style={{ animation: "lv3-fadeUp .7s .15s ease both" }}>
+          {/* hero mock — badges sit above/below card so nothing is clipped or overlapped */}
+          <div className="lv3-anim relative" style={{ animation: "lv3-fadeUp .7s .15s ease both" }}>
             <div
-              className="absolute rounded-3xl opacity-[.14] inset-y-7 inset-x-4 sm:inset-[28px_-24px_-24px_28px]"
-              style={{ background: "linear-gradient(135deg,#14B8A6,#0D9488)", transform: "rotate(2deg)" }}
-            />
+              className="lv3-anim mb-3 flex justify-end sm:mb-4"
+              style={{ animation: "lv3-floaty 5s ease-in-out infinite" }}
+            >
+              <div
+                className="inline-flex items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-3 py-2.5 sm:px-4 sm:py-3"
+                style={{ boxShadow: "0 10px 26px rgba(18,33,32,.14)" }}
+              >
+                <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]" style={{ background: "var(--badge-success-bg)" }}>🔒</span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-semibold text-[var(--c-ink)]">SHA-256 sealed</div>
+                  <div className="text-[11px] text-[var(--c-muted-fg)]">Tamper-evident</div>
+                </div>
+              </div>
+            </div>
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute rounded-3xl opacity-[.14] -inset-y-2 inset-x-4 sm:inset-[12px_-24px_-12px_28px]"
+                style={{ background: "linear-gradient(135deg,#14B8A6,#0D9488)", transform: "rotate(2deg)" }}
+              />
             <div className="relative rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] p-5 sm:p-7" style={{ boxShadow: "0 30px 70px rgba(18,33,32,.16)" }}>
-              <div className="mb-5 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-base" style={{ background: "var(--badge-coral-bg)" }}>📄</span>
-                  <div>
-                    <div className="text-[15px] font-semibold text-[var(--c-ink)]" style={H_FONT}>Master_Services_Agreement.pdf</div>
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] text-base" style={{ background: "var(--badge-coral-bg)" }}>📄</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-semibold text-[var(--c-ink)]" style={H_FONT}>Master_Services_Agreement.pdf</div>
                     <div className="text-[11.5px] text-[var(--c-muted-fg)]">12 pages · sent 2h ago</div>
                   </div>
                 </div>
-                <span className="rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "var(--badge-teal-bg)", color: "var(--badge-teal-fg)" }}>2 of 3 signed</span>
+                <span className="w-fit shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "var(--badge-teal-bg)", color: "var(--badge-teal-fg)" }}>2 of 3 signed</span>
               </div>
               <div className="mb-5 flex flex-col gap-2">
                 {[92, 86, 64].map((w) => (
@@ -196,8 +212,8 @@ export default function Landing() {
                 </svg>
                 <div className="mt-2 text-[12.5px] font-medium text-[var(--c-muted-fg)]">Tap to sign as <b className="text-[var(--c-ink)]">Sara Liang</b></div>
               </div>
-              <div className="mt-5 flex items-center justify-between">
-                <div className="flex">
+              <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex shrink-0">
                   {[["MC", "#14B8A6"], ["DO", "#FF7A5C"], ["SL", "#122120"]].map(([ini, bg], i) => (
                     <span
                       key={ini}
@@ -206,29 +222,25 @@ export default function Landing() {
                     >{ini}</span>
                   ))}
                 </div>
-                <span className="rounded-xl px-6 py-2.5 text-[13.5px] font-semibold text-white" style={{ background: "var(--c-primary)", boxShadow: "0 6px 16px rgba(20,184,166,.35)" }}>
+                <span className="w-fit shrink-0 self-start rounded-xl px-6 py-2.5 text-[13.5px] font-semibold text-white sm:self-auto" style={{ background: "var(--c-primary)", boxShadow: "0 6px 16px rgba(20,184,166,.35)" }}>
                   Finish &amp; seal ✓
                 </span>
               </div>
             </div>
-            <div
-              className="lv3-anim absolute -top-5 right-0 hidden items-center gap-2.5 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-4 py-3 sm:flex"
-              style={{ boxShadow: "0 10px 26px rgba(18,33,32,.14)", animation: "lv3-floaty 5s ease-in-out infinite" }}
-            >
-              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px]" style={{ background: "var(--badge-success-bg)" }}>🔒</span>
-              <div>
-                <div className="text-[12.5px] font-semibold text-[var(--c-ink)]">SHA-256 sealed</div>
-                <div className="text-[11px] text-[var(--c-muted-fg)]">Tamper-evident</div>
-              </div>
             </div>
             <div
-              className="lv3-anim absolute -bottom-4 -left-3 hidden items-center gap-2.5 rounded-2xl px-4 py-3 text-white sm:flex"
-              style={{ background: INK, boxShadow: "0 12px 30px rgba(18,33,32,.28)", animation: "lv3-floaty 6s .8s ease-in-out infinite" }}
+              className="lv3-anim mt-3 flex justify-start sm:mt-4"
+              style={{ animation: "lv3-floaty 6s .8s ease-in-out infinite" }}
             >
-              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px]" style={{ background: "rgba(45,212,191,.18)" }}>⚡️</span>
-              <div>
-                <div className="text-[12.5px] font-semibold">Signed in 3 min</div>
-                <div className="text-[11px] text-white/60">avg. completion</div>
+              <div
+                className="inline-flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white sm:px-4 sm:py-3"
+                style={{ background: INK, boxShadow: "0 12px 30px rgba(18,33,32,.28)" }}
+              >
+                <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]" style={{ background: "rgba(45,212,191,.18)" }}>⚡️</span>
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-semibold">Signed in 3 min</div>
+                  <div className="text-[11px] text-white/60">avg. completion</div>
+                </div>
               </div>
             </div>
           </div>

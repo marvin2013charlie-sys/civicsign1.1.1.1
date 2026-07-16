@@ -6,6 +6,7 @@ const backendUrl = process.env.E2E_BACKEND_URL || "http://localhost:8001";
 
 module.exports = defineConfig({
   testDir: "./e2e",
+  globalSetup: require.resolve("./e2e/global-setup"),
   timeout: 180_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,

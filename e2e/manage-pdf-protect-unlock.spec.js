@@ -3,48 +3,16 @@ const { test, expect } = require("@playwright/test");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const { backendUrl, USERS, authFilePath, clearUiBlockers, authHeaders, ensureAuth } = require("./helpers");
 
-const backendUrl = process.env.E2E_BACKEND_URL || "http://127.0.0.1:8001";
 const pdfPath = path.join(__dirname, "fixtures", "employment-contract.pdf");
+const proAuth = authFilePath("pro");
 const TEST_PASSWORD = "E2eProtect9";
 
-const PRO_USER = {
-  email: process.env.E2E_USER_EMAIL || "pro@civicbot.co.uk",
-  password: process.env.E2E_USER_PASSWORD || "CivicSign2026!Pro",
-};
-
-async function clearUiBlockers(page) {
-  try {
-    const me = await page.request.get(`${backendUrl}/api/auth/me`);
-    if (me.ok()) {
-      const user = await me.json();
-      if (user?.user_id) {
-        await page.evaluate((userId) => {
-          localStorage.setItem(`cs_product_tour_v1_${userId}_app`, "1");
-          localStorage.setItem(`cs_product_tour_autooffered_v1_${userId}_app`, "1");
-        }, user.user_id);
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  await page.evaluate(() => {
-    document.querySelectorAll(".driver-overlay, .driver-popover").forEach((el) => el.remove());
-    document.body.classList.remove("driver-active");
-  });
-}
-
-async function loginPro(page) {
-  await page.goto("/login");
-  await page.getByTestId("login-email-input").fill(PRO_USER.email);
-  await page.getByTestId("login-password-input").fill(PRO_USER.password);
-  await page.getByTestId("login-submit-button").click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
-  await clearUiBlockers(page);
-}
-
 async function makeProtectedPdf(page) {
+  const headers = await authHeaders(page);
   const upload = await page.request.post(`${backendUrl}/api/pdf/workspace`, {
+    headers,
     multipart: {
       file: {
         name: "source.pdf",
@@ -56,6 +24,7 @@ async function makeProtectedPdf(page) {
   expect(upload.ok()).toBeTruthy();
   const { workspace_id: wsId } = await upload.json();
   const protect = await page.request.post(`${backendUrl}/api/pdf/workspace/${wsId}/protect`, {
+    headers,
     data: {
       user_password: TEST_PASSWORD,
       owner_password: null,
@@ -71,8 +40,10 @@ async function makeProtectedPdf(page) {
 }
 
 test.describe("Manage PDF — Protect & Unlock", () => {
+  test.use({ storageState: proAuth });
+
   test.beforeEach(async ({ page }) => {
-    await loginPro(page);
+    await ensureAuth(page, USERS.pro, proAuth);
     await page.goto("/manage-pdf");
     await clearUiBlockers(page);
     await expect(page.getByTestId("manage-pdf")).toBeVisible({ timeout: 15_000 });

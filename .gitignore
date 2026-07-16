@@ -13,8 +13,10 @@ __pycache__/
 backend/.env
 frontend/.env
 DEV_TEST_LOGINS.txt
+secrets-rotation.local.txt
 
 # Test artifacts
+e2e/.auth/
 test-results/
 test_reports/
 .dev-logs/

@@ -1,10 +1,13 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { USERS, loginUser } = require("./helpers");
+const { USERS, authFilePath, ensureAuth } = require("./helpers");
+const orgAuth = authFilePath("org-owner");
 
 test.describe("Organisation portal", () => {
+  test.use({ storageState: orgAuth });
+
   test("org owner can view overview, team, and contract tabs", async ({ page }) => {
-    await loginUser(page, USERS.orgOwner);
+    await ensureAuth(page, USERS.orgOwner, orgAuth);
     await page.goto("/organisation");
     await expect(page.getByTestId("org-portal-header")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("org-portal-overview")).toBeVisible();

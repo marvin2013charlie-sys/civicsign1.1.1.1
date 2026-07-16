@@ -1,7 +1,7 @@
 // @ts-check
 const { expect } = require("@playwright/test");
-
-const backendUrl = process.env.E2E_BACKEND_URL || "http://127.0.0.1:8001";
+const fs = require("fs");
+const { backendUrl, authFilePath } = require("./auth-env");
 
 /** Seeded by scripts/reset_dev_data.py — keep in sync with local dev DB. */
 const USERS = {
@@ -68,11 +68,112 @@ function uniqueEmail() {
   return `e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@civicbot.co.uk`;
 }
 
+async function authHeaders(page) {
+  const token = await page.evaluate(() => sessionStorage.getItem("cs_access"));
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function tokenFromAuthFile(authFile) {
+  try {
+    const state = JSON.parse(fs.readFileSync(authFile, "utf8"));
+    for (const origin of state.origins || []) {
+      const entry = (origin.sessionStorage || []).find((e) => e.name === "cs_access");
+      if (entry?.value) return entry.value;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Restore session from cached auth file or API login — avoids repeated UI logins. */
+async function ensureAuth(page, credentials, authFile) {
+  let token = authFile ? tokenFromAuthFile(authFile) : null;
+  if (!token) {
+    const resp = await page.request.post(`${backendUrl}/api/auth/login`, {
+      data: { email: credentials.email, password: credentials.password },
+    });
+    if (resp.status() === 429) {
+      throw new Error(
+        `login rate limited for ${credentials.email}. `
+          + "Wait ~1h or set E2E_ACCESS_TOKEN_* from sessionStorage cs_access.",
+      );
+    }
+    if (!resp.ok()) {
+      throw new Error(`login failed: ${resp.status()} ${await resp.text()}`);
+    }
+    token = (await resp.json()).access_token;
+  }
+
+  await page.goto("/login");
+  await page.evaluate((t) => sessionStorage.setItem("cs_access", t), token);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
+  await clearUiBlockers(page);
+}
+
+async function fetchDevMode(request) {
+  try {
+    const health = await request.get(`${backendUrl}/api/health`);
+    if (!health.ok()) return false;
+    const body = await health.json();
+    return Boolean(body.dev_mode);
+  } catch {
+    return false;
+  }
+}
+
+/** Register + verify when DEV_MODE exposes dev_code; otherwise returns false. */
+async function registerAndVerify(request, page, email, password) {
+  const reg = await request.post(`${backendUrl}/api/auth/register`, {
+    data: { name: "E2E User", email, password },
+  });
+
+  if (reg.status() === 429) {
+    return false;
+  }
+  if (!reg.ok()) {
+    throw new Error(`register failed: ${reg.status()} ${await reg.text()}`);
+  }
+
+  const body = await reg.json();
+  if (!body.dev_code) {
+    return false;
+  }
+
+  await page.goto("/login");
+  await page.evaluate(
+    ({ em, code }) => {
+      sessionStorage.setItem("cs_verify_email", em);
+      sessionStorage.setItem("cs_verify_dev_code", code);
+      sessionStorage.setItem("cs_verify_dev_mode", "1");
+    },
+    { em: email, code: body.dev_code },
+  );
+  await page.goto("/verify-email");
+
+  await expect(page.getByTestId("verify-dev-code")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("verify-code-input").fill(body.dev_code);
+  await page.getByTestId("verify-submit-button").click();
+  await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 30_000 });
+
+  if (page.url().includes("/login")) {
+    await loginUser(page, { email, password });
+  }
+  await clearUiBlockers(page);
+  return true;
+}
+
 module.exports = {
   backendUrl,
+  authFilePath,
   USERS,
   clearUiBlockers,
+  authHeaders,
+  ensureAuth,
   loginUser,
   loginAdmin,
   uniqueEmail,
+  fetchDevMode,
+  registerAndVerify,
 };

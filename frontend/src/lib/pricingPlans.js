@@ -24,8 +24,8 @@ export function buildPricingPlans(billingInterval = "monthly") {
     },
     {
       name: "Pro",
-      tag: "For growing businesses",
-      cta: "Start Pro",
+      tag: "1-month free trial on first upgrade",
+      cta: "Try Pro free",
       highlight: true,
       accent: "coral",
       features: [
@@ -65,7 +65,7 @@ export const PRICING_COMPARISON_ROWS = [
 ];
 
 export const PRICING_FAQS = [
-  ["Do I need a card to start?", "No. The Free plan is free forever with no card and no trial clock — upgrade only when you need more volume or paid features."],
+  ["Do I need a card to start?", "No. The Free plan is free forever with no card. When you upgrade to Pro or Business for the first time, you get a 1-month free trial — card required, cancel anytime before billing starts."],
   ["When does my document limit reset?", formatQuotaResetFaqAnswer()],
   ["Is Manage PDF on every plan?", "Manage PDF is included on Pro, Business, and Organisation — not on Free."],
   ["What happens when I hit my limit?", `${extraDocumentLimitFeature()} — buy extras without changing plan.`],

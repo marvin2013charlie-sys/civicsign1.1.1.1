@@ -2,48 +2,16 @@
 const { test, expect } = require("@playwright/test");
 const path = require("path");
 const fs = require("fs");
+const { USERS, authFilePath, clearUiBlockers, ensureAuth } = require("./helpers");
 
-const backendUrl = process.env.E2E_BACKEND_URL || "http://127.0.0.1:8001";
 const pdfPath = path.join(__dirname, "fixtures", "employment-contract.pdf");
-
-const PRO_USER = {
-  email: process.env.E2E_USER_EMAIL || "pro@civicbot.co.uk",
-  password: process.env.E2E_USER_PASSWORD || "CivicSign2026!Pro",
-};
-
-async function clearUiBlockers(page) {
-  try {
-    const me = await page.request.get(`${backendUrl}/api/auth/me`);
-    if (me.ok()) {
-      const user = await me.json();
-      if (user?.user_id) {
-        await page.evaluate((userId) => {
-          localStorage.setItem(`cs_product_tour_v1_${userId}_app`, "1");
-          localStorage.setItem(`cs_product_tour_autooffered_v1_${userId}_app`, "1");
-        }, user.user_id);
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  await page.evaluate(() => {
-    document.querySelectorAll(".driver-overlay, .driver-popover").forEach((el) => el.remove());
-    document.body.classList.remove("driver-active");
-  });
-}
-
-async function loginPro(page) {
-  await page.goto("/login");
-  await page.getByTestId("login-email-input").fill(PRO_USER.email);
-  await page.getByTestId("login-password-input").fill(PRO_USER.password);
-  await page.getByTestId("login-submit-button").click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
-  await clearUiBlockers(page);
-}
+const proAuth = authFilePath("pro");
 
 test.describe("Manage PDF — Compress & Watermark", () => {
+  test.use({ storageState: proAuth });
+
   test.beforeEach(async ({ page }) => {
-    await loginPro(page);
+    await ensureAuth(page, USERS.pro, proAuth);
     await page.goto("/manage-pdf");
     await clearUiBlockers(page);
     await expect(page.getByTestId("manage-pdf")).toBeVisible({ timeout: 15_000 });
@@ -103,7 +71,6 @@ test.describe("Manage PDF — Compress & Watermark", () => {
   test("watermark image end-to-end download", async ({ page }) => {
     const logoPath = path.join(__dirname, "fixtures", "watermark-logo.png");
     if (!fs.existsSync(logoPath)) {
-      // minimal 1x1 png
       const png = Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         "base64",

@@ -1022,10 +1022,13 @@ function SubscriptionTab() {
       if (data.url) {
         setCheckoutRedirect({
           planLabel: planDef ? `CivicSign ${planDef.name}` : `CivicSign ${planId}`,
-          priceLabel: priceDisplay?.tax?.amount_inc_vat
-            ? `£${priceDisplay.tax.amount_inc_vat.toFixed(2)} incl. VAT`
-            : priceDisplay?.price || null,
+          priceLabel: data.trial_days
+            ? `£0 today · then £${priceDisplay?.tax?.amount_inc_vat?.toFixed(2) ?? "—"} incl. VAT`
+            : priceDisplay?.tax?.amount_inc_vat
+              ? `£${priceDisplay.tax.amount_inc_vat.toFixed(2)} incl. VAT`
+              : priceDisplay?.price || null,
           billingInterval: checkoutInterval,
+          trialDays: data.trial_days || 0,
         });
         window.setTimeout(() => {
           assignStripeCheckout(data.url);
@@ -1153,6 +1156,7 @@ function SubscriptionTab() {
           planLabel={checkoutRedirect.planLabel}
           priceLabel={checkoutRedirect.priceLabel}
           billingInterval={checkoutRedirect.billingInterval}
+          trialDays={checkoutRedirect.trialDays}
         />
       )}
       {billingConfig?.promotion_codes_enabled && (current === "free" || upgradePlans.length > 0) && (

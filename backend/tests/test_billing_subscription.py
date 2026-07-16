@@ -183,6 +183,26 @@ def test_is_plan_purchase_tx():
     assert billing._is_plan_purchase_tx({"purchase_type": "extra_document"}) is False
 
 
+def test_checkout_trial_days_for_new_free_user(monkeypatch):
+    monkeypatch.setattr(billing, "STRIPE_SUBSCRIPTION_TRIAL_DAYS", 30)
+    user = {"plan": "free", "email": "new@example.com"}
+    assert billing._checkout_trial_days(user) == 30
+
+
+def test_checkout_trial_days_skips_repeat_subscribers(monkeypatch):
+    monkeypatch.setattr(billing, "STRIPE_SUBSCRIPTION_TRIAL_DAYS", 30)
+    user = {
+        "plan": "free",
+        "subscription_trial_used": True,
+    }
+    assert billing._checkout_trial_days(user) is None
+
+
+def test_plan_product_name_not_duplicating_subscribe_prefix():
+    assert billing._plan_product_name("pro", "monthly") == "CivicSign Pro plan (monthly)"
+    assert "Subscribe to" not in billing._plan_product_name("pro", "monthly")
+
+
 def test_stripe_subscription_missing_detects_invalid_request():
     class FakeInvalidRequestError(Exception):
         code = "resource_missing"

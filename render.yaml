@@ -70,3 +70,5 @@ services:
         value: "#122120"
       - key: STRIPE_BRAND_ACCENT
         value: "#2DD4BF"
+      - key: STRIPE_SUBSCRIPTION_TRIAL_DAYS
+        value: "30"

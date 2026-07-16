@@ -57,6 +57,8 @@ ANNUAL_COUPON_ID = "civicsign_annual_2mo_free"
 ANNUAL_COUPON_PERCENT = round((12 - YEARLY_MONTHS_PAID) / 12 * 100, 4)
 STRIPE_BRAND_PRIMARY = os.environ.get("STRIPE_BRAND_PRIMARY", "#122120")
 STRIPE_BRAND_ACCENT = os.environ.get("STRIPE_BRAND_ACCENT", "#2DD4BF")
+# First-time subscribers: 30-day trial on monthly/yearly checkout (set 0 to disable).
+STRIPE_SUBSCRIPTION_TRIAL_DAYS = int(os.environ.get("STRIPE_SUBSCRIPTION_TRIAL_DAYS", "30") or "0")
 
 PLANS = {
     "pro": {
@@ -142,7 +144,12 @@ def _stripe_recurring_line_items(product_name: str, unit_ex_vat: float, billing_
     ]
     if tax["vat_amount"] > 0:
         items.append({
-            "price_data": _price_data(f"VAT ({UK_VAT_PERCENT}%)", tax["vat_amount"], recurring=recurring),
+            "price_data": _price_data(
+                f"UK VAT ({UK_VAT_PERCENT}%)",
+                tax["vat_amount"],
+                description="Value Added Tax",
+                recurring=recurring,
+            ),
             "quantity": 1,
         })
     return items
@@ -188,8 +195,21 @@ def _require_live_in_production(api_key: str) -> None:
         )
 
 
-def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> dict:
+def _checkout_session_extras(
+    *,
+    mode: str,
+    allow_promo_codes: bool = True,
+    trial_days: int | None = None,
+) -> dict:
     """Emergent-style hosted checkout: UK address, clear CTA, subscription wording."""
+    if mode == "subscription" and trial_days and trial_days > 0:
+        submit_msg = (
+            f"Start your {trial_days}-day free trial — card required, cancel anytime before billing"
+        )
+    elif mode == "subscription":
+        submit_msg = "Subscribe securely"
+    else:
+        submit_msg = "Pay securely"
     extras = {
         "locale": "en-GB",
         "billing_address_collection": "required",
@@ -197,9 +217,7 @@ def _checkout_session_extras(*, mode: str, allow_promo_codes: bool = True) -> di
         # Let Stripe use Dashboard payment-method settings (card-only is configured there).
         "phone_number_collection": {"enabled": False},
         "custom_text": {
-            "submit": {
-                "message": "Pay and subscribe" if mode == "subscription" else "Pay securely",
-            },
+            "submit": {"message": submit_msg},
         },
     }
     # Stripe disallows promotion codes when automatic discounts[] are also set.
@@ -270,21 +288,55 @@ async def _get_or_create_annual_coupon() -> str:
     return coupon.id
 
 
-async def _stripe_subscription_checkout_payload(plan_id: str, billing_interval: str) -> tuple[list, list, float]:
-    """Build line items for Emergent-style Stripe Checkout (clear titles + renewal note)."""
+def _checkout_trial_days(user: dict) -> int | None:
+    """Return trial length for first-time self-serve subscribers, or None."""
+    days = STRIPE_SUBSCRIPTION_TRIAL_DAYS
+    if days <= 0:
+        return None
+    if user.get("subscription_trial_used"):
+        return None
+    if user.get("stripe_subscription_id"):
+        return None
+    status = (user.get("subscription_status") or "").lower()
+    if status in ACTIVE_SUBSCRIPTION_STATES:
+        return None
+    if (user.get("plan") or "free").lower().strip() != "free":
+        return None
+    return days
+
+
+def _renewal_phrase(billing_interval: str, renewal_inc_vat: float) -> str:
+    interval = (billing_interval or "monthly").lower().strip()
+    if interval == "yearly":
+        return f"Then £{renewal_inc_vat:.2f} per year incl. VAT"
+    return f"Then £{renewal_inc_vat:.2f} per month incl. VAT"
+
+
+async def _stripe_subscription_checkout_payload(
+    plan_id: str,
+    billing_interval: str,
+    *,
+    trial_days: int | None = None,
+) -> tuple[list, list, float]:
+    """Build line items for Stripe Checkout (Stripe adds 'Subscribe to' — do not duplicate)."""
     plan = PLANS[plan_id]
     interval = (billing_interval or "monthly").lower().strip()
     charge_ex_vat = _plan_amount(plan_id, billing_interval)
     renewal_inc_vat = tax_breakdown(charge_ex_vat)["amount_inc_vat"]
+    renewal_note = _renewal_phrase(billing_interval, renewal_inc_vat)
+    trial_note = (
+        f"{trial_days}-day free trial, then {renewal_note.lower()}"
+        if trial_days and trial_days > 0
+        else renewal_note
+    )
+    product_name = _plan_product_name(plan_id, billing_interval)
 
     if interval == "yearly":
         list_ex_vat = float(plan["amount_monthly"]) * 12
         savings = _annual_savings_ex_vat(plan_id)
-        product_name = f"Subscribe to CivicSign {plan['name']} Annual"
         product_description = (
             f"List £{list_ex_vat:.2f} excl. VAT · Annual plan discount −£{savings:.2f} "
-            f"({12 - YEARLY_MONTHS_PAID} months free) · "
-            f"Then £{renewal_inc_vat:.2f} per year incl. VAT"
+            f"({12 - YEARLY_MONTHS_PAID} months free) · {trial_note}"
         )
         line_items = _stripe_recurring_line_items(
             product_name,
@@ -294,8 +346,7 @@ async def _stripe_subscription_checkout_payload(plan_id: str, billing_interval: 
         )
         return line_items, [], charge_ex_vat
 
-    product_name = f"Subscribe to CivicSign {plan['name']}"
-    product_description = f"Then £{renewal_inc_vat:.2f} per month incl. VAT"
+    product_description = trial_note
     line_items = _stripe_recurring_line_items(
         product_name,
         charge_ex_vat,
@@ -492,6 +543,8 @@ async def _activate_subscription(
         patch["stripe_customer_id"] = customer_id
     if period_end_iso:
         patch["subscription_current_period_end"] = period_end_iso
+    if subscription_status == "trialing":
+        patch["subscription_trial_used"] = True
     result = await db.users.update_one({"user_id": user_id}, {"$set": patch})
     if result.matched_count == 0:
         logger.error(f"[billing] user {user_id} not found to activate subscription")
@@ -1185,11 +1238,20 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
 async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: str | None) -> None:
     if not user_id or not sub_id:
         return
+    status = "active"
+    try:
+        _require_stripe_key()
+        subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+        status = (subscription.get("status") or status).lower()
+    except Exception as exc:
+        logger.warning(f"[billing] could not read subscription {sub_id} status: {exc}")
     patch = {
         "stripe_subscription_id": sub_id,
-        "subscription_status": "active",
+        "subscription_status": status,
         "updated_at": _now(),
     }
+    if status == "trialing":
+        patch["subscription_trial_used"] = True
     if cust_id:
         patch["stripe_customer_id"] = cust_id
     await db.users.update_one({"user_id": user_id}, {"$set": patch})
@@ -1357,6 +1419,8 @@ async def billing_config():
         "payments_blocked": payments_blocked,
         "checkout_ready": ready and not payments_blocked,
         "promotion_codes_enabled": True,
+        "subscription_trial_days": STRIPE_SUBSCRIPTION_TRIAL_DAYS,
+        "subscription_trial_enabled": STRIPE_SUBSCRIPTION_TRIAL_DAYS > 0,
         "brand_primary": STRIPE_BRAND_PRIMARY,
         "brand_accent": STRIPE_BRAND_ACCENT,
     }
@@ -1424,7 +1488,10 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         body.origin_url or "",
         fallback=request.headers.get("origin", ""),
     )
-    line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
+    trial_days = _checkout_trial_days(user)
+    line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(
+        plan_id, billing_interval, trial_days=trial_days,
+    )
     tax = tax_breakdown(amount_ex_vat)
     amount = tax["amount_inc_vat"]
     success_url = f"{origin}/settings?tab=subscription&session_id={{CHECKOUT_SESSION_ID}}"
@@ -1436,11 +1503,16 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "billing_interval": billing_interval,
         "source": "civicsign_subscription",
     }
+    if trial_days:
+        metadata["trial_days"] = str(trial_days)
 
     tx_id = f"tx_{uuid.uuid4().hex[:16]}"
     _require_stripe_key()
     try:
         customer_id = await _get_or_create_customer(user)
+        subscription_data: dict = {"metadata": metadata}
+        if trial_days:
+            subscription_data["trial_period_days"] = trial_days
         session_kwargs = {
             "mode": "subscription",
             "customer": customer_id,
@@ -1449,9 +1521,13 @@ async def create_checkout(body: CheckoutRequest, request: Request,
             "success_url": success_url,
             "cancel_url": cancel_url,
             "metadata": metadata,
-            "subscription_data": {"metadata": metadata},
+            "subscription_data": subscription_data,
             "idempotency_key": f"checkout_{tx_id}",
-            **_checkout_session_extras(mode="subscription", allow_promo_codes=not discounts),
+            **_checkout_session_extras(
+                mode="subscription",
+                allow_promo_codes=not discounts,
+                trial_days=trial_days,
+            ),
         }
         if discounts:
             session_kwargs["discounts"] = discounts
@@ -1482,7 +1558,12 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "updated_at": _now(),
     })
 
-    return {"url": session.url, "session_id": session.id, "tx_id": tx_id}
+    return {
+        "url": session.url,
+        "session_id": session.id,
+        "tx_id": tx_id,
+        "trial_days": trial_days,
+    }
 
 
 @billing_router.post("/billing/upgrade-preview")
