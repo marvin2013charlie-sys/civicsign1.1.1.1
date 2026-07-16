@@ -117,7 +117,7 @@ function SidebarContent({ user, onNavigate, goApp, collapsed, onToggle, showTogg
         )}
       </nav>
 
-      <div className={cn("mt-auto border-t", collapsed ? "p-2" : "p-3")} style={{ borderColor: "rgba(248,247,242,.1)" }}>
+      <div className={cn("cs-sidebar-profile-block mt-auto border-t", collapsed ? "p-2" : "p-3")}>
         <PortalSidebarProfile user={user} variant="dark" collapsed={collapsed} />
       </div>
     </div>

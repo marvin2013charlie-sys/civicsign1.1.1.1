@@ -9,7 +9,13 @@ function resolvePicture(picture) {
   return picture;
 }
 
-export function PortalSidebarProfile({ user, variant = "light", className, collapsed = false }) {
+export function PortalSidebarProfile({
+  user,
+  variant = "light",
+  className,
+  collapsed = false,
+  usageLine = null,
+}) {
   if (!user) return null;
 
   const isDark = variant === "dark";
@@ -26,7 +32,7 @@ export function PortalSidebarProfile({ user, variant = "light", className, colla
       data-testid="portal-sidebar-user"
       title={collapsed ? `${user.name || "User"} · ${user.email}` : undefined}
     >
-      <Avatar className="h-10 w-10 shrink-0 ring-2 ring-[var(--c-primary)]/20">
+      <Avatar className={cn("shrink-0 ring-2 ring-[var(--c-primary)]/20", collapsed ? "h-9 w-9" : "h-10 w-10")}>
         {user.picture && (
           <AvatarImage src={resolvePicture(user.picture)} alt={user.name || user.email} />
         )}
@@ -42,6 +48,11 @@ export function PortalSidebarProfile({ user, variant = "light", className, colla
           <p className="mt-0.5 truncate text-xs leading-tight opacity-70">
             {user.email}
           </p>
+          {usageLine ? (
+            <p className="cs-portal-sidebar-user-meta mt-1 truncate text-xs font-semibold leading-tight">
+              {usageLine}
+            </p>
+          ) : null}
         </div>
       )}
     </div>

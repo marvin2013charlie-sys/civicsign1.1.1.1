@@ -5,8 +5,6 @@ import { cn } from "@/lib/utils";
 export function SidebarCollapseToggle({ collapsed, onToggle, className, variant = "edge" }) {
   const isHeader = variant === "header" || variant === "header-rail";
   const isFooter = variant === "footer";
-  const isHeaderRail = variant === "header-rail";
-
   return (
     <button
       type="button"
@@ -14,15 +12,14 @@ export function SidebarCollapseToggle({ collapsed, onToggle, className, variant 
       className={cn(
         "cs-sidebar-collapse-toggle",
         isHeader && "cs-sidebar-collapse-toggle-header",
-        isHeaderRail && "cs-sidebar-collapse-toggle-header-rail",
         isFooter && "cs-sidebar-collapse-toggle-footer",
         variant === "edge" && "cs-sidebar-collapse-toggle-edge",
         className,
       )}
       data-testid="sidebar-collapse-toggle"
-      aria-label={collapsed ? "Use full sidebar" : "Use compact sidebar"}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-expanded={!collapsed}
-      title={collapsed ? "Full sidebar" : "Compact sidebar"}
+      title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
     >
       {isHeader || isFooter ? (
         collapsed ? (
@@ -37,7 +34,7 @@ export function SidebarCollapseToggle({ collapsed, onToggle, className, variant 
       )}
       {isFooter ? (
         <span className="cs-sidebar-collapse-toggle-label">
-          {collapsed ? "Full sidebar" : "Compact sidebar"}
+          {collapsed ? "Expand sidebar" : "Collapse sidebar"}
         </span>
       ) : null}
     </button>
@@ -55,9 +52,9 @@ export function TopbarSidebarToggle({ collapsed, onToggle, className }) {
         className,
       )}
       data-testid="topbar-sidebar-toggle"
-      aria-label={collapsed ? "Use full sidebar" : "Use compact sidebar"}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-expanded={!collapsed}
-      title={collapsed ? "Full sidebar" : "Compact sidebar"}
+      title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
     >
       {collapsed ? (
         <PanelLeftOpen className="h-4 w-4" aria-hidden />

@@ -1156,16 +1156,7 @@ html[data-theme="dark"] {
     color: rgba(248, 247, 242, 0.65);
     border-color: transparent;
   }
-  .cs-portal-sidebar .cs-app-nav-link-active {
-    color: #2dd4bf;
-    font-weight: 600;
-    background: rgba(45, 212, 191, 0.14);
-    border-color: transparent;
-    box-shadow: none;
-  }
-  .cs-portal-sidebar .cs-app-nav-link-active svg {
-    color: #2dd4bf;
-  }
+
   .cs-portal-shell {
     isolation: isolate;
   }
@@ -1288,12 +1279,12 @@ html[data-theme="dark"] {
     box-shadow: none;
   }
   .cs-sidebar-section-label {
-    padding: 0.35rem 0.75rem 0.5rem;
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--c-muted-fg);
+    padding: 0.65rem 0.75rem 0.35rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: none;
+    color: rgba(248, 247, 242, 0.42);
   }
   .cs-portal-header-actions {
     flex-shrink: 0;
@@ -1310,14 +1301,10 @@ html[data-theme="dark"] {
     box-shadow: 0 1px 2px rgba(18, 33, 32, 0.04);
   }
   .cs-portal-sidebar-user-dark {
-    border-color: color-mix(in srgb, var(--c-primary) 28%, transparent);
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--c-primary) 16%, rgba(255, 255, 255, 0.04)) 0%,
-      rgba(255, 255, 255, 0.04) 100%
-    );
+    border-color: rgba(248, 247, 242, 0.1);
+    background: rgba(248, 247, 242, 0.05);
     color: #fff;
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--c-primary) 12%, transparent);
+    box-shadow: none;
   }
   .cs-portal-sidebar-user-dark p:last-child {
     color: rgba(255, 255, 255, 0.55);
@@ -1327,8 +1314,8 @@ html[data-theme="dark"] {
     padding: 0.5rem;
   }
   .cs-portal-shell {
-    --cs-sidebar-width: 16rem;
-    --cs-sidebar-width-collapsed: 4.5rem;
+    --cs-sidebar-width: 15.5rem;
+    --cs-sidebar-width-collapsed: 4rem;
   }
   @media (min-width: 1024px) {
     .cs-portal-shell-expanded {
@@ -1372,47 +1359,94 @@ html[data-theme="dark"] {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 1.25rem 1.25rem 0.5rem;
+    flex-shrink: 0;
+    padding: 1rem 0.85rem 0.65rem;
   }
   .cs-sidebar-header-collapsed {
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    padding: 0.85rem 0.5rem 0.45rem;
+    padding: 0.85rem 0.5rem 0.55rem;
   }
   .cs-sidebar-nav-link {
     position: relative;
+    min-height: 2.35rem;
   }
   .cs-sidebar-nav-icon {
     display: inline-flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.65rem;
-    background: rgba(248, 247, 242, 0.04);
+    width: 1.35rem;
+    height: 1.35rem;
     color: inherit;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    transition: color 0.2s ease;
   }
-  .cs-app-nav-link-active .cs-sidebar-nav-icon {
+  .cs-sidebar-nav-icon-svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    stroke-width: 1.85;
+  }
+  .cs-portal-sidebar .cs-app-nav-link-active {
+    color: #f8f7f2;
     background: rgba(45, 212, 191, 0.18);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .cs-portal-sidebar .cs-app-nav-link-active .cs-sidebar-nav-icon,
+  .cs-portal-sidebar .cs-app-nav-link-active svg {
     color: #2dd4bf;
   }
-  .cs-sidebar-nav-link:hover .cs-sidebar-nav-icon {
-    background: rgba(248, 247, 242, 0.1);
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link {
+    min-height: 2.5rem;
+    width: 2.5rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0;
+    justify-content: center;
   }
-  .cs-sidebar-primary-cta .cs-sidebar-nav-icon-cta {
-    background: rgba(18, 33, 32, 0.12);
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  .cs-portal-sidebar-collapsed .cs-app-nav-link-active {
+    background: rgba(45, 212, 191, 0.2);
+    border-radius: 0.7rem;
+  }
+  .cs-sidebar-primary-cta {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta {
+    width: 2.5rem;
+    min-height: 2.5rem;
+    margin: 0.35rem auto 0.75rem !important;
+    padding: 0 !important;
+    border-radius: 0.75rem !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 16px rgba(45, 212, 191, 0.28) !important;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-icon {
+    display: inline-flex !important;
+    background: transparent;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-icon-cta {
+    background: transparent;
   }
   .cs-portal-sidebar:not(.cs-portal-sidebar-collapsed) .cs-sidebar-primary-cta .cs-sidebar-nav-icon {
     display: none;
   }
+  .cs-sidebar-profile-block {
+    border-color: rgba(248, 247, 242, 0.1);
+  }
+  .cs-portal-sidebar-user-meta {
+    color: #2dd4bf;
+  }
   .cs-sidebar-section-divider {
-    height: 1px;
-    margin: 0.45rem 0.65rem 0.55rem;
-    background: rgba(248, 247, 242, 0.1);
+    height: 0;
+    margin: 0.2rem 0;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-section + .cs-sidebar-nav-section {
+    margin-top: 0.15rem;
   }
   .cs-sidebar-quota-ring {
     position: relative;
@@ -1428,18 +1462,19 @@ html[data-theme="dark"] {
     line-height: 1;
   }
   .cs-sidebar-footer-toggle {
-    margin-top: auto;
-    padding: 0.35rem 0.5rem 0.75rem;
+    flex-shrink: 0;
+    padding: 0.35rem 0.65rem 0.85rem;
+    border-top: 1px solid rgba(248, 247, 242, 0.08);
   }
   .cs-sidebar-collapse-toggle {
     display: none;
     align-items: center;
     justify-content: center;
-    border-radius: 0.7rem;
-    border: 1px solid rgba(248, 247, 242, 0.14);
-    background: rgba(248, 247, 242, 0.05);
-    color: rgba(248, 247, 242, 0.72);
-    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    border-radius: 0.65rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(248, 247, 242, 0.55);
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   }
   @media (min-width: 1024px) {
     .cs-sidebar-collapse-toggle {
@@ -1448,25 +1483,22 @@ html[data-theme="dark"] {
   }
   .cs-sidebar-collapse-toggle:hover {
     color: #f8f7f2;
-    border-color: rgba(45, 212, 191, 0.35);
-    background: rgba(45, 212, 191, 0.12);
+    background: rgba(248, 247, 242, 0.08);
   }
   .cs-sidebar-collapse-toggle-header {
     width: 2rem;
     height: 2rem;
     flex-shrink: 0;
-  }
-  .cs-sidebar-collapse-toggle-header-rail {
-    width: 2rem;
-    height: 2rem;
-    flex-shrink: 0;
+    border-radius: 0.55rem;
   }
   .cs-sidebar-collapse-toggle-footer {
     width: 100%;
-    gap: 0.45rem;
-    padding: 0.55rem 0.65rem;
-    font-size: 0.75rem;
-    font-weight: 600;
+    gap: 0.55rem;
+    justify-content: flex-start;
+    padding: 0.5rem 0.55rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgba(248, 247, 242, 0.62);
   }
   .cs-sidebar-collapse-toggle-label {
     display: none;
@@ -1476,11 +1508,18 @@ html[data-theme="dark"] {
     display: inline;
   }
   .cs-sidebar-footer-toggle-rail {
-    padding: 0.35rem 0.5rem 0.65rem;
+    padding: 0.5rem 0.35rem 0.75rem;
+    border-top: none;
   }
   .cs-sidebar-footer-toggle-rail .cs-sidebar-collapse-toggle-footer {
     justify-content: center;
-    padding: 0.55rem;
+    width: 2.5rem;
+    margin: 0 auto;
+    padding: 0.5rem;
+    border-radius: 0.7rem;
+  }
+  .cs-sidebar-footer-toggle-rail .cs-sidebar-collapse-toggle-footer:hover {
+    background: rgba(248, 247, 242, 0.08);
   }
   .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
     width: 0;
@@ -1495,54 +1534,37 @@ html[data-theme="dark"] {
     width: auto;
     opacity: 1;
   }
-  .cs-portal-sidebar-collapsed .cs-app-nav-link,
-  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta {
+  .cs-portal-sidebar-collapsed .cs-app-nav-link:not(.cs-sidebar-primary-cta) {
     justify-content: center;
     gap: 0;
-    padding-left: 0.45rem;
-    padding-right: 0.45rem;
+    padding-left: 0;
+    padding-right: 0;
   }
-  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-label {
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-label,
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
     display: none;
   }
   .cs-portal-sidebar-collapsed nav {
-    padding-left: 0.45rem;
-    padding-right: 0.45rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
   }
-  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link::after {
-    content: attr(data-label);
-    position: absolute;
-    left: calc(100% + 0.55rem);
-    top: 50%;
-    z-index: 50;
-    transform: translateY(-50%) translateX(-4px);
-    border-radius: 0.55rem;
-    border: 1px solid rgba(248, 247, 242, 0.12);
-    background: color-mix(in srgb, var(--c-ink-solid) 92%, #2dd4bf);
-    padding: 0.35rem 0.6rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #f8f7f2;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    box-shadow: 0 8px 20px rgba(18, 33, 32, 0.24);
-    transition: opacity 0.16s ease, transform 0.16s ease;
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
   }
-  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link:hover::after,
-  .cs-portal-sidebar-collapsed .cs-sidebar-nav-link:focus-visible::after {
-    opacity: 1;
-    transform: translateY(-50%) translateX(0);
-  }
-  .cs-portal-sidebar-peek .cs-sidebar-nav-link::after {
-    display: none;
+  .cs-portal-sidebar-user-collapsed {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0.25rem;
   }
   @media (prefers-reduced-motion: reduce) {
     .cs-portal-shell-expanded,
     .cs-portal-shell-collapsed,
     .cs-portal-sidebar,
-    .cs-portal-sidebar-collapsed .cs-sidebar-nav-label,
-    .cs-portal-sidebar-collapsed .cs-sidebar-nav-link::after {
+    .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
       transition-duration: 0.01ms;
     }
   }

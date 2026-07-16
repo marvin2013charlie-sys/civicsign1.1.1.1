@@ -19,6 +19,12 @@ import { SidebarQuotaMini } from "@/components/portal/SidebarQuotaMini";
 import { PortalSidebarAside, portalSidebarShellClass } from "@/components/portal/PortalSidebarAside";
 import { TopbarSidebarToggle } from "@/components/SidebarCollapseToggle";
 import { cn } from "@/lib/utils";
+function sidebarProfileUsageLine(usage) {
+  if (!usage || usage.unlimited || !usage.limit) return null;
+  const remaining = usage.remaining ?? Math.max(0, (usage.limit ?? 0) - (usage.used ?? 0));
+  const plan = usage.plan ? `${usage.plan} plan · ` : "";
+  return `${plan}${remaining.toLocaleString()} documents left`;
+}
 
 const WORKSPACE_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
@@ -96,10 +102,15 @@ function SidebarContent({ user, usage, onNavigate, collapsed, onToggle, showTogg
         )}
       </nav>
 
-      <SidebarQuotaMini usage={usage} collapsed={collapsed} />
+      {collapsed ? <SidebarQuotaMini usage={usage} collapsed /> : null}
 
-      <div className={cn("mt-auto border-t", collapsed ? "p-2" : "p-3")} style={{ borderColor: "rgba(248,247,242,.1)" }}>
-        <PortalSidebarProfile user={user} variant="dark" collapsed={collapsed} />
+      <div className={cn("cs-sidebar-profile-block mt-auto border-t", collapsed ? "p-2" : "p-3")}>
+        <PortalSidebarProfile
+          user={user}
+          variant="dark"
+          collapsed={collapsed}
+          usageLine={collapsed ? null : sidebarProfileUsageLine(usage)}
+        />
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ export function SidebarNavLink({
       end={end}
       data-testid={testid}
       data-label={label}
+      title={label}
       onClick={onClick}
       className={({ isActive }) =>
         cn(
@@ -26,8 +27,8 @@ export function SidebarNavLink({
         )
       }
     >
-      <span className="cs-sidebar-nav-icon">
-        <Icon className="h-4 w-4" aria-hidden />
+      <span className="cs-sidebar-nav-icon" aria-hidden>
+        <Icon className="cs-sidebar-nav-icon-svg" />
       </span>
       <span className="cs-sidebar-nav-label truncate">{label}</span>
     </NavLink>
