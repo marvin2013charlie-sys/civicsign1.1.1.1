@@ -17,6 +17,7 @@ import { SidebarNavSection } from "@/components/portal/SidebarNavSection";
 import { SidebarNavLink } from "@/components/portal/SidebarNavLink";
 import { SidebarQuotaMini } from "@/components/portal/SidebarQuotaMini";
 import { PortalSidebarAside, portalSidebarShellClass } from "@/components/portal/PortalSidebarAside";
+import { TopbarSidebarToggle } from "@/components/SidebarCollapseToggle";
 import { cn } from "@/lib/utils";
 
 const WORKSPACE_NAV = [
@@ -41,7 +42,7 @@ function SidebarContent({ user, usage, onNavigate, collapsed, onToggle, showTogg
   const workspaceItems = useMemo(() => filterNavItems(WORKSPACE_NAV, user), [user]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <SidebarHeader collapsed={collapsed} onToggle={onToggle} showToggle={showToggle} />
 
       <NavLink
@@ -226,6 +227,8 @@ export const AppShell = ({ children, title, actions, headerSearch }) => {
             >
               <Menu className="h-5 w-5" />
             </button>
+
+            <TopbarSidebarToggle collapsed={collapsed} onToggle={toggleSidebar} />
 
             {headerSearch ? (
               <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md">

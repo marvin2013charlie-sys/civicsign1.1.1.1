@@ -23,6 +23,7 @@ import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
 import { SidebarHeader } from "@/components/portal/SidebarHeader";
 import { SidebarNavSection } from "@/components/portal/SidebarNavSection";
 import { PortalSidebarAside, portalSidebarShellClass } from "@/components/portal/PortalSidebarAside";
+import { TopbarSidebarToggle } from "@/components/SidebarCollapseToggle";
 import { cn } from "@/lib/utils";
 
 const OVERVIEW_NAV = [
@@ -75,7 +76,7 @@ function SidebarContent({ user, onNavigate, goApp, collapsed, onToggle, showTogg
   const visibleCount = sections.reduce((sum, section) => sum + section.items.length, 0);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <SidebarHeader collapsed={collapsed} onToggle={onToggle} showToggle={showToggle} />
 
       <button
@@ -218,6 +219,8 @@ export const AdminShell = () => {
               >
                 <Menu className="h-5 w-5" />
               </button>
+
+              <TopbarSidebarToggle collapsed={collapsed} onToggle={toggleSidebar} />
 
               <span className="inline-flex min-w-0 items-center gap-2 truncate rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-ink)]">
                 {isStaff ? "Staff member" : "Internal team only"}

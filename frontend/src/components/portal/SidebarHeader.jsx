@@ -7,8 +7,12 @@ export function SidebarHeader({ collapsed, onToggle, showToggle = true }) {
   return (
     <div className={cn("cs-sidebar-header", collapsed && "cs-sidebar-header-collapsed")}>
       <Logo dark compact={collapsed} className={cn(collapsed && "mx-auto")} />
-      {showToggle && !collapsed ? (
-        <SidebarCollapseToggle collapsed={collapsed} onToggle={onToggle} variant="header" />
+      {showToggle ? (
+        <SidebarCollapseToggle
+          collapsed={collapsed}
+          onToggle={onToggle}
+          variant={collapsed ? "header-rail" : "header"}
+        />
       ) : null}
     </div>
   );

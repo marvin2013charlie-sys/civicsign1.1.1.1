@@ -35,12 +35,10 @@ export function PortalSidebarAside({
         }
       }}
     >
-      {content}
-      {isRail ? (
-        <div className="cs-sidebar-footer-toggle">
-          <SidebarCollapseToggle collapsed={collapsed} onToggle={onToggle} variant="footer" />
-        </div>
-      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
+      <div className={cn("cs-sidebar-footer-toggle shrink-0", isRail && "cs-sidebar-footer-toggle-rail")}>
+        <SidebarCollapseToggle collapsed={collapsed} onToggle={onToggle} variant="footer" />
+      </div>
     </aside>
   );
 }

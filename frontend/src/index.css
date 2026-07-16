@@ -1375,9 +1375,11 @@ html[data-theme="dark"] {
     padding: 1.25rem 1.25rem 0.5rem;
   }
   .cs-sidebar-header-collapsed {
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    gap: 0.35rem;
+    padding: 0.85rem 0.5rem 0.45rem;
   }
   .cs-sidebar-nav-link {
     position: relative;
@@ -1454,6 +1456,11 @@ html[data-theme="dark"] {
     height: 2rem;
     flex-shrink: 0;
   }
+  .cs-sidebar-collapse-toggle-header-rail {
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+  }
   .cs-sidebar-collapse-toggle-footer {
     width: 100%;
     gap: 0.45rem;
@@ -1463,6 +1470,17 @@ html[data-theme="dark"] {
   }
   .cs-sidebar-collapse-toggle-label {
     display: none;
+  }
+  .cs-portal-sidebar:not(.cs-portal-sidebar-collapsed) .cs-sidebar-collapse-toggle-label,
+  .cs-portal-sidebar-peek .cs-sidebar-collapse-toggle-label {
+    display: inline;
+  }
+  .cs-sidebar-footer-toggle-rail {
+    padding: 0.35rem 0.5rem 0.65rem;
+  }
+  .cs-sidebar-footer-toggle-rail .cs-sidebar-collapse-toggle-footer {
+    justify-content: center;
+    padding: 0.55rem;
   }
   .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
     width: 0;
