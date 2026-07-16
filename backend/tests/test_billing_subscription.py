@@ -198,6 +198,43 @@ def test_checkout_trial_days_skips_repeat_subscribers(monkeypatch):
     assert billing._checkout_trial_days(user) is None
 
 
+def test_trial_already_redeemed_flag():
+    assert billing._trial_already_redeemed({"subscription_trial_used": True}) is True
+    assert billing._trial_already_redeemed({"plan_upgraded_via_payment": True}) is True
+    assert billing._trial_already_redeemed({"plan": "free"}) is False
+
+
+def test_resolve_checkout_trial_marks_redeemed_from_payment_history(monkeypatch):
+    monkeypatch.setattr(billing, "STRIPE_SUBSCRIPTION_TRIAL_DAYS", 30)
+
+    class FakeUsers:
+        def __init__(self):
+            self.updated = []
+
+        async def update_one(self, query, patch):
+            self.updated.append((query, patch))
+            return type("R", (), {"matched_count": 1})()
+
+    class FakeDB:
+        def __init__(self, had_paid):
+            self.payment_transactions = self
+            self.users = FakeUsers()
+            self._had_paid = had_paid
+
+        async def find_one(self, query, projection):
+            if self._had_paid:
+                return {"_id": "x"}
+            return None
+
+    fake_db = FakeDB(had_paid=True)
+    monkeypatch.setattr(billing, "db", fake_db)
+    user = {"user_id": "u1", "plan": "free", "email": "a@b.com"}
+    days, redeemed = run(billing._resolve_checkout_trial(user))
+    assert days is None
+    assert redeemed is True
+    assert fake_db.users.updated
+
+
 def test_plan_product_name_not_duplicating_subscribe_prefix():
     assert billing._plan_product_name("pro", "monthly") == "CivicSign Pro plan (monthly)"
     assert "Subscribe to" not in billing._plan_product_name("pro", "monthly")

@@ -12,6 +12,7 @@ export function StripeCheckoutRedirect({
   priceLabel,
   billingInterval = "monthly",
   trialDays = 0,
+  trialAlreadyRedeemed = false,
   onBillingIntervalChange,
   onContinue,
   continuing = false,
@@ -72,6 +73,11 @@ export function StripeCheckoutRedirect({
             </div>
           ) : null}
 
+          {trialAlreadyRedeemed && !hasTrial ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-950" data-testid="trial-already-redeemed-notice">
+              You&apos;ve already redeemed your free trial on this account. Stripe will charge the normal plan price when your subscription starts.
+            </p>
+          ) : null}
           {hasTrial && (
             <p className="text-xs text-[var(--c-muted-fg)]">
               Card required. You will not be charged until your {trialDays}-day trial ends. After that, payment continues at your chosen plan price unless you cancel from Settings.

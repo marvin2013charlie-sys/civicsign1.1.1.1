@@ -210,6 +210,7 @@ def _public_user(doc: dict) -> dict:
             and not doc.get("retention_offer_used_at")
         ),
         "retention_offer_used_at": doc.get("retention_offer_used_at"),
+        "subscription_trial_used": bool(doc.get("subscription_trial_used")),
         "plan_features": plan_features(doc),
         "tours_completed": doc.get("tours_completed", []),
     }

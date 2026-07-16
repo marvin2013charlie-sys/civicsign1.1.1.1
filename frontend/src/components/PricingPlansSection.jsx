@@ -158,8 +158,10 @@ export function PricingPlansSection({
   const { user } = useAuth();
   const [billingInterval, setBillingInterval] = useState("monthly");
   const [trialDays, setTrialDays] = useState(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
-  const plans = buildPricingPlans(billingInterval, trialDays);
-  const trialPitch = formatSubscriptionTrialPitch(trialDays);
+  const [trialAlreadyRedeemed, setTrialAlreadyRedeemed] = useState(false);
+  const effectiveTrialDays = user?.subscription_trial_used || trialAlreadyRedeemed ? 0 : trialDays;
+  const plans = buildPricingPlans(billingInterval, effectiveTrialDays);
+  const trialPitch = formatSubscriptionTrialPitch(effectiveTrialDays);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,10 +174,18 @@ export function PricingPlansSection({
       .catch(() => {
         if (!cancelled) setTrialDays(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
       });
+    if (user) {
+      api.get("/billing/trial-status")
+        .then(({ data }) => {
+          if (cancelled) return;
+          setTrialAlreadyRedeemed(Boolean(data?.trial_already_redeemed));
+        })
+        .catch(() => { /* non-fatal */ });
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   return (
     <section
@@ -227,10 +237,16 @@ export function PricingPlansSection({
             plan={plan}
             billingInterval={billingInterval}
             ctaTo={buildPlanCtaPath(plan.name, billingInterval, user || null)}
-            trialDays={trialDays}
+            trialDays={effectiveTrialDays}
           />
         ))}
       </div>
+
+      {user && trialAlreadyRedeemed && trialDays > 0 ? (
+        <p className="mt-6 text-center text-sm text-[var(--c-muted-fg)]" data-testid="pricing-trial-redeemed-note">
+          Signed in as <span className="font-medium text-[var(--c-ink)]">{user.email}</span> — your free trial has already been used on this account.
+        </p>
+      ) : null}
 
       {showComparison && (
         <div className={`${MARKETING_CARD} mt-8 overflow-hidden p-0`} data-testid="pricing-comparison-table">

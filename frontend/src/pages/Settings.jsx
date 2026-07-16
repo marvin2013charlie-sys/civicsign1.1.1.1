@@ -915,8 +915,10 @@ function SubscriptionTab() {
   const userInterval = user?.billing_interval || "monthly";
   const periodEndLabel = fmtPeriodEnd(user?.subscription_current_period_end);
   const cancelScheduled = !!user?.subscription_cancel_at_period_end;
-  const subscriptionTrialDays = billingConfig?.subscription_trial_enabled
-    ? Number(billingConfig.subscription_trial_days) || SUBSCRIPTION_TRIAL_DAYS_DEFAULT
+  const [trialStatus, setTrialStatus] = useState(null);
+  const subscriptionTrialUsed = Boolean(user?.subscription_trial_used || trialStatus?.trial_already_redeemed);
+  const subscriptionTrialDays = trialStatus?.trial_eligible
+    ? Number(trialStatus.subscription_trial_days) || SUBSCRIPTION_TRIAL_DAYS_DEFAULT
     : 0;
   const currentPlan = buildPlanDefs(isPaid ? userInterval : billingInterval).find((p) => p.id === current);
   const allPaidPlans = buildPlanDefs(billingInterval).filter((p) => p.id !== "free");
@@ -932,6 +934,9 @@ function SubscriptionTab() {
     let cancelled = false;
     api.get("/billing/config")
       .then(({ data }) => { if (!cancelled) setBillingConfig(data); })
+      .catch(() => { /* non-fatal */ });
+    api.get("/billing/trial-status")
+      .then(({ data }) => { if (!cancelled) setTrialStatus(data); })
       .catch(() => { /* non-fatal */ });
     return () => { cancelled = true; };
   }, []);
@@ -1063,6 +1068,9 @@ function SubscriptionTab() {
         return;
       }
       if (data.url) {
+        if (data.trial_already_redeemed && !data.trial_eligible) {
+          toast.info("You've already redeemed your free trial. Checkout will bill at the normal plan price.");
+        }
         setCheckoutRedirect({
           planId,
           url: data.url,
@@ -1070,6 +1078,7 @@ function SubscriptionTab() {
           priceLabel: buildCheckoutPriceLabel(planDef?.name, checkoutInterval, data.trial_days || 0),
           billingInterval: checkoutInterval,
           trialDays: data.trial_days || 0,
+          trialAlreadyRedeemed: Boolean(data.trial_already_redeemed && !data.trial_eligible),
         });
         setContinuingCheckout(false);
         return;
@@ -1207,6 +1216,7 @@ function SubscriptionTab() {
           priceLabel={checkoutRedirect.priceLabel}
           billingInterval={checkoutRedirect.billingInterval}
           trialDays={checkoutRedirect.trialDays}
+          trialAlreadyRedeemed={checkoutRedirect.trialAlreadyRedeemed}
           onBillingIntervalChange={handleCheckoutIntervalChange}
           onContinue={continueCheckout}
           continuing={continuingCheckout}
@@ -1229,6 +1239,14 @@ function SubscriptionTab() {
         >
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
           Secure live payments via Stripe — UK cards only, VAT shown at checkout.
+        </div>
+      )}
+      {subscriptionTrialUsed && current === "free" && billingConfig?.subscription_trial_enabled && (
+        <div
+          className="mb-4 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] px-4 py-3 text-sm text-[var(--c-ink)]"
+          data-testid="trial-already-redeemed-banner"
+        >
+          You&apos;ve already redeemed your one-time free trial on this account. New upgrades bill at the normal monthly or annual price.
         </div>
       )}
       {paymentsBlocked && (

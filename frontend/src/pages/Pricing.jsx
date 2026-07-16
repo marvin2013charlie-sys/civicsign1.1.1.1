@@ -11,6 +11,7 @@ import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
 import { PRICING_FAQS } from "@/lib/pricingPlans";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { formatFreePlanSignupPitch, formatSubscriptionTrialPitch, SUBSCRIPTION_TRIAL_DAYS_DEFAULT } from "@/lib/pricing";
 import {
   CTA_ACTIONS_CLASS,
@@ -37,8 +38,11 @@ const INCLUDED_EVERY_PLAN = [
 ];
 
 export default function Pricing() {
+  const { user } = useAuth();
   const [trialDays, setTrialDays] = useState(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
-  const trialPitch = formatSubscriptionTrialPitch(trialDays);
+  const [trialAlreadyRedeemed, setTrialAlreadyRedeemed] = useState(false);
+  const effectiveTrialDays = user?.subscription_trial_used || trialAlreadyRedeemed ? 0 : trialDays;
+  const trialPitch = formatSubscriptionTrialPitch(effectiveTrialDays);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -55,10 +59,18 @@ export default function Pricing() {
       .catch(() => {
         if (!cancelled) setTrialDays(SUBSCRIPTION_TRIAL_DAYS_DEFAULT);
       });
+    if (user) {
+      api.get("/billing/trial-status")
+        .then(({ data }) => {
+          if (cancelled) return;
+          setTrialAlreadyRedeemed(Boolean(data?.trial_already_redeemed));
+        })
+        .catch(() => { /* non-fatal */ });
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-[var(--c-paper)]" data-testid="pricing-page">
@@ -72,14 +84,21 @@ export default function Pricing() {
               <CreditCard className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} />
               Transparent plans
             </span>
-            {trialDays > 0 ? (
+            {effectiveTrialDays > 0 ? (
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
                 style={{ background: "var(--c-primary)" }}
                 data-testid="pricing-trial-badge"
               >
                 <Gift className="h-3.5 w-3.5" />
-                {trialDays}-day free trial on Pro &amp; Business
+                {effectiveTrialDays}-day free trial on Pro &amp; Business
+              </span>
+            ) : trialAlreadyRedeemed || user?.subscription_trial_used ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--c-muted-fg)]"
+                data-testid="pricing-trial-redeemed-badge"
+              >
+                Free trial already used on this account
               </span>
             ) : null}
           </div>
@@ -154,7 +173,7 @@ export default function Pricing() {
           </h2>
           <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.72)" }}>
             Create your account in minutes. No card required on the Free plan.
-            {trialDays > 0 ? ` Your first Pro or Business upgrade includes a ${trialDays}-day free trial.` : ""}
+            {effectiveTrialDays > 0 ? ` Your first Pro or Business upgrade includes a ${effectiveTrialDays}-day free trial.` : ""}
           </p>
           <div className={CTA_ACTIONS_CLASS}>
             <Link to="/register" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>

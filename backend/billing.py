@@ -288,12 +288,61 @@ async def _get_or_create_annual_coupon() -> str:
     return coupon.id
 
 
+def _trial_already_redeemed(user: dict) -> bool:
+    """True when this account has already used (or forfeited) its one free trial."""
+    if user.get("subscription_trial_used"):
+        return True
+    if user.get("plan_upgraded_via_payment"):
+        return True
+    return False
+
+
+async def _user_had_paid_subscription(user_id: str) -> bool:
+    """Detect prior paid plan checkouts even if the user was later downgraded to Free."""
+    doc = await db.payment_transactions.find_one(
+        {
+            "user_id": user_id,
+            "plan_id": {"$in": list(PLANS.keys())},
+            "payment_status": "paid",
+        },
+        {"_id": 1},
+    )
+    return doc is not None
+
+
+async def _mark_trial_redeemed(user_id: str) -> None:
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"subscription_trial_used": True, "updated_at": _now()}},
+    )
+
+
+async def _resolve_checkout_trial(user: dict) -> tuple[int | None, bool]:
+    """Return (trial_days, trial_already_redeemed) for self-serve checkout."""
+    days = STRIPE_SUBSCRIPTION_TRIAL_DAYS
+    if days <= 0:
+        return None, False
+    if _trial_already_redeemed(user):
+        return None, True
+    if await _user_had_paid_subscription(user["user_id"]):
+        await _mark_trial_redeemed(user["user_id"])
+        return None, True
+    if user.get("stripe_subscription_id"):
+        return None, True
+    status = (user.get("subscription_status") or "").lower()
+    if status in ACTIVE_SUBSCRIPTION_STATES:
+        return None, True
+    if (user.get("plan") or "free").lower().strip() != "free":
+        return None, True
+    return days, False
+
+
 def _checkout_trial_days(user: dict) -> int | None:
-    """Return trial length for first-time self-serve subscribers, or None."""
+    """Sync trial check for unit tests — mirrors _resolve_checkout_trial without payment history."""
     days = STRIPE_SUBSCRIPTION_TRIAL_DAYS
     if days <= 0:
         return None
-    if user.get("subscription_trial_used"):
+    if _trial_already_redeemed(user):
         return None
     if user.get("stripe_subscription_id"):
         return None
@@ -543,8 +592,8 @@ async def _activate_subscription(
         patch["stripe_customer_id"] = customer_id
     if period_end_iso:
         patch["subscription_current_period_end"] = period_end_iso
-    if subscription_status == "trialing":
-        patch["subscription_trial_used"] = True
+    # One trial per account — any paid subscription marks the trial as consumed.
+    patch["subscription_trial_used"] = True
     result = await db.users.update_one({"user_id": user_id}, {"$set": patch})
     if result.matched_count == 0:
         logger.error(f"[billing] user {user_id} not found to activate subscription")
@@ -1250,8 +1299,7 @@ async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: 
         "subscription_status": status,
         "updated_at": _now(),
     }
-    if status == "trialing":
-        patch["subscription_trial_used"] = True
+    patch["subscription_trial_used"] = True
     if cust_id:
         patch["stripe_customer_id"] = cust_id
     await db.users.update_one({"user_id": user_id}, {"$set": patch})
@@ -1402,6 +1450,18 @@ async def _apply_plan_upgrade(session_id: str, payment_status: str, status: str)
     return await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
 
 
+@billing_router.get("/billing/trial-status")
+async def billing_trial_status(user: dict = Depends(get_current_user)):
+    """Per-account trial eligibility — one free trial per CivicSign account."""
+    trial_days, trial_already_redeemed = await _resolve_checkout_trial(user)
+    return {
+        "subscription_trial_days": STRIPE_SUBSCRIPTION_TRIAL_DAYS,
+        "subscription_trial_enabled": STRIPE_SUBSCRIPTION_TRIAL_DAYS > 0,
+        "trial_eligible": bool(trial_days),
+        "trial_already_redeemed": trial_already_redeemed,
+    }
+
+
 @billing_router.get("/billing/config")
 async def billing_config():
     """Public billing config — lets the UI show live vs test and checkout readiness."""
@@ -1488,7 +1548,7 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         body.origin_url or "",
         fallback=request.headers.get("origin", ""),
     )
-    trial_days = _checkout_trial_days(user)
+    trial_days, trial_already_redeemed = await _resolve_checkout_trial(user)
     line_items, discounts, amount_ex_vat = await _stripe_subscription_checkout_payload(
         plan_id, billing_interval, trial_days=trial_days,
     )
@@ -1562,7 +1622,9 @@ async def create_checkout(body: CheckoutRequest, request: Request,
         "url": session.url,
         "session_id": session.id,
         "tx_id": tx_id,
-        "trial_days": trial_days,
+        "trial_days": trial_days or 0,
+        "trial_eligible": bool(trial_days),
+        "trial_already_redeemed": trial_already_redeemed,
     }
 
 
