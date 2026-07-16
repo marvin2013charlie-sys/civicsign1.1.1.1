@@ -907,6 +907,7 @@ function SubscriptionTab() {
   const [managing, setManaging] = useState(false);
   const [checkoutRedirect, setCheckoutRedirect] = useState(null);
   const [continuingCheckout, setContinuingCheckout] = useState(false);
+  const checkoutIntervalTimer = useRef(null);
   const [billingConfig, setBillingConfig] = useState(null);
   const [upgradePreview, setUpgradePreview] = useState(null);
   const [upgradeTargetPlan, setUpgradeTargetPlan] = useState(null);
@@ -1019,6 +1020,27 @@ function SubscriptionTab() {
     billingConfig?.stripe_live_required && billingConfig?.stripe_mode !== "live"
   );
 
+  const buildCheckoutHandoff = (planId, checkoutInterval, overrides = {}) => {
+    const planDef = buildPlanDefs(checkoutInterval).find((p) => p.id === planId);
+    return {
+      planId,
+      url: overrides.url ?? null,
+      planLabel: planDef ? `CivicSign ${planDef.name}` : `CivicSign ${planId}`,
+      priceLabel: buildCheckoutPriceLabel(
+        planDef?.name,
+        checkoutInterval,
+        overrides.trialDays ?? subscriptionTrialDays,
+      ),
+      billingInterval: checkoutInterval,
+      trialDays: overrides.trialDays ?? subscriptionTrialDays,
+      trialAlreadyRedeemed: overrides.trialAlreadyRedeemed ?? subscriptionTrialUsed,
+    };
+  };
+
+  useEffect(() => () => {
+    if (checkoutIntervalTimer.current) clearTimeout(checkoutIntervalTimer.current);
+  }, []);
+
   const choose = async (planId, intervalOverride) => {
     if (planId === current) return;
     if (paymentsBlocked && planId !== "free") {
@@ -1050,47 +1072,43 @@ function SubscriptionTab() {
       return;
     }
     // Paid plans go through Stripe Hosted Checkout (Emergent-style secure payment page).
+    setCheckoutRedirect(buildCheckoutHandoff(planId, checkoutInterval));
+    setContinuingCheckout(false);
     try {
-      const planDef = buildPlanDefs(checkoutInterval).find((p) => p.id === planId);
-      const priceDisplay = planDef ? getPlanPriceDisplay(planDef.name, checkoutInterval) : null;
       const { data } = await api.post("/billing/checkout", {
         plan_id: planId,
         billing_interval: checkoutInterval,
         origin_url: getAppOrigin(),
       });
       if (data.upgrade_confirmation_required && data.preview) {
+        setCheckoutRedirect(null);
         setUpgradeTargetPlan(planId);
         setUpgradeTargetInterval(checkoutInterval);
         setUpgradePreview(data.preview);
-        setSwitching("");
         return;
       }
       if (data.changed) {
+        setCheckoutRedirect(null);
         await checkAuth();
         toast.success(data.message || `You're now on the ${planId} plan`);
-        setSwitching("");
         return;
       }
       if (data.url) {
         if (data.trial_already_redeemed && !data.trial_eligible) {
           toast.info("You've already redeemed your free trial. Checkout will bill at the normal plan price.");
         }
-        setCheckoutRedirect({
-          planId,
+        setCheckoutRedirect(buildCheckoutHandoff(planId, checkoutInterval, {
           url: data.url,
-          planLabel: planDef ? `CivicSign ${planDef.name}` : `CivicSign ${planId}`,
-          priceLabel: buildCheckoutPriceLabel(planDef?.name, checkoutInterval, data.trial_days || 0),
-          billingInterval: checkoutInterval,
           trialDays: data.trial_days || 0,
           trialAlreadyRedeemed: Boolean(data.trial_already_redeemed && !data.trial_eligible),
-        });
-        setContinuingCheckout(false);
+        }));
         return;
       }
       throw new Error("No checkout URL received");
     } catch (err) {
       setCheckoutRedirect(null);
       toast.error(formatApiError(err));
+    } finally {
       setSwitching("");
     }
   };
@@ -1176,14 +1194,17 @@ function SubscriptionTab() {
   };
 
   const continueCheckout = () => {
-    if (!checkoutRedirect?.url) return;
+    if (!checkoutRedirect?.url || switching) return;
     setContinuingCheckout(true);
     assignStripeCheckout(checkoutRedirect.url);
   };
 
   const handleCheckoutIntervalChange = (interval) => {
-    if (!checkoutRedirect?.planId || interval === checkoutRedirect.billingInterval) return;
-    choose(checkoutRedirect.planId, interval);
+    if (!checkoutRedirect?.planId || interval === checkoutRedirect.billingInterval || switching) return;
+    if (checkoutIntervalTimer.current) clearTimeout(checkoutIntervalTimer.current);
+    checkoutIntervalTimer.current = setTimeout(() => {
+      choose(checkoutRedirect.planId, interval);
+    }, 300);
   };
 
   const openBillingPortal = async () => {
@@ -1222,9 +1243,9 @@ function SubscriptionTab() {
           trialDays={checkoutRedirect.trialDays}
           trialAlreadyRedeemed={checkoutRedirect.trialAlreadyRedeemed}
           onBillingIntervalChange={handleCheckoutIntervalChange}
-          onContinue={continueCheckout}
+          onContinue={checkoutRedirect.url ? continueCheckout : undefined}
           continuing={continuingCheckout}
-          preparing={Boolean(switching && checkoutRedirect.planId === switching)}
+          preparing={Boolean(switching && checkoutRedirect.planId === switching && !checkoutRedirect.url)}
         />
       )}
       {billingConfig?.promotion_codes_enabled && (current === "free" || upgradePlans.length > 0) && (
