@@ -5,7 +5,8 @@ import { PlanPriceBreakdown, PricingVatFootnote } from "@/components/PlanPriceBr
 import { buildPricingPlans, PRICING_COMPARISON_ROWS } from "@/lib/pricingPlans";
 import {
   formatFreePlanSignupPitch,
-  formatPlanTrialPriceLabel,
+  formatPlanTrialBillingNote,
+  formatPlanTrialOfferNote,
   formatSubscriptionTrialPitch,
   getPlanPriceDisplay,
   isPaidPlanWithTrial,
@@ -36,8 +37,9 @@ function PlanCard({ plan, billingInterval, ctaTo, trialDays }) {
   const hot = plan.highlight;
   const Icon = PLAN_ICONS[plan.name] || Sparkles;
   const display = getPlanPriceDisplay(plan.name, billingInterval);
-  const trialPriceLabel = formatPlanTrialPriceLabel(plan.name, billingInterval, trialDays);
-  const showTrial = Boolean(trialPriceLabel && isPaidPlanWithTrial(plan.name));
+  const showTrial = Boolean(trialDays > 0 && isPaidPlanWithTrial(plan.name));
+  const trialOfferNote = formatPlanTrialOfferNote(trialDays);
+  const trialBillingNote = formatPlanTrialBillingNote(trialDays);
 
   return (
     <div
@@ -87,27 +89,21 @@ function PlanCard({ plan, billingInterval, ctaTo, trialDays }) {
       </div>
 
       <div className="mt-5">
-        {showTrial ? (
-          <div className="mb-3">
-            <div
-              className="font-heading text-[2.75rem] font-bold leading-none tracking-[-0.03em]"
-              style={{ color: hot ? "#2DD4BF" : "var(--c-primary)" }}
-            >
-              £0
-            </div>
-            <p className="mt-1 text-[13px] font-medium" style={{ color: hot ? "rgba(248,247,242,.82)" : "var(--c-ink)" }}>
-              {trialPriceLabel}
-            </p>
-            <p className="mt-1 text-[12px]" style={{ color: hot ? "rgba(248,247,242,.55)" : "var(--c-muted-fg)" }}>
-              {display.price} {display.note}
-              {display.savings ? ` · ${display.savings}` : ""}
-            </p>
-          </div>
+        {showTrial && trialOfferNote ? (
+          <span
+            className="mb-3 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold"
+            style={{
+              background: hot ? "rgba(45,212,191,.16)" : "var(--badge-teal-bg)",
+              color: hot ? "#2DD4BF" : "var(--badge-teal-fg)",
+            }}
+          >
+            {trialOfferNote}
+          </span>
         ) : null}
         <PlanPriceBreakdown
-          price={showTrial ? null : display.price}
-          note={showTrial ? null : display.note}
-          savings={showTrial ? null : display.savings}
+          price={display.price}
+          note={display.note}
+          savings={display.savings}
           tax={display.tax}
           compact={hot}
           priceClassName={`font-heading text-[2.75rem] font-bold tracking-[-0.03em] leading-none ${
@@ -115,6 +111,11 @@ function PlanCard({ plan, billingInterval, ctaTo, trialDays }) {
           }`}
           noteClassName={`text-[13px] ${hot ? "text-white/60" : "text-[var(--c-muted-fg)]"}`}
         />
+        {showTrial && trialBillingNote ? (
+          <p className="mt-2 text-[12px] leading-snug" style={{ color: hot ? "rgba(248,247,242,.65)" : "var(--c-muted-fg)" }}>
+            {trialBillingNote}
+          </p>
+        ) : null}
       </div>
 
       <div className="my-5 h-px" style={{ background: hot ? "rgba(248,247,242,.12)" : "var(--c-border)" }} />

@@ -19,7 +19,20 @@ export function formatSubscriptionTrialPitch(trialDays = SUBSCRIPTION_TRIAL_DAYS
   return `Try Pro or Business free for ${days} days on your first upgrade — card required, then billed as normal. Cancel anytime before day ${days + 1}.`;
 }
 
-/** Plan card line under the price slab, e.g. "£0 today · then £18/month incl. VAT". */
+/** Pricing card pill — regular price stays primary; trial is an offer, not a £0 headline. */
+export function formatPlanTrialOfferNote(trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
+  const days = Number(trialDays) || 0;
+  if (days <= 0) return null;
+  return `${days}-day free trial on first upgrade`;
+}
+
+export function formatPlanTrialBillingNote(trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
+  const days = Number(trialDays) || 0;
+  if (days <= 0) return null;
+  return `£0 charged today — then billed at the regular price below after ${days} days.`;
+}
+
+/** Checkout handoff line, e.g. "£0 today · then £18/month incl. VAT". */
 export function formatPlanTrialPriceLabel(planName, interval = "monthly", trialDays = SUBSCRIPTION_TRIAL_DAYS_DEFAULT) {
   const days = Number(trialDays) || 0;
   if (days <= 0 || !isPaidPlanWithTrial(planName)) return null;

@@ -36,6 +36,8 @@ import {
   extraDocumentLimitFeature,
   formatGbp,
   formatPlanDocumentLimit,
+  formatPlanTrialBillingNote,
+  formatPlanTrialOfferNote,
   formatPlanTrialPriceLabel,
   formatProMonthlyShort,
   getPlanPriceDisplay,
@@ -133,8 +135,9 @@ function PlanCard({
 }) {
   const Icon = plan.icon;
   const { price, note, savings, tax } = getPlanPriceDisplay(plan.name, billingInterval);
-  const trialPriceLabel = formatPlanTrialPriceLabel(plan.name, billingInterval, trialDays);
-  const showTrial = Boolean(trialPriceLabel && isPaidPlanWithTrial(plan.name) && plan.id !== "free");
+  const showTrial = Boolean(trialDays > 0 && isPaidPlanWithTrial(plan.name) && plan.id !== "free");
+  const trialOfferNote = formatPlanTrialOfferNote(trialDays);
+  const trialBillingNote = formatPlanTrialBillingNote(trialDays);
   const borderColor = isCurrent || highlighted ? "var(--c-primary)" : "var(--c-portal-border)";
   return (
     <div
@@ -156,24 +159,25 @@ function PlanCard({
       <p className="text-sm text-[var(--c-muted-fg)]">{plan.tagline}</p>
       {plan.id !== "free" && (
         <div className="mt-3">
-          {showTrial ? (
-            <div className="mb-3">
-              <div className="font-heading text-3xl font-bold text-[var(--c-primary)]">£0</div>
-              <p className="mt-1 text-sm font-medium text-[var(--c-ink)]">{trialPriceLabel}</p>
-              <p className="mt-1 text-xs text-[var(--c-muted-fg)]">
-                {price} {note}
-                {savings ? ` · ${savings}` : ""}
-              </p>
-            </div>
+          {showTrial && trialOfferNote ? (
+            <span
+              className="mb-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+              style={{ background: "var(--badge-teal-bg)", color: "var(--badge-teal-fg)" }}
+            >
+              {trialOfferNote}
+            </span>
           ) : null}
           <PlanPriceBreakdown
-            price={showTrial ? null : price}
-            note={showTrial ? null : note}
-            savings={showTrial ? null : savings}
+            price={price}
+            note={note}
+            savings={savings}
             tax={tax}
             priceClassName="font-heading text-3xl font-bold text-[var(--c-ink)]"
             compact
           />
+          {showTrial && trialBillingNote ? (
+            <p className="mt-2 text-xs text-[var(--c-muted-fg)]">{trialBillingNote}</p>
+          ) : null}
         </div>
       )}
       <ul className="mt-4 flex-1 space-y-2">
