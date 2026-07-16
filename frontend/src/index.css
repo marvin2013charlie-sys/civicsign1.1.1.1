@@ -1322,6 +1322,53 @@ html[data-theme="dark"] {
   .cs-portal-sidebar-user-dark p:last-child {
     color: rgba(255, 255, 255, 0.55);
   }
+  .cs-portal-sidebar-user-collapsed {
+    justify-content: center;
+    padding: 0.5rem;
+  }
+  .cs-sidebar-collapse-toggle {
+    position: absolute;
+    top: 1.35rem;
+    right: -0.75rem;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(248, 247, 242, 0.14);
+    background: var(--c-ink-solid);
+    color: rgba(248, 247, 242, 0.75);
+    box-shadow: 0 4px 12px rgba(18, 33, 32, 0.22);
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  @media (min-width: 1024px) {
+    .cs-sidebar-collapse-toggle {
+      display: inline-flex;
+    }
+  }
+  .cs-sidebar-collapse-toggle:hover {
+    color: #f8f7f2;
+    border-color: rgba(45, 212, 191, 0.35);
+    background: color-mix(in srgb, var(--c-ink-solid) 88%, #2dd4bf);
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-nav-label {
+    display: none;
+  }
+  .cs-portal-sidebar-collapsed .cs-app-nav-link {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .cs-portal-sidebar-collapsed .cs-sidebar-primary-cta .cs-sidebar-nav-label {
+    display: none;
+  }
+  .cs-portal-sidebar-collapsed nav {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
 }
 
 /* Product tour (driver.js) — CivicSign branding */

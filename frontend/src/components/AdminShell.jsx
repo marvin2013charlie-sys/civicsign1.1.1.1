@@ -20,6 +20,9 @@ import { Logo } from "@/components/Logo";
 import { PortalHeaderActions } from "@/components/PortalHeaderActions";
 import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
+import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
+import { SidebarCollapseToggle } from "@/components/SidebarCollapseToggle";
+import { cn } from "@/lib/utils";
 
 const OVERVIEW_NAV = [
   { to: "/admin", end: true, label: "Overview", icon: LayoutDashboard, testid: "admin-nav-overview", perm: "admin" },
@@ -53,13 +56,13 @@ const NAV_SECTIONS = [
   { label: "Team", items: TEAM_NAV },
 ];
 
-function NavSection({ label, items, user, onNavigate }) {
+function NavSection({ label, items, user, onNavigate, collapsed }) {
   const visible = items.filter((item) => hasAdminAccess(user, item.perm));
   if (!visible.length) return null;
 
   return (
     <div className="mb-3">
-      <p className="cs-sidebar-section-label">{label}</p>
+      {!collapsed && <p className="cs-sidebar-section-label">{label}</p>}
       <div className="space-y-1">
         {visible.map((item) => (
           <NavLink
@@ -68,12 +71,13 @@ function NavSection({ label, items, user, onNavigate }) {
             end={item.end}
             data-testid={item.testid}
             onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
             className={({ isActive }) =>
-              `cs-app-nav-link ${isActive ? "cs-app-nav-link-active" : ""}`
+              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
             }
           >
             <item.icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{item.label}</span>
+            <span className="cs-sidebar-nav-label truncate">{item.label}</span>
           </NavLink>
         ))}
       </div>
@@ -81,7 +85,7 @@ function NavSection({ label, items, user, onNavigate }) {
   );
 }
 
-function SidebarContent({ user, onNavigate, goApp }) {
+function SidebarContent({ user, onNavigate, goApp, collapsed = false }) {
   const isStaff = user?.role === "staff";
   const visibleItems = NAV_SECTIONS
     .flatMap((section) => section.items)
@@ -89,15 +93,19 @@ function SidebarContent({ user, onNavigate, goApp }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-5 pb-2 pt-5">
-        <Logo dark />
+      <div className={cn("pb-2 pt-5", collapsed ? "px-2 text-center" : "px-5")}>
+        <Logo dark compact={collapsed} className={collapsed ? "mx-auto" : ""} />
       </div>
 
       <button
         type="button"
         onClick={goApp}
         data-testid="admin-back-to-app"
-        className="mx-4 mb-4 mt-1 flex items-center justify-center gap-2 rounded-xl border py-2.5 text-[13.5px] font-semibold transition-all hover:-translate-y-px"
+        title={collapsed ? "Back to app" : undefined}
+        className={cn(
+          "cs-sidebar-primary-cta mb-4 mt-1 flex items-center rounded-xl border font-semibold transition-all hover:-translate-y-px",
+          collapsed ? "mx-2 justify-center py-3" : "mx-4 justify-center gap-2 py-2.5 text-[13.5px]",
+        )}
         style={{
           borderColor: "rgba(248, 247, 242, 0.14)",
           background: "rgba(248, 247, 242, 0.06)",
@@ -105,7 +113,7 @@ function SidebarContent({ user, onNavigate, goApp }) {
         }}
       >
         <ArrowLeft className="h-4 w-4 shrink-0" style={{ color: "#2DD4BF" }} />
-        Back to app
+        <span className="cs-sidebar-nav-label">Back to app</span>
       </button>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 cs-scroll">
@@ -116,17 +124,18 @@ function SidebarContent({ user, onNavigate, goApp }) {
             items={section.items}
             user={user}
             onNavigate={onNavigate}
+            collapsed={collapsed}
           />
         ))}
-        {isStaff && visibleItems.length <= 1 && (
+        {!collapsed && isStaff && visibleItems.length <= 1 && (
           <p className="px-3 py-3 text-xs leading-relaxed text-white/40">
             No areas granted yet. A super-admin can grant you access from Internal Team.
           </p>
         )}
       </nav>
 
-      <div className="mt-auto border-t p-3" style={{ borderColor: "rgba(248,247,242,.1)" }}>
-        <PortalSidebarProfile user={user} variant="dark" />
+      <div className={cn("mt-auto border-t", collapsed ? "p-2" : "p-3")} style={{ borderColor: "rgba(248,247,242,.1)" }}>
+        <PortalSidebarProfile user={user} variant="dark" collapsed={collapsed} />
       </div>
     </div>
   );
@@ -137,6 +146,7 @@ export const AdminShell = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const isStaff = user?.role === "staff";
+  const { collapsed, toggle: toggleSidebar } = useCollapsibleSidebar("cs-admin-sidebar-collapsed");
 
   const { startTour } = useProductTour({
     surface: "admin",
@@ -200,9 +210,20 @@ export const AdminShell = () => {
         </div>
       )}
 
-      <div className="cs-portal-shell min-h-screen lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="cs-portal-sidebar hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden">
-          <SidebarContent user={user} goApp={goApp} />
+      <div
+        className={cn(
+          "cs-portal-shell min-h-screen lg:grid",
+          collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_minmax(0,1fr)]",
+        )}
+      >
+        <aside
+          className={cn(
+            "cs-portal-sidebar relative hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden",
+            collapsed && "cs-portal-sidebar-collapsed",
+          )}
+        >
+          <SidebarContent user={user} goApp={goApp} collapsed={collapsed} />
+          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleSidebar} />
         </aside>
 
         <div className="cs-portal-main-panel relative min-h-screen min-w-0 overflow-x-clip">

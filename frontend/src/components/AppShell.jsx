@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, FilePlus2, FileText, Menu, X, LayoutTemplate, Eye, Loader2, BarChart3, Gauge, PenTool, Users, UserCog, Building2, Search } from "lucide-react";
+import { LayoutDashboard, FilePlus2, FileText, Menu, X, LayoutTemplate, Eye, Loader2, BarChart3, Gauge, PenTool, Users, UserCog, Building2, Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
@@ -13,6 +13,9 @@ import { PortalSidebarProfile } from "@/components/PortalSidebarProfile";
 import { useProductTour } from "@/hooks/useProductTour";
 import { hasPlanFeature } from "@/lib/planFeatures";
 import { formatQuotaRemainingLine } from "@/lib/quotaDisplay";
+import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
+import { SidebarCollapseToggle } from "@/components/SidebarCollapseToggle";
+import { cn } from "@/lib/utils";
 
 const WORKSPACE_NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
@@ -28,12 +31,12 @@ const INSIGHTS_NAV = [
   { to: "/usage", label: "Usage", icon: Gauge, testid: "nav-usage" },
 ];
 
-function NavSection({ label, items, user, onNavigate }) {
+function NavSection({ label, items, user, onNavigate, collapsed }) {
   const visible = items.filter((n) => !n.feature || hasPlanFeature(user, n.feature));
   if (!visible.length) return null;
   return (
     <div className="mb-3">
-      <p className="cs-sidebar-section-label">{label}</p>
+      {!collapsed && <p className="cs-sidebar-section-label">{label}</p>}
       <div className="space-y-1">
         {visible.map((n) => (
           <NavLink
@@ -41,12 +44,13 @@ function NavSection({ label, items, user, onNavigate }) {
             to={n.to}
             data-testid={n.testid}
             onClick={onNavigate}
+            title={collapsed ? n.label : undefined}
             className={({ isActive }) =>
-              `cs-app-nav-link ${isActive ? "cs-app-nav-link-active" : ""}`
+              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
             }
           >
-            <n.icon className="h-4 w-4" />
-            {n.label}
+            <n.icon className="h-4 w-4 shrink-0" />
+            <span className="cs-sidebar-nav-label truncate">{n.label}</span>
           </NavLink>
         ))}
       </div>
@@ -85,35 +89,40 @@ function SidebarQuotaMini({ usage }) {
   );
 }
 
-function SidebarContent({ user, usage, onNavigate }) {
+function SidebarContent({ user, usage, onNavigate, collapsed = false }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-5 pb-2 pt-5">
-        <Logo dark />
+      <div className={cn("pb-2 pt-5", collapsed ? "px-2 text-center" : "px-5")}>
+        <Logo dark compact={collapsed} className={collapsed ? "mx-auto" : ""} />
       </div>
       <NavLink
         to="/new"
         onClick={onNavigate}
         data-testid="sidebar-new-envelope"
-        className="mx-4 mb-4 mt-1 rounded-xl py-3 text-center text-[13.5px] font-semibold transition-all hover:-translate-y-px hover:bg-white"
+        title={collapsed ? "New envelope" : undefined}
+        className={cn(
+          "cs-sidebar-primary-cta mb-4 mt-1 rounded-xl font-semibold transition-all hover:-translate-y-px hover:bg-white",
+          collapsed ? "mx-2 flex items-center justify-center py-3" : "mx-4 py-3 text-center text-[13.5px]",
+        )}
         style={{ background: "#2DD4BF", color: "#122120", boxShadow: "0 8px 20px rgba(45,212,191,.25)" }}
       >
-        + New envelope
+        {collapsed ? <Plus className="h-5 w-5" aria-hidden /> : "+ New envelope"}
       </NavLink>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 cs-scroll">
-        <NavSection label="Workspace" items={WORKSPACE_NAV} user={user} onNavigate={onNavigate} />
-        <NavSection label="Insights" items={INSIGHTS_NAV} user={user} onNavigate={onNavigate} />
+        <NavSection label="Workspace" items={WORKSPACE_NAV} user={user} onNavigate={onNavigate} collapsed={collapsed} />
+        <NavSection label="Insights" items={INSIGHTS_NAV} user={user} onNavigate={onNavigate} collapsed={collapsed} />
         {user?.org_id && (
           <NavLink
             to="/organisation"
             data-testid="nav-organisation"
             onClick={onNavigate}
+            title={collapsed ? "Organisation" : undefined}
             className={({ isActive }) =>
-              `cs-app-nav-link ${isActive ? "cs-app-nav-link-active" : ""}`
+              cn("cs-app-nav-link", isActive && "cs-app-nav-link-active")
             }
           >
-            <Building2 className="h-4 w-4" />
-            Organisation
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span className="cs-sidebar-nav-label truncate">Organisation</span>
           </NavLink>
         )}
         {user?.role === "admin" && (
@@ -121,18 +130,19 @@ function SidebarContent({ user, usage, onNavigate }) {
             to="/admin"
             data-testid="nav-admin"
             onClick={onNavigate}
+            title={collapsed ? "Admin Console" : undefined}
             className={({ isActive }) =>
-              `cs-app-nav-link mt-1 ${isActive ? "cs-app-nav-link-active" : ""}`
+              cn("cs-app-nav-link mt-1", isActive && "cs-app-nav-link-active")
             }
           >
-            <UserCog className="h-4 w-4" />
-            Admin Console
+            <UserCog className="h-4 w-4 shrink-0" />
+            <span className="cs-sidebar-nav-label truncate">Admin Console</span>
           </NavLink>
         )}
       </nav>
-      <SidebarQuotaMini usage={usage} />
-      <div className="mt-auto border-t p-3" style={{ borderColor: "rgba(248,247,242,.1)" }}>
-        <PortalSidebarProfile user={user} variant="dark" />
+      {!collapsed && <SidebarQuotaMini usage={usage} />}
+      <div className={cn("mt-auto border-t", collapsed ? "p-2" : "p-3")} style={{ borderColor: "rgba(248,247,242,.1)" }}>
+        <PortalSidebarProfile user={user} variant="dark" collapsed={collapsed} />
       </div>
     </div>
   );
@@ -143,6 +153,7 @@ export const AppShell = ({ children, title, actions, headerSearch }) => {
   const [open, setOpen] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [usage, setUsage] = useState(null);
+  const { collapsed, toggle: toggleSidebar } = useCollapsibleSidebar("cs-portal-sidebar-collapsed");
 
   useEffect(() => {
     let cancelled = false;
@@ -209,9 +220,20 @@ export const AppShell = ({ children, title, actions, headerSearch }) => {
         </div>
       )}
 
-      <div className="cs-portal-shell min-h-screen lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="cs-portal-sidebar hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:block lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden">
-          <SidebarContent user={user} usage={usage} />
+      <div
+        className={cn(
+          "cs-portal-shell min-h-screen lg:grid",
+          collapsed ? "lg:grid-cols-[4rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_minmax(0,1fr)]",
+        )}
+      >
+        <aside
+          className={cn(
+            "cs-portal-sidebar relative hidden border-r border-[var(--c-border)] lg:sticky lg:top-0 lg:block lg:flex lg:h-screen lg:max-h-screen lg:flex-col lg:overflow-hidden",
+            collapsed && "cs-portal-sidebar-collapsed",
+          )}
+        >
+          <SidebarContent user={user} usage={usage} collapsed={collapsed} />
+          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleSidebar} />
         </aside>
 
         <div className="cs-portal-main-panel relative z-[1] min-h-screen min-w-0 overflow-x-clip">

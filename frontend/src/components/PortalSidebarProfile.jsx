@@ -9,7 +9,7 @@ function resolvePicture(picture) {
   return picture;
 }
 
-export function PortalSidebarProfile({ user, variant = "light", className }) {
+export function PortalSidebarProfile({ user, variant = "light", className, collapsed = false }) {
   if (!user) return null;
 
   const isDark = variant === "dark";
@@ -20,9 +20,11 @@ export function PortalSidebarProfile({ user, variant = "light", className }) {
       className={cn(
         "cs-portal-sidebar-user",
         isDark && "cs-portal-sidebar-user-dark",
+        collapsed && "cs-portal-sidebar-user-collapsed",
         className,
       )}
       data-testid="portal-sidebar-user"
+      title={collapsed ? `${user.name || "User"} · ${user.email}` : undefined}
     >
       <Avatar className="h-10 w-10 shrink-0 ring-2 ring-[var(--c-primary)]/20">
         {user.picture && (
@@ -32,14 +34,16 @@ export function PortalSidebarProfile({ user, variant = "light", className }) {
           {initials}
         </AvatarFallback>
       </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">
-          {user.name || "User"}
-        </p>
-        <p className="mt-0.5 truncate text-xs leading-tight opacity-70">
-          {user.email}
-        </p>
-      </div>
+      {!collapsed && (
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {user.name || "User"}
+          </p>
+          <p className="mt-0.5 truncate text-xs leading-tight opacity-70">
+            {user.email}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
