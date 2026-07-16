@@ -82,6 +82,7 @@ export default function VerifyEmail() {
   return (
     <AuthLayout
       authContext="verify"
+      showAssistant={false}
       panelMarquee
       panelTitle={<>One quick step to <BrandAccent>secure</BrandAccent> your account.</>}
       panelSubtitle={
