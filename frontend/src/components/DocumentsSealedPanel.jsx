@@ -153,7 +153,11 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
     <div data-testid="documents-sealed-panel" className="space-y-4">
       <div className="cs-portal-surface-card rounded-2xl border-l-4 px-4 py-3.5" style={{ borderLeftColor: "var(--c-primary)" }}>
         <p className="text-sm leading-relaxed text-[var(--c-ink)]">
-          Every completed document gets a <strong>SHA-256 tamper-evident seal</strong>. Verify any signed PDF here using your stored copies.
+          Every completed document gets a <strong>SHA-256 seal</strong> on signed content, a{" "}
+          <strong>full package hash</strong> (certificate included), and locked{" "}
+          <strong>PDF metadata</strong> (title, creator, producer, page sizes). Stored and uploaded
+          copies must match on all three. An edited PDF should fail verify and must{" "}
+          <strong>not</strong> be accepted as sealed proof.
         </p>
       </div>
 
@@ -200,21 +204,31 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
         {lookupResult && (
           <div
             className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-              lookupResult.found && lookupResult.verification?.match
+              lookupResult.found && (lookupResult.verification?.accept_as_proof ?? lookupResult.verification?.match)
                 ? "border-emerald-200 bg-emerald-50 text-emerald-950"
                 : lookupResult.found
-                  ? "border-amber-200 bg-amber-50 text-amber-950"
+                  ? "border-red-200 bg-red-50 text-red-950"
                   : "border-red-200 bg-red-50 text-red-950"
             }`}
             data-testid="verify-lookup-result"
           >
             {lookupResult.found ? (
               <>
-                <p className="font-semibold">
-                  {lookupResult.verification?.match ? "Found and verified" : "Found but seal mismatch"}
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
+                  Checked: uploaded file (not the stored server copy alone)
+                </p>
+                <p className="mt-1 font-semibold">
+                  {(lookupResult.verification?.accept_as_proof ?? lookupResult.verification?.match)
+                    ? "Found and verified — safe as sealed proof"
+                    : "Found but seal failed — do not accept as sealed proof"}
                   {": "}
                   {lookupResult.envelope?.title}
                 </p>
+                {!(lookupResult.verification?.accept_as_proof ?? lookupResult.verification?.match) && (
+                  <p className="mt-2 rounded-md bg-red-600 px-2.5 py-2 text-xs font-semibold text-white">
+                    Do not accept this file as sealed proof. Request the original CivicSign download.
+                  </p>
+                )}
                 <p className="mt-1 text-xs opacity-90">{lookupResult.verification?.message}</p>
                 <Button
                   variant="outline"
@@ -229,6 +243,9 @@ export function DocumentsSealedPanel({ envelopes, loading, onReload }) {
             ) : (
               <>
                 <p className="font-semibold">No matching document in your account</p>
+                <p className="mt-2 rounded-md bg-red-600 px-2.5 py-2 text-xs font-semibold text-white">
+                  Do not accept this file as sealed proof — it is not a matched CivicSign completed PDF.
+                </p>
                 <p className="mt-1 text-xs opacity-90">{lookupResult.message}</p>
               </>
             )}

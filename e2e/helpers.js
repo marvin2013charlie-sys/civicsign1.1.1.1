@@ -25,11 +25,33 @@ const USERS = {
   admin: { email: "admin@civicbot.co.uk", password: e2ePassword("admin", "CivicSign2026!Admin") },
 };
 
+/** Dismiss cookie banner if present (can intercept clicks on bottom CTAs). */
+async function dismissCookieBanner(page) {
+  await page.evaluate(() => {
+    try {
+      if (!localStorage.getItem("cs_cookie_consent")) {
+        localStorage.setItem("cs_cookie_consent", "essential");
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+  const banner = page.getByTestId("cookie-banner");
+  if (await banner.isVisible().catch(() => false)) {
+    await page.getByTestId("cookie-essential-button").click({ timeout: 3_000 }).catch(() => {});
+  }
+}
+
 /** Remove product tour overlays and toasts that intercept Playwright clicks. */
 async function clearUiBlockers(page) {
+  await dismissCookieBanner(page);
   try {
-    const me = await page.request.get(`${backendUrl}/api/auth/me`);
-    if (me.ok()) {
+    // Prefer same-origin proxy so cookies match the browser session
+    let me = await page.request.get("/api/auth/me").catch(() => null);
+    if (!me || !me.ok()) {
+      me = await page.request.get(`${backendUrl}/api/auth/me`).catch(() => null);
+    }
+    if (me && me.ok()) {
       const user = await me.json();
       if (user?.user_id) {
         await page.evaluate((userId) => {
@@ -57,6 +79,7 @@ async function clearUiBlockers(page) {
 
 async function loginUser(page, { email, password }) {
   await page.goto("/login");
+  await dismissCookieBanner(page);
   await page.getByTestId("login-email-input").fill(email);
   await page.getByTestId("login-password-input").fill(password);
   await page.getByTestId("login-submit-button").click();
@@ -81,47 +104,72 @@ function uniqueEmail() {
 }
 
 async function authHeaders(page) {
-  const token = await page.evaluate(() => sessionStorage.getItem("cs_access"));
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Sessions are HttpOnly cookies (withCredentials). No Bearer header needed.
+  void page;
+  return {};
 }
 
-function tokenFromAuthFile(authFile) {
+function cookiesFromAuthFile(authFile) {
   try {
     const state = JSON.parse(fs.readFileSync(authFile, "utf8"));
-    for (const origin of state.origins || []) {
-      const entry = (origin.sessionStorage || []).find((e) => e.name === "cs_access");
-      if (entry?.value) return entry.value;
-    }
+    return Array.isArray(state.cookies) ? state.cookies : [];
   } catch {
-    /* ignore */
+    return [];
   }
-  return null;
 }
 
-/** Restore session from cached auth file or API login — avoids repeated UI logins. */
+/**
+ * Restore session for authenticated specs.
+ * Prefer storageState / API cookie login via the CRA proxy (same-origin as the UI).
+ * Fall back to the real login form so HttpOnly cookies are set correctly.
+ */
 async function ensureAuth(page, credentials, authFile) {
-  let token = authFile ? tokenFromAuthFile(authFile) : null;
-  if (!token) {
-    const resp = await page.request.post(`${backendUrl}/api/auth/login`, {
-      data: { email: credentials.email, password: credentials.password },
-    });
-    if (resp.status() === 429) {
-      throw new Error(
-        `login rate limited for ${credentials.email}. `
-          + "Wait ~1h or set E2E_ACCESS_TOKEN_* from sessionStorage cs_access.",
-      );
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  // storageState cookies (from global-setup) should already be on the context
+  let me = await page.request.get("/api/auth/me").catch(() => null);
+  if (me && me.ok()) {
+    await page.goto("/dashboard");
+    if (/\/dashboard/.test(page.url()) && !page.url().includes("/login")) {
+      await clearUiBlockers(page);
+      return;
     }
-    if (!resp.ok()) {
-      throw new Error(`login failed: ${resp.status()} ${await resp.text()}`);
-    }
-    token = (await resp.json()).access_token;
   }
 
-  await page.goto("/login");
-  await page.evaluate((t) => sessionStorage.setItem("cs_access", t), token);
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
-  await clearUiBlockers(page);
+  if (authFile) {
+    const cookies = cookiesFromAuthFile(authFile);
+    if (cookies.length) {
+      await page.context().addCookies(cookies);
+      me = await page.request.get("/api/auth/me").catch(() => null);
+      if (me && me.ok()) {
+        await page.goto("/dashboard");
+        if (/\/dashboard/.test(page.url()) && !page.url().includes("/login")) {
+          await clearUiBlockers(page);
+          return;
+        }
+      }
+    }
+  }
+
+  // Same-origin proxy login — Set-Cookie applies to the frontend host
+  const resp = await page.request.post("/api/auth/login", {
+    data: { email: credentials.email, password: credentials.password },
+  });
+  if (resp.ok()) {
+    await page.goto("/dashboard");
+    if (/\/dashboard/.test(page.url()) && !page.url().includes("/login")) {
+      await clearUiBlockers(page);
+      return;
+    }
+  } else if (resp.status() === 429) {
+    throw new Error(
+      `login rate limited for ${credentials.email}. Wait ~1h and re-run E2E.`,
+    );
+  }
+
+  // Last resort: real UI login (sets cookies the same way users do)
+  await loginUser(page, credentials);
 }
 
 async function fetchDevMode(request) {
@@ -180,6 +228,7 @@ module.exports = {
   backendUrl,
   authFilePath,
   USERS,
+  dismissCookieBanner,
   clearUiBlockers,
   authHeaders,
   ensureAuth,

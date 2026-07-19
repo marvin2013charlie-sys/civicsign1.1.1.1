@@ -1,13 +1,16 @@
 """PDF workspace editor — upload, page ops, overlays, merge/split, save to documents."""
 import io
 import logging
+import threading
+import time
 import uuid
 import zipfile
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response as FastResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -38,6 +41,35 @@ DOCX_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/msword",
 }
+
+# In-memory LRU of rendered page previews keyed by (file_id, page, dpi, fmt, quality).
+# Avoids re-opening + re-rasterising the same PDF page on every thumbnail request.
+_PAGE_PREVIEW_CACHE: "OrderedDict[tuple, tuple[float, bytes, str]]" = OrderedDict()
+_PAGE_PREVIEW_CACHE_LOCK = threading.Lock()
+_PAGE_PREVIEW_CACHE_MAX = 160
+_PAGE_PREVIEW_CACHE_TTL_S = 600.0  # 10 minutes
+
+
+def _page_preview_cache_get(key: tuple) -> tuple[bytes, str] | None:
+    now = time.monotonic()
+    with _PAGE_PREVIEW_CACHE_LOCK:
+        item = _PAGE_PREVIEW_CACHE.get(key)
+        if not item:
+            return None
+        ts, data, ctype = item
+        if now - ts > _PAGE_PREVIEW_CACHE_TTL_S:
+            _PAGE_PREVIEW_CACHE.pop(key, None)
+            return None
+        _PAGE_PREVIEW_CACHE.move_to_end(key)
+        return data, ctype
+
+
+def _page_preview_cache_set(key: tuple, data: bytes, ctype: str) -> None:
+    with _PAGE_PREVIEW_CACHE_LOCK:
+        _PAGE_PREVIEW_CACHE[key] = (time.monotonic(), data, ctype)
+        _PAGE_PREVIEW_CACHE.move_to_end(key)
+        while len(_PAGE_PREVIEW_CACHE) > _PAGE_PREVIEW_CACHE_MAX:
+            _PAGE_PREVIEW_CACHE.popitem(last=False)
 
 
 def _now_iso():
@@ -477,21 +509,63 @@ async def get_workspace(
 
 
 @pdf_router.get("/workspace/{workspace_id}/page/{page_index}.png")
+@pdf_router.get("/workspace/{workspace_id}/page/{page_index}.jpg")
+@pdf_router.get("/workspace/{workspace_id}/page/{page_index}.jpeg")
 async def render_workspace_page(
     workspace_id: str,
     page_index: int,
     user: dict = Depends(_pdf_user),
+    dpi: int = Query(72, ge=36, le=200),
+    fmt: str = Query("jpeg"),
+    quality: int = Query(78, ge=40, le=95),
 ):
+    """Rasterise one workspace page for Manage PDF thumbs/editor.
+
+    Defaults favour speed (JPEG @ 72 DPI). Pass dpi=120&fmt=png for sharper editor previews.
+    Results are cached in-process by file_id so reordering / reopening pages is cheap.
+    """
     ws = await _get_workspace(workspace_id, user)
     if page_index < 0 or page_index >= ws.get("page_count", 0):
         raise HTTPException(status_code=400, detail="Page index out of range")
+
+    raw_fmt = (fmt or "jpeg").strip().lower()
+    if raw_fmt not in ("png", "jpg", "jpeg"):
+        raise HTTPException(status_code=400, detail="fmt must be jpeg or png")
+    fmt_norm = "png" if raw_fmt == "png" else "jpeg"
+    file_id = ws.get("file_id") or ""
+    cache_key = (file_id, page_index, int(dpi), fmt_norm, int(quality))
+    cached = _page_preview_cache_get(cache_key)
+    if cached:
+        data, ctype = cached
+        return FastResponse(
+            content=data,
+            media_type=ctype,
+            headers={
+                "Cache-Control": "private, max-age=120",
+                "X-Preview-Cache": "hit",
+            },
+        )
+
     pdf_bytes = await _load_workspace_pdf(ws, user)
     try:
-        png = pdf_service.render_page_png(pdf_bytes, page_index)
+        data, ctype = pdf_service.render_page_preview(
+            pdf_bytes, page_index, dpi=dpi, fmt=fmt_norm, quality=quality,
+        )
     except Exception as exc:
         logger.error(f"[pdf_manager] render page: {exc}")
         raise HTTPException(status_code=400, detail="Could not render page") from exc
-    return FastResponse(content=png, media_type="image/png")
+
+    if file_id:
+        _page_preview_cache_set(cache_key, data, ctype)
+
+    return FastResponse(
+        content=data,
+        media_type=ctype,
+        headers={
+            "Cache-Control": "private, max-age=120",
+            "X-Preview-Cache": "miss",
+        },
+    )
 
 
 @pdf_router.get("/workspace/{workspace_id}/page/{page_index}/text-spans")

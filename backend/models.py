@@ -190,9 +190,16 @@ class AdminUserUpdate(BaseModel):
     role: Optional[str] = None      # user | admin
     active: Optional[bool] = None
     plan: Optional[str] = None      # free | pro | business
+    # Paid grant length: 15d | 1m | 3m | 6m | 1y (required when plan is pro/business)
+    plan_duration: Optional[str] = None
     monthly_envelope_limit: Optional[int] = None   # contract cap (Business); omit to clear
     enterprise_unlimited: Optional[bool] = None    # signed enterprise — no monthly cap
     org_id: Optional[str] = None                   # assign to org pool; "" to remove
+
+
+class AdminUserDelete(BaseModel):
+    """Confirm permanent deletion of a customer account."""
+    confirm: str = Field(..., min_length=6, max_length=20)
 
 
 class OrganizationCreate(BaseModel):

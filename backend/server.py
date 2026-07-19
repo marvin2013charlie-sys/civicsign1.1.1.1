@@ -326,8 +326,8 @@ async def finalize_envelope_doc(env: dict):
         "status": "Completed",
         "signature_level": env.get("signature_level") or "basic",
     }
-    completed_bytes, doc_hash, signed_page_count = pdf_service.finalize_envelope(
-        pdf_bytes, fields, meta, events,
+    completed_bytes, doc_hash, signed_page_count, package_hash, seal_metadata = (
+        pdf_service.finalize_envelope(pdf_bytes, fields, meta, events)
     )
     completed_id = await upload_document_file(
         completed_bytes,
@@ -337,11 +337,14 @@ async def finalize_envelope_doc(env: dict):
     )
     env["audit_events"].append(
         audit_event("system", "Envelope completed", "-",
-                    f"All parties signed — document hash {doc_hash[:16]}…"))
+                    f"All parties signed — document hash {doc_hash[:16]}… "
+                    f"package {package_hash[:16]}…"))
     result = await db.envelopes.update_one(
         {"envelope_id": env["envelope_id"], "status": "completing"},
         {"$set": {"status": "completed", "completed_at": now_iso(),
                   "completed_file_id": completed_id, "doc_hash": doc_hash,
+                  "package_hash": package_hash,
+                  "seal_metadata": seal_metadata,
                   "signed_page_count": signed_page_count,
                   "audit_events": env["audit_events"], "updated_at": now_iso()}})
     if result.modified_count == 0:
@@ -826,7 +829,7 @@ async def envelope_completed(envelope_id: str, user: dict = Depends(get_current_
 
 
 async def _migrate_envelope_seal(env: dict) -> dict:
-    """Regenerate completed PDF and refresh doc_hash after a stale seal migration."""
+    """Regenerate completed PDF and refresh doc_hash / package_hash after a stale seal migration."""
     old_file_id = env.get("completed_file_id")
     fields = _envelope_finalize_fields(env)
     events = list(env.get("audit_events") or [])
@@ -839,8 +842,8 @@ async def _migrate_envelope_seal(env: dict) -> dict:
     src_pdf = await download_document_file(
         env["document"]["file_id"], "envelope", env["envelope_id"],
     )
-    completed_bytes, doc_hash, signed_page_count = pdf_service.finalize_envelope(
-        src_pdf, fields, meta, events,
+    completed_bytes, doc_hash, signed_page_count, package_hash, seal_metadata = (
+        pdf_service.finalize_envelope(src_pdf, fields, meta, events)
     )
     completed_id = await upload_document_file(
         completed_bytes,
@@ -852,6 +855,8 @@ async def _migrate_envelope_seal(env: dict) -> dict:
         {"envelope_id": env["envelope_id"]},
         {"$set": {
             "doc_hash": doc_hash,
+            "package_hash": package_hash,
+            "seal_metadata": seal_metadata,
             "signed_page_count": signed_page_count,
             "completed_file_id": completed_id,
             "updated_at": now_iso(),
@@ -861,6 +866,8 @@ async def _migrate_envelope_seal(env: dict) -> dict:
         await delete_file(old_file_id)
     return {
         "doc_hash": doc_hash,
+        "package_hash": package_hash,
+        "seal_metadata": seal_metadata,
         "signed_page_count": signed_page_count,
         "completed_file_id": completed_id,
     }
@@ -871,10 +878,16 @@ async def _persist_seal_verification(envelope_id: str, result: dict, source: str
         {"envelope_id": envelope_id},
         {"$set": {
             "seal_verification": {
-                "status": "verified" if result.get("match") else "mismatch",
+                "status": "verified" if result.get("accept_as_proof", result.get("match")) else "mismatch",
                 "checked_at": now_iso(),
                 "source": source,
+                "source_label": result.get("source_label"),
+                "proof_verdict": result.get("proof_verdict"),
+                "content_match": result.get("content_match"),
+                "package_match": result.get("package_match"),
+                "metadata_match": result.get("metadata_match"),
                 "computed_hash": result.get("computed_hash"),
+                "computed_package_hash": result.get("computed_package_hash"),
             },
             "updated_at": now_iso(),
         }},
@@ -893,14 +906,50 @@ async def _verify_envelope_pdf(
         env["doc_hash"],
         signed_page_count=env.get("signed_page_count"),
         reference_hash=reference_hash,
+        expected_package_hash=env.get("package_hash"),
+        expected_seal_metadata=env.get("seal_metadata"),
+        source=source,
     )
-    result["source"] = source
     result["envelope_id"] = env["envelope_id"]
     result["title"] = env.get("title")
 
-    if result.get("seal_migrated") and source == "stored" and migrate_stale:
+    # Stored copies: if content is good but package/metadata missing (legacy), re-seal once.
+    needs_package_upgrade = (
+        source == "stored"
+        and migrate_stale
+        and result.get("content_match")
+        and (not env.get("package_hash") or not env.get("seal_metadata"))
+    )
+    if needs_package_upgrade:
+        try:
+            migrated = await _migrate_envelope_seal(env)
+            result["expected_hash"] = migrated["doc_hash"]
+            result["expected_package_hash"] = migrated.get("package_hash")
+            result["doc_hash_updated"] = True
+            # Re-verify against the freshly written package
+            pdf_bytes = await download_document_file(
+                migrated["completed_file_id"], "envelope", env["envelope_id"],
+            )
+            result = pdf_service.verify_completed_pdf_seal(
+                pdf_bytes,
+                migrated["doc_hash"],
+                signed_page_count=migrated.get("signed_page_count"),
+                reference_hash=None,
+                expected_package_hash=migrated.get("package_hash"),
+                expected_seal_metadata=migrated.get("seal_metadata"),
+                source=source,
+            )
+            result["envelope_id"] = env["envelope_id"]
+            result["title"] = env.get("title")
+            result["doc_hash_updated"] = True
+            result["seal_migrated"] = True
+        except Exception as exc:
+            logger.warning(f"[seal] package upgrade failed for {env.get('envelope_id')}: {exc}")
+
+    if result.get("seal_migrated") and source == "stored" and migrate_stale and not result.get("doc_hash_updated"):
         migrated = await _migrate_envelope_seal(env)
         result["expected_hash"] = migrated["doc_hash"]
+        result["expected_package_hash"] = migrated.get("package_hash")
         result["doc_hash_updated"] = True
 
     await _persist_seal_verification(env["envelope_id"], result, source)
@@ -913,6 +962,8 @@ def _envelope_verify_summary(env: dict) -> dict:
         "title": env.get("title"),
         "completed_at": env.get("completed_at"),
         "doc_hash": env.get("doc_hash"),
+        "package_hash": env.get("package_hash"),
+        "seal_metadata": env.get("seal_metadata"),
         "seal_verification": env.get("seal_verification"),
     }
 
@@ -989,7 +1040,13 @@ async def verify_envelopes_bulk(
                 env, pdf_bytes, "stored", migrate_stale=body.migrate_stale,
             )
             item.update({
-                "match": verified.get("match", False),
+                "match": verified.get("accept_as_proof", verified.get("match", False)),
+                "accept_as_proof": verified.get("accept_as_proof", verified.get("match", False)),
+                "proof_verdict": verified.get("proof_verdict"),
+                "source_label": verified.get("source_label"),
+                "content_match": verified.get("content_match"),
+                "package_match": verified.get("package_match"),
+                "metadata_match": verified.get("metadata_match"),
                 "message": verified.get("message", ""),
                 "seal_migrated": verified.get("seal_migrated", False),
                 "doc_hash_updated": verified.get("doc_hash_updated", False),
@@ -1039,7 +1096,25 @@ async def lookup_verify_uploaded_pdf(
         "(it must include the Certificate of Completion at the end)."
     )
 
-    # Fast path: auto-detect certificate page (works when PDF text is intact)
+    # Fast path 1: full package hash (tightest — exact CivicSign completed file)
+    package_computed = pdf_service.compute_package_hash(pdf_bytes)
+    env = await db.envelopes.find_one({
+        "owner_id": user["user_id"],
+        "status": "completed",
+        "package_hash": package_computed,
+    }, {"_id": 0})
+    if env:
+        verification = await _verify_envelope_pdf(env, pdf_bytes, "uploaded", migrate_stale=False)
+        return {
+            "found": True,
+            "match_method": "package_hash",
+            "computed_hash": verification.get("computed_hash"),
+            "computed_package_hash": package_computed,
+            "envelope": _envelope_verify_summary(env),
+            "verification": verification,
+        }
+
+    # Fast path 2: signed-content hash (legacy seals + cert-intact matching)
     computed = None
     try:
         computed = pdf_service.compute_signed_content_hash(pdf_bytes)
@@ -1047,11 +1122,28 @@ async def lookup_verify_uploaded_pdf(
         computed = None
 
     if computed:
-        env = await db.envelopes.find_one({
-            "owner_id": user["user_id"],
-            "status": "completed",
-            "doc_hash": computed,
-        }, {"_id": 0})
+        # Prefer newest dual-hash seals so package/metadata checks aren't skipped
+        # when older identical-content envelopes still exist for the same owner.
+        env = await db.envelopes.find_one(
+            {
+                "owner_id": user["user_id"],
+                "status": "completed",
+                "doc_hash": computed,
+                "package_hash": {"$exists": True, "$nin": [None, ""]},
+            },
+            {"_id": 0},
+            sort=[("completed_at", -1)],
+        )
+        if not env:
+            env = await db.envelopes.find_one(
+                {
+                    "owner_id": user["user_id"],
+                    "status": "completed",
+                    "doc_hash": computed,
+                },
+                {"_id": 0},
+                sort=[("completed_at", -1)],
+            )
         if env:
             verification = await _verify_envelope_pdf(env, pdf_bytes, "uploaded", migrate_stale=False)
             return {
@@ -1067,6 +1159,13 @@ async def lookup_verify_uploaded_pdf(
         "status": "completed",
         "doc_hash": {"$exists": True, "$ne": None},
     }, {"_id": 0}).sort("completed_at", -1).limit(scan_limit).to_list(scan_limit)
+
+    # Prefer candidates that already store package seals when scanning.
+    envs = sorted(
+        envs,
+        key=lambda e: (1 if e.get("package_hash") else 0, e.get("completed_at") or ""),
+        reverse=True,
+    )
 
     # Scan using each envelope's signed_page_count — same logic as the per-row Verify button
     for candidate in envs:
@@ -2227,7 +2326,7 @@ async def _process_auto_reminders():
 
 
 async def expiry_loop():
-    """Periodically mark overdue active envelopes as expired and fire auto-reminders."""
+    """Envelope expiry, auto-reminders, and paid-plan period-end auto-downgrade."""
     while True:
         try:
             now = now_iso()
@@ -2238,6 +2337,11 @@ async def expiry_loop():
             await _process_auto_reminders()
         except Exception as e:
             logger.warning(f"expiry loop: {e}")
+        try:
+            from billing import process_period_end_downgrades
+            await process_period_end_downgrades(limit=100)
+        except Exception as e:
+            logger.warning(f"period-end downgrade loop: {e}")
         await asyncio.sleep(300)
 
 

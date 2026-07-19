@@ -20,7 +20,7 @@ import {
 import {
   ArrowLeft, ShieldCheck, Loader2, KeyRound, Copy, Check, LogIn, Mail,
   MailWarning, MailCheck, Activity, FileText, CircleCheck, Send, Eye, AlertTriangle,
-  UserCog, LifeBuoy,
+  UserCog, LifeBuoy, Trash2, Crown,
 } from "lucide-react";
 import { AdminSurfaceCard, AdminSectionHeader } from "@/components/portal/AdminPrimitives";
 
@@ -29,6 +29,20 @@ const STAT_TILES = [
   { key: "completed", label: "Completed", icon: CircleCheck },
   { key: "sent", label: "Sent", icon: Send },
   { key: "viewed", label: "Viewed", icon: Eye },
+];
+
+const PLAN_OPTIONS = [
+  { value: "free", label: "Free" },
+  { value: "pro", label: "Pro" },
+  { value: "business", label: "Business" },
+];
+
+const DURATION_OPTIONS = [
+  { value: "15d", label: "15 days" },
+  { value: "1m", label: "1 month" },
+  { value: "3m", label: "3 months" },
+  { value: "6m", label: "6 months" },
+  { value: "1y", label: "1 year" },
 ];
 
 function DiagnosticRow({ ok, label, value }) {
@@ -166,6 +180,12 @@ export default function AdminUserDetail() {
   const [impOpen, setImpOpen] = useState(false);
   const [contractLimit, setContractLimit] = useState("");
   const [orgs, setOrgs] = useState([]);
+  const [planDraft, setPlanDraft] = useState("free");
+  const [durationDraft, setDurationDraft] = useState("1m");
+  const [applyingPlan, setApplyingPlan] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -199,6 +219,12 @@ export default function AdminUserDetail() {
     setContractLimit(lim != null ? String(lim) : "");
   }, [data?.usage?.monthly_envelope_limit, data?.usage?.contract_limit]);
 
+  useEffect(() => {
+    if (!data?.user) return;
+    setPlanDraft(data.user.plan || "free");
+    setDurationDraft(data.user.admin_plan_duration || "1m");
+  }, [data?.user?.plan, data?.user?.admin_plan_duration, data?.user?.user_id]);
+
   const patch = async (body) => {
     setSaving(true);
     try {
@@ -209,6 +235,42 @@ export default function AdminUserDetail() {
       toast.error(formatApiError(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyPlan = async () => {
+    setApplyingPlan(true);
+    try {
+      const body = { plan: planDraft };
+      if (planDraft !== "free") body.plan_duration = durationDraft;
+      await api.patch(`/admin/users/${userId}`, body);
+      await load();
+      const durLabel = DURATION_OPTIONS.find((d) => d.value === durationDraft)?.label || durationDraft;
+      toast.success(
+        planDraft === "free"
+          ? "Account set to Free"
+          : `Granted ${planDraft} for ${durLabel}`,
+      );
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setApplyingPlan(false);
+    }
+  };
+
+  const deleteUser = async () => {
+    if (deleteConfirm.trim().toUpperCase() !== "DELETE") {
+      toast.error('Type DELETE to confirm');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/users/${userId}`, { data: { confirm: "DELETE" } });
+      toast.success("Account permanently deleted");
+      navigate("/admin/users");
+    } catch (err) {
+      toast.error(formatApiError(err));
+      setDeleting(false);
     }
   };
 
@@ -298,19 +360,75 @@ export default function AdminUserDetail() {
             icon={UserCog}
           />
           <div className="space-y-4 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-[var(--c-ink)]">Plan</Label>
-                <p className="text-xs text-[var(--c-muted-fg)]">Subscription tier</p>
+            <div className="space-y-3 rounded-lg border border-[var(--c-border)] bg-[var(--c-paper-2)] p-4" data-testid="admin-plan-grant">
+              <div className="flex items-start gap-2">
+                <Crown className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
+                <div>
+                  <Label className="text-[var(--c-ink)]">Plan grant</Label>
+                  <p className="text-xs text-[var(--c-muted-fg)]">
+                    Upgrade or downgrade to any tier. Paid grants expire after the selected length.
+                  </p>
+                </div>
               </div>
-              <Select value={user.plan} onValueChange={(v) => patch({ plan: v })} disabled={saving}>
-                <SelectTrigger className="h-9 w-36" data-testid="admin-detail-plan-select"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="pro">Pro</SelectItem>
-                  <SelectItem value="business">Business</SelectItem>
-                </SelectContent>
-              </Select>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs text-[var(--c-muted-fg)]">Tier</Label>
+                  <Select value={planDraft} onValueChange={setPlanDraft} disabled={applyingPlan || saving}>
+                    <SelectTrigger className="mt-1 h-9 w-full" data-testid="admin-detail-plan-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLAN_OPTIONS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-[var(--c-muted-fg)]">Duration</Label>
+                  <Select
+                    value={durationDraft}
+                    onValueChange={setDurationDraft}
+                    disabled={planDraft === "free" || applyingPlan || saving}
+                  >
+                    <SelectTrigger className="mt-1 h-9 w-full" data-testid="admin-detail-duration-select">
+                      <SelectValue placeholder={planDraft === "free" ? "N/A" : "Select length"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DURATION_OPTIONS.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <p className="text-xs text-[var(--c-muted-fg)]" data-testid="admin-plan-period-end">
+                Live access:{" "}
+                <span className="font-semibold capitalize text-[var(--c-ink)]">
+                  {user.effective_plan || user.plan || "free"}
+                </span>
+                {user.plan && user.effective_plan && user.plan !== user.effective_plan
+                  ? ` (stored ${user.plan}, expired or invalid)`
+                  : ""}
+                {user.admin_plan_grant ? " · admin grant" : ""}
+                {user.subscription_current_period_end
+                  ? ` · ends ${fmt(user.subscription_current_period_end)}`
+                  : ""}
+                {user.subscription_status ? ` · status ${user.subscription_status}` : ""}
+              </p>
+
+              <Button
+                size="sm"
+                onClick={applyPlan}
+                disabled={applyingPlan || saving}
+                data-testid="admin-detail-apply-plan"
+                style={{ background: "var(--c-primary)", color: "#fff" }}
+              >
+                {applyingPlan ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Crown className="mr-1.5 h-4 w-4" />}
+                {planDraft === "free" ? "Set to Free" : "Apply plan grant"}
+              </Button>
             </div>
 
             <div className="flex items-center justify-between border-t border-[var(--c-border)] pt-4">
@@ -403,6 +521,31 @@ export default function AdminUserDetail() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {!isAdmin && (
+              <div className="space-y-3 border-t border-[var(--c-border)] pt-4" data-testid="admin-delete-account">
+                <div className="flex items-start gap-2">
+                  <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <div>
+                    <Label className="text-[var(--c-ink)]">Delete account</Label>
+                    <p className="text-xs text-[var(--c-muted-fg)]">
+                      Permanently removes this user, their documents, templates, and contacts.
+                      Active Stripe subscriptions are cancelled first.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => { setDeleteConfirm(""); setDeleteOpen(true); }}
+                  disabled={saving || deleting}
+                  data-testid="admin-detail-delete-open"
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete account…
+                </Button>
               </div>
             )}
           </div>
@@ -551,6 +694,46 @@ export default function AdminUserDetail() {
       </div>
 
       <ImpersonateDialog open={impOpen} onOpenChange={setImpOpen} userId={userId} targetName={user.name || user.email} />
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent data-testid="admin-delete-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-heading text-red-700">
+              <Trash2 className="h-5 w-5" /> Delete {user.name || user.email}?
+            </DialogTitle>
+            <DialogDescription>
+              This cannot be undone. Type <span className="font-mono font-semibold">DELETE</span> to
+              permanently remove this account and all associated data.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label htmlFor="admin-delete-confirm">Confirmation</Label>
+            <Input
+              id="admin-delete-confirm"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="DELETE"
+              className="mt-1 font-mono"
+              autoComplete="off"
+              data-testid="admin-delete-confirm-input"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteUser}
+              disabled={deleting || deleteConfirm.trim().toUpperCase() !== "DELETE"}
+              data-testid="admin-delete-confirm-button"
+            >
+              {deleting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

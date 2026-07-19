@@ -74,9 +74,18 @@ test.describe("Signing happy path", () => {
     const signLink = await page.locator("a[href*='/sign/']").first().getAttribute("href");
     expect(signLink).toMatch(/\/sign\//);
 
-    // Signer flow (new page — no auth cookies)
+    // Always open the sign link on this E2E frontend (API may mint localhost:3000
+    // when another app occupies :3000 and CivicSign runs on :3001).
+    const { frontendUrl } = require("./auth-env");
+    const tokenMatch = String(signLink).match(/\/sign\/([^/?#]+)/);
+    const signPath = tokenMatch ? `/sign/${tokenMatch[1]}` : signLink;
+    const signHref = signPath.startsWith("http")
+      ? signPath
+      : `${frontendUrl}${signPath.startsWith("/") ? "" : "/"}${signPath}`;
+
+    // Signer flow (new page — no owner session needed)
     const signPage = await page.context().newPage();
-    await signPage.goto(signLink);
+    await signPage.goto(signHref);
     await signPage.getByTestId("consent-checkbox").click();
     await signPage.getByTestId("consent-continue-button").click();
     await expect(signPage.getByTestId("signer-field").first()).toBeVisible({ timeout: 30_000 });

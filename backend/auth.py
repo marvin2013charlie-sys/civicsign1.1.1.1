@@ -18,6 +18,8 @@ import secrets
 import logging
 import re
 import hmac
+import asyncio
+import time
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
@@ -89,18 +91,53 @@ def _validate_password_strength(password: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _bcrypt_rounds() -> int:
+    """Work factor for new password hashes.
+
+    Default 10 ≈ 50–80ms (good UX). Existing hashes keep their embedded cost.
+    Override with BCRYPT_ROUNDS (allowed 8–14). Use 10+ in production.
+    """
+    default = "8" if is_dev_mode() else "10"
+    try:
+        rounds = int(os.environ.get("BCRYPT_ROUNDS", default))
+    except ValueError:
+        rounds = int(default)
+    return max(8, min(14, rounds))
+
+
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt with strong settings."""
-    # Use bcrypt with cost 12 (more secure than default 10)
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+    """Hash password using bcrypt (CPU-bound — always call via hash_password_async)."""
+    return bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt(rounds=_bcrypt_rounds()),
+    ).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Verify password using bcrypt."""
+    """Verify password using bcrypt (CPU-bound — prefer async wrapper)."""
     try:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
+
+
+async def hash_password_async(password: str) -> str:
+    """Run bcrypt hash off the event loop so registration stays responsive."""
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(plain: str, hashed: str) -> bool:
+    """Run bcrypt verify off the event loop."""
+    return await asyncio.to_thread(verify_password, plain, hashed)
+
+
+def _send_verification_email_bg(email: str, name: str, code: str) -> None:
+    """Fire-and-forget verification email (must not raise into request handlers)."""
+    try:
+        status = email_service.send_verification_code(email, name, code)
+        logger.info(f"[auth] Verification email for {email} status={status}")
+    except Exception as e:
+        logger.error(f"[auth] Verification email failed for {email}: {e}")
 
 
 def create_access_token(
@@ -159,6 +196,7 @@ def set_access_cookie(response: Response, access: str):
 def set_auth_cookies(response: Response, access: str, refresh: str):
     """Set authentication cookies with security flags."""
     set_access_cookie(response, access)
+    secure = cookie_secure()
     response.set_cookie(
         "refresh_token",
         refresh,
@@ -271,7 +309,11 @@ async def _fulfill_team_invites(email: str, user_id: str, name: str) -> None:
 
 
 async def _issue_verification_code(user_id: str, email: str, name: str = "") -> str:
-    """Create/replace a 6-digit email verification code (valid 15 min) and send it."""
+    """Create/replace a 6-digit email verification code (valid 15 min) and send it.
+
+    Email delivery runs in the background so the HTTP response is not blocked by
+    Resend latency (often the main cause of a long register spinner).
+    """
     code = f"{secrets.randbelow(900000) + 100000}"
     _exp_dt = datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN)
     await db.email_verifications.update_one(
@@ -288,8 +330,14 @@ async def _issue_verification_code(user_id: str, email: str, name: str = "") -> 
         }},
         upsert=True,
     )
-    status = email_service.send_verification_code(email, name, code)
-    logger.info(f"[auth] Verification code issued for {email} (email_status={status})")
+    # Never await Resend — it can take 1–3s and freezes the register spinner.
+    # In DEV_MODE without Resend this is a no-op log only.
+    try:
+        asyncio.get_running_loop().run_in_executor(
+            None, _send_verification_email_bg, email, name or "", code
+        )
+    except Exception as e:
+        logger.error(f"[auth] Could not schedule verification email for {email}: {e}")
     return code
 
 
@@ -358,11 +406,25 @@ async def user_from_access_token(token: str) -> dict:
 
 
 async def get_current_user(request: Request) -> dict:
-    """Extract and validate current user from JWT."""
+    """Extract and validate current user from JWT.
+
+    Also persists Free when a paid billing period has ended without upgrade
+    (cancel-at-period-end, admin grant expiry, failed renewal statuses).
+    """
     token = _access_token_from_request(request)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return await user_from_access_token(token)
+    user = await user_from_access_token(token)
+    impersonating = bool(user.get("_impersonating"))
+    try:
+        from plan_signing import should_persist_plan_downgrade
+        if should_persist_plan_downgrade(user):
+            from billing import ensure_period_end_downgrade
+            user = await ensure_period_end_downgrade(user) or user
+    except Exception as exc:
+        logger.warning(f"[auth] period-end plan sync skipped: {exc}")
+    user["_impersonating"] = impersonating
+    return user
 
 
 async def get_current_user_sse(
@@ -410,7 +472,8 @@ auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 @auth_router.post("/register")
 @limiter.limit("5/hour")
 async def register(request: Request, body: RegisterRequest, response: Response):
-    """Register new user with email verification."""
+    """Register new user with email verification (optimized for low latency)."""
+    t0 = time.perf_counter()
     try:
         assert_registration_allowed(invite_code=body.invite_code)
 
@@ -432,8 +495,16 @@ async def register(request: Request, body: RegisterRequest, response: Response):
         is_valid, error = _validate_password_strength(body.password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error)
-        
-        existing = await db.users.find_one({"email": email})
+
+        # Run email lookup + bcrypt hash in parallel (biggest register speedup).
+        existing, password_hash = await asyncio.gather(
+            db.users.find_one(
+                {"email": email},
+                {"_id": 0, "user_id": 1, "email_verified": 1},
+            ),
+            hash_password_async(body.password),
+        )
+
         if existing:
             # Allow resuming an unverified signup; block verified accounts.
             if existing.get("email_verified", True):
@@ -443,11 +514,14 @@ async def register(request: Request, body: RegisterRequest, response: Response):
                 {"user_id": existing["user_id"]},
                 {"$set": {
                     "name": name,
-                    "password_hash": hash_password(body.password),
+                    "password_hash": password_hash,
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }}
             )
             code = await _issue_verification_code(existing["user_id"], email, name)
+            logger.info(
+                f"[auth] register resume {email} in {(time.perf_counter()-t0)*1000:.0f}ms"
+            )
             return _verification_response(email, code)
 
         user_id = f"user_{uuid.uuid4().hex[:16]}"
@@ -455,7 +529,7 @@ async def register(request: Request, body: RegisterRequest, response: Response):
             "user_id": user_id,
             "email": email,
             "name": name,
-            "password_hash": hash_password(body.password),
+            "password_hash": password_hash,
             "picture": None,
             "mobile": None,
             "auth_provider": "password",
@@ -467,7 +541,9 @@ async def register(request: Request, body: RegisterRequest, response: Response):
         }
         await db.users.insert_one(doc)
         code = await _issue_verification_code(user_id, email, name)
-        logger.info(f"[auth] New user registered: {email}")
+        logger.info(
+            f"[auth] New user registered: {email} in {(time.perf_counter()-t0)*1000:.0f}ms"
+        )
         # No session is issued until the email is verified.
         return _verification_response(email, code)
     except HTTPException:
@@ -538,11 +614,15 @@ async def verify_email(request: Request, body: VerifyEmail, response: Response):
         except Exception as e:
             logger.warning(f"[auth] org invite fulfill failed: {e}")
 
-        # Welcome email (best-effort; skip-mode logs only)
+        # Welcome email in background (best-effort; never block session issue)
         try:
-            email_service.send_welcome(email, user.get("name"))
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(
+                None,
+                lambda: email_service.send_welcome(email, user.get("name") or ""),
+            )
         except Exception as e:
-            logger.warning(f"[auth] welcome email failed: {e}")
+            logger.warning(f"[auth] welcome email schedule failed: {e}")
 
         user["email_verified"] = True
         tv = int(user.get("token_version") or 0)
@@ -582,12 +662,23 @@ async def resend_verification(request: Request, body: ResendVerification):
 @auth_router.post("/login")
 @limiter.limit(auth_limit("10/hour"))
 async def login(request: Request, body: LoginRequest, response: Response):
-    """Authenticate user with email and password."""
+    """Authenticate user with email and password (optimized for low latency)."""
+    t0 = time.perf_counter()
     try:
         email = body.email.lower().strip()
+        if not email or not body.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        user = await db.users.find_one({"email": email})
-        if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
+        # Minimal fields for auth decision + session payload
+        user = await db.users.find_one(
+            {"email": email},
+            {"_id": 0},
+        )
+        if not user or not user.get("password_hash"):
+            logger.warning(f"[auth] Failed login attempt: {email}")
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        if not await verify_password_async(body.password, user["password_hash"]):
             logger.warning(f"[auth] Failed login attempt: {email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
@@ -596,11 +687,47 @@ async def login(request: Request, body: LoginRequest, response: Response):
         if user.get("email_verified", True) is False:
             raise HTTPException(status_code=403, detail="Please verify your email address to continue. We can send you a new code.")
         
+        # Persist Free if billing period ended without upgrade (before session payload).
+        try:
+            from plan_signing import should_persist_plan_downgrade
+            if should_persist_plan_downgrade(user):
+                from billing import ensure_period_end_downgrade
+                user = await ensure_period_end_downgrade(user) or user
+        except Exception as exc:
+            logger.warning(f"[auth] login plan expiry sync skipped: {exc}")
+
         tv = int(user.get("token_version") or 0)
         access = create_access_token(user["user_id"], email, token_version=tv)
         refresh = create_refresh_token(user["user_id"], token_version=tv)
         set_auth_cookies(response, access, refresh)
-        logger.info(f"[auth] Login successful: {email}")
+
+        # Background: rehash older high-cost bcrypt hashes so *next* login is faster.
+        try:
+            ph = user.get("password_hash") or ""
+            parts = ph.split("$")
+            old_cost = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+            if old_cost > _bcrypt_rounds():
+                pwd = body.password
+                uid = user["user_id"]
+
+                async def _upgrade_hash():
+                    try:
+                        new_hash = await hash_password_async(pwd)
+                        await db.users.update_one(
+                            {"user_id": uid},
+                            {"$set": {"password_hash": new_hash}},
+                        )
+                        logger.info(f"[auth] Rehashed password to cost {_bcrypt_rounds()} for {email}")
+                    except Exception as ex:
+                        logger.warning(f"[auth] password rehash skipped: {ex}")
+
+                asyncio.create_task(_upgrade_hash())
+        except Exception:
+            pass
+
+        logger.info(
+            f"[auth] Login successful: {email} in {(time.perf_counter()-t0)*1000:.0f}ms"
+        )
         return _session_response(user)
     except HTTPException:
         raise
@@ -874,7 +1001,7 @@ async def change_password(request: Request, body: PasswordChange, user: dict = D
                 detail="Your account uses Google sign-in, so there is no password to change."
             )
         
-        if not verify_password(body.current_password, user["password_hash"]):
+        if not await verify_password_async(body.current_password, user["password_hash"]):
             logger.warning(f"[auth] Incorrect current password for: {user['email']}")
             raise HTTPException(status_code=400, detail="Your current password is incorrect")
         
@@ -882,11 +1009,12 @@ async def change_password(request: Request, body: PasswordChange, user: dict = D
         is_valid, error = _validate_password_strength(body.new_password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error)
-        
+
+        new_hash = await hash_password_async(body.new_password)
         await db.users.update_one(
             {"user_id": user["user_id"]},
             {"$set": {
-                "password_hash": hash_password(body.new_password),
+                "password_hash": new_hash,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }, "$inc": {"token_version": 1}},
         )
@@ -1111,11 +1239,12 @@ async def reset_password(request: Request, body: ResetPassword):
         is_valid, error = _validate_password_strength(body.new_password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error)
-        
+
+        new_hash = await hash_password_async(body.new_password)
         await db.users.update_one(
             {"user_id": rec["user_id"]},
             {"$set": {
-                "password_hash": hash_password(body.new_password),
+                "password_hash": new_hash,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }, "$inc": {"token_version": 1}},
         )

@@ -351,6 +351,39 @@ export default function Landing() {
               </div>
             </div>
           </MarketingInkSurface>
+
+          {/* ID verification — coming soon */}
+          <div
+            className="group relative overflow-hidden rounded-[20px] border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 md:col-span-2"
+            data-testid="landing-id-verification-coming-soon"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[13px] text-xl" style={{ background: "var(--badge-warning-bg)" }}>🪪</div>
+                  <span
+                    className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[1px]"
+                    style={{ background: "var(--badge-warning-bg)", color: "var(--badge-warning-fg)" }}
+                  >
+                    Coming soon
+                  </span>
+                </div>
+                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[1.5px] text-[var(--c-muted-fg)]">Product</p>
+                <h3 className="mt-1 text-[21px] font-semibold text-[var(--c-ink)]" style={H_FONT}>ID verification</h3>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-[var(--c-muted-fg)]">
+                  Confirm signer identity with document checks and liveness before they sign — built for high-trust UK workflows. Join the waitlist via Contact when you need this for your team.
+                </p>
+              </div>
+              <ul className="grid gap-2 text-sm text-[var(--c-muted-fg)] sm:min-w-[200px]">
+                {["Passport & driving licence checks", "Liveness / selfie match", "Optional step before signing"].map((item) => (
+                  <li key={item} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--c-primary)" }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* 2-in-1 workflow strip */}

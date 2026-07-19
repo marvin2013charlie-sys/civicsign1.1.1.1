@@ -611,6 +611,14 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
         {"_id": 0, "email": 1, "name": 1, "plan": 1, "billing_interval": 1, "user_id": 1},
     )
     previous_plan = (user_before or {}).get("plan")
+    if previous_plan in (None, "free"):
+        # Already free — still clear stale grant flags if present
+        now_ts = _now()
+        await db.users.update_one(
+            {"user_id": user_id, "plan": {"$ne": "free"}},
+            {"$set": {"plan": "free", "updated_at": now_ts}},
+        )
+        return
     now_ts = _now()
     await db.users.update_one(
         {"user_id": user_id},
@@ -620,6 +628,7 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
                 "plan_updated_at": now_ts,
                 "plan_signature": None,
                 "plan_upgraded_via_payment": False,
+                "admin_plan_grant": False,
                 "subscription_status": subscription_status,
                 "subscription_cancel_at_period_end": False,
                 "monthly_envelope_limit": None,
@@ -638,10 +647,65 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
             user_before,
             plan_id="free",
             billing_interval="monthly",
-            dedupe_key=f"downgrade_free_{user_id}_{subscription_status}",
+            dedupe_key=f"downgrade_free_{user_id}_{subscription_status}_{now_ts[:10]}",
             previous_plan=previous_plan,
             effective="immediate",
         )
+
+
+async def ensure_period_end_downgrade(user: dict) -> dict:
+    """If paid access has expired without upgrade, persist Free and return fresh user."""
+    from plan_signing import should_persist_plan_downgrade, paid_access_should_expire
+
+    if not user or not should_persist_plan_downgrade(user):
+        return user
+
+    if user.get("admin_plan_grant") and paid_access_should_expire(user):
+        reason = "admin plan grant expired"
+    elif user.get("subscription_cancel_at_period_end") and paid_access_should_expire(user):
+        reason = "cancel-at-period-end reached"
+    elif paid_access_should_expire(user):
+        reason = "billing period ended without upgrade"
+    else:
+        reason = "plan access revoked"
+
+    status = (user.get("subscription_status") or "canceled").lower() or "canceled"
+    await _downgrade_user_to_free(user["user_id"], reason=reason, subscription_status=status)
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return fresh or {**user, "plan": "free", "plan_signature": None}
+
+
+async def process_period_end_downgrades(limit: int = 100) -> int:
+    """Background job: downgrade paid users whose bill period ended without upgrade.
+
+    Returns the number of accounts downgraded.
+    """
+    from plan_signing import paid_access_should_expire, should_persist_plan_downgrade
+
+    query = {
+        "plan": {"$in": ["pro", "business"]},
+        "role": {"$nin": ["admin", "staff"]},
+    }
+    cursor = db.users.find(query, {"_id": 0}).limit(max(limit * 5, 100))
+    downgraded = 0
+    async for user in cursor:
+        if user.get("org_id"):
+            continue
+        if not paid_access_should_expire(user) and not should_persist_plan_downgrade(user):
+            continue
+        try:
+            before_plan = user.get("plan")
+            await ensure_period_end_downgrade(user)
+            after = await db.users.find_one({"user_id": user["user_id"]}, {"plan": 1, "_id": 0})
+            if before_plan != "free" and after and after.get("plan") == "free":
+                downgraded += 1
+                if downgraded >= limit:
+                    break
+        except Exception as exc:
+            logger.warning(f"[billing] period-end downgrade failed for {user.get('user_id')}: {exc}")
+    if downgraded:
+        logger.info(f"[billing] period-end auto-downgrade: {downgraded} account(s)")
+    return downgraded
 
 
 async def downgrade_user_for_plan_refund(user_id: str, *, reason: str, cancel_stripe: bool = True) -> bool:

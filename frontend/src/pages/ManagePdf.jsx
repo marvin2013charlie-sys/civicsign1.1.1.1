@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -17,20 +17,44 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import api, { downloadFile, fetchPdfBlobUrl, formatApiError } from "@/lib/api";
+import api, { downloadFile, formatApiError, workspacePagePreviewUrl } from "@/lib/api";
 import { savePdfBlobToDocuments } from "@/lib/savePdfToDocuments";
 import { handleQuotaApiError } from "@/lib/quota";
 import { AppShell } from "@/components/AppShell";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { usePlan } from "@/hooks/usePlan";
-import { PdfTextEditor } from "@/components/PdfTextEditor";
-import { PdfCompressPanel } from "@/components/PdfCompressPanel";
-import { PdfWatermarkPanel } from "@/components/PdfWatermarkPanel";
-import { PdfProtectPanel } from "@/components/PdfProtectPanel";
-import { PdfUnlockPanel } from "@/components/PdfUnlockPanel";
-import { PdfWordConvertPanel } from "@/components/PdfWordConvertPanel";
-import { PdfAiMetadataPanel } from "@/components/PdfAiMetadataPanel";
 import { QuotaLimitModal } from "@/components/QuotaLimitModal";
+
+// Tool panels are heavy — load only when the user opens that tool.
+const PdfTextEditor = lazy(() =>
+  import("@/components/PdfTextEditor").then((m) => ({ default: m.PdfTextEditor })),
+);
+const PdfCompressPanel = lazy(() =>
+  import("@/components/PdfCompressPanel").then((m) => ({ default: m.PdfCompressPanel })),
+);
+const PdfWatermarkPanel = lazy(() =>
+  import("@/components/PdfWatermarkPanel").then((m) => ({ default: m.PdfWatermarkPanel })),
+);
+const PdfProtectPanel = lazy(() =>
+  import("@/components/PdfProtectPanel").then((m) => ({ default: m.PdfProtectPanel })),
+);
+const PdfUnlockPanel = lazy(() =>
+  import("@/components/PdfUnlockPanel").then((m) => ({ default: m.PdfUnlockPanel })),
+);
+const PdfWordConvertPanel = lazy(() =>
+  import("@/components/PdfWordConvertPanel").then((m) => ({ default: m.PdfWordConvertPanel })),
+);
+const PdfAiMetadataPanel = lazy(() =>
+  import("@/components/PdfAiMetadataPanel").then((m) => ({ default: m.PdfAiMetadataPanel })),
+);
+
+function PanelFallback() {
+  return (
+    <div className="flex min-h-[200px] items-center justify-center rounded-2xl border border-[var(--c-border)] bg-[var(--card)]">
+      <Loader2 className="h-6 w-6 animate-spin text-[var(--c-muted-fg)]" />
+    </div>
+  );
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -313,6 +337,65 @@ function ManagePdfHome({ category, search, onCategoryChange, onSelectTool, onOpe
   );
 }
 
+/** Load thumbnail only when near the viewport — avoids N concurrent full-PDF rasterises. */
+function LazyPageThumb({ src, alt }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [src]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return undefined;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "240px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="relative h-full w-full">
+      {visible && !failed ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className={`h-full w-full object-contain transition-opacity ${loaded ? "opacity-100" : "opacity-0"}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+      {(!visible || !loaded) && !failed && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--c-muted-fg)]" />
+        </div>
+      )}
+      {failed && (
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-[var(--c-muted-fg)]">
+          Preview unavailable
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SortablePageCard({
   index,
   thumbUrl,
@@ -338,7 +421,7 @@ function SortablePageCard({
     >
       <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-[var(--c-paper-2)]">
         {thumbUrl ? (
-          <img src={thumbUrl} alt={`Page ${index + 1}`} className="h-full w-full object-contain" />
+          <LazyPageThumb src={thumbUrl} alt={`Page ${index + 1}`} />
         ) : (
           <div className="flex h-full items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-[var(--c-muted-fg)]" />
@@ -400,9 +483,7 @@ export default function ManagePdf() {
   const [quotaModal, setQuotaModal] = useState(false);
   const [quotaDetail, setQuotaDetail] = useState(null);
   const [thumbVersion, setThumbVersion] = useState(0);
-  const [thumbUrls, setThumbUrls] = useState([]);
   const [editorPage, setEditorPage] = useState(0);
-  const [editorUrl, setEditorUrl] = useState("");
   const [tool, setTool] = useState("select");
   const [pendingImage, setPendingImage] = useState(null);
   const [whiteoutDrag, setWhiteoutDrag] = useState(null);
@@ -412,26 +493,14 @@ export default function ManagePdf() {
   const [splitWorkspace, setSplitWorkspace] = useState(null);
   const canvasRef = useRef(null);
   const imageInputRef = useRef(null);
-  const blobUrlsRef = useRef([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // Bumping version only changes img ?v= — browser loads pages lazily (IntersectionObserver).
   const bumpThumbs = useCallback(() => setThumbVersion((v) => v + 1), []);
-
-  const trackBlob = (url) => {
-    blobUrlsRef.current.push(url);
-    return url;
-  };
-
-  const revokeBlobs = useCallback(() => {
-    blobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    blobUrlsRef.current = [];
-  }, []);
-
-  useEffect(() => () => revokeBlobs(), [revokeBlobs]);
 
   const applyWorkspace = (data) => {
     setWorkspace(data);
@@ -441,60 +510,31 @@ export default function ManagePdf() {
     }
   };
 
-  const refreshThumbs = useCallback(async (ws, version) => {
-    if (!ws?.workspace_id) return;
-    revokeBlobs();
-    const urls = await Promise.all(
-      Array.from({ length: ws.page_count || 0 }, (_, i) =>
-        fetchPdfBlobUrl(`/pdf/workspace/${ws.workspace_id}/page/${i}.png?v=${version}`)
-          .then(trackBlob)
-          .catch(() => ""),
-      ),
+  const pageCount = workspace?.page_count || 0;
+  const workspaceId = workspace?.workspace_id;
+
+  const thumbUrls = useMemo(() => {
+    if (!workspaceId || !pageCount) return [];
+    return Array.from({ length: pageCount }, (_, i) =>
+      workspacePagePreviewUrl(workspaceId, i, {
+        version: thumbVersion,
+        dpi: 72,
+        fmt: "jpeg",
+        quality: 72,
+      }),
     );
-    setThumbUrls(urls);
-  }, [revokeBlobs]);
+  }, [workspaceId, pageCount, thumbVersion]);
 
-  useEffect(() => {
-    if (!workspace) return;
-    refreshThumbs(workspace, thumbVersion);
-  }, [workspace, thumbVersion, refreshThumbs]);
-
-  useEffect(() => {
-    if (!workspace?.workspace_id) {
-      setEditorUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return "";
-      });
-      return undefined;
-    }
-    let cancelled = false;
-    fetchPdfBlobUrl(`/pdf/workspace/${workspace.workspace_id}/page/${editorPage}.png?v=${thumbVersion}`)
-      .then((url) => {
-        if (cancelled) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        setEditorUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return url;
-        });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setEditorUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return "";
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-      setEditorUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return "";
-      });
-    };
-  }, [workspace, editorPage, thumbVersion]);
+  // Editor uses a slightly sharper preview; still JPEG for speed.
+  const editorUrl = useMemo(() => {
+    if (!workspaceId) return "";
+    return workspacePagePreviewUrl(workspaceId, editorPage, {
+      version: thumbVersion,
+      dpi: 110,
+      fmt: "jpeg",
+      quality: 82,
+    });
+  }, [workspaceId, editorPage, thumbVersion]);
 
   const runOp = async (fn, successMsg) => {
     setBusy(true);
@@ -523,7 +563,7 @@ export default function ManagePdf() {
       const { data } = await api.get(`/pdf/workspace/${wid}`);
       setWorkspace((prev) => (prev ? { ...prev, ...data } : prev));
     } catch {
-      /* thumbnails already refreshed; meta refresh is best-effort */
+      /* preview already refreshed; meta refresh is best-effort */
     }
   }, [bumpThumbs, workspace?.workspace_id]);
 
@@ -560,7 +600,7 @@ export default function ManagePdf() {
       setEditorPage(0);
       setTab("pages");
       setHomeView("home");
-      bumpThumbs();
+      setThumbVersion(0);
       toast.success("PDF loaded, start editing");
     } catch (err) {
       toast.error(formatApiError(err));
@@ -1029,70 +1069,72 @@ export default function ManagePdf() {
               />
             )}
 
-            {homeView === "compress" && (
-              <PdfCompressPanel
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+            <Suspense fallback={<PanelFallback />}>
+              {homeView === "compress" && (
+                <PdfCompressPanel
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "watermark" && (
-              <PdfWatermarkPanel
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "watermark" && (
+                <PdfWatermarkPanel
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "protect" && (
-              <PdfProtectPanel
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "protect" && (
+                <PdfProtectPanel
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "unlock" && (
-              <PdfUnlockPanel
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "unlock" && (
+                <PdfUnlockPanel
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "pdf-to-word" && (
-              <PdfWordConvertPanel
-                mode="pdf-to-word"
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "pdf-to-word" && (
+                <PdfWordConvertPanel
+                  mode="pdf-to-word"
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "word-to-pdf" && (
-              <PdfWordConvertPanel
-                mode="word-to-pdf"
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "word-to-pdf" && (
+                <PdfWordConvertPanel
+                  mode="word-to-pdf"
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
 
-            {homeView === "ai-metadata" && (
-              <PdfAiMetadataPanel
-                busy={busy}
-                setBusy={setBusy}
-                onBack={() => setHomeView("home")}
-                quotaHandlers={quotaHandlers}
-              />
-            )}
+              {homeView === "ai-metadata" && (
+                <PdfAiMetadataPanel
+                  busy={busy}
+                  setBusy={setBusy}
+                  onBack={() => setHomeView("home")}
+                  quotaHandlers={quotaHandlers}
+                />
+              )}
+            </Suspense>
 
             {homeView === "edit" && (
               <div className="mx-auto max-w-xl rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-8">
@@ -1534,15 +1576,17 @@ export default function ManagePdf() {
                     </div>
 
                     {tool === "text" ? (
-                      <PdfTextEditor
-                        key={`${workspace.workspace_id}-${editorPage}`}
-                        workspaceId={workspace.workspace_id}
-                        pageIndex={editorPage}
-                        pageImageUrl={editorUrl}
-                        pageDim={workspace.pages?.[editorPage]}
-                        disabled={busy}
-                        onSaved={refreshAfterTextEdit}
-                      />
+                      <Suspense fallback={<PanelFallback />}>
+                        <PdfTextEditor
+                          key={`${workspace.workspace_id}-${editorPage}`}
+                          workspaceId={workspace.workspace_id}
+                          pageIndex={editorPage}
+                          pageImageUrl={editorUrl}
+                          pageDim={workspace.pages?.[editorPage]}
+                          disabled={busy}
+                          onSaved={refreshAfterTextEdit}
+                        />
+                      </Suspense>
                     ) : (
                       <>
                         <div
@@ -1558,10 +1602,12 @@ export default function ManagePdf() {
                         >
                           {editorUrl ? (
                             <img
+                              key={editorUrl}
                               src={editorUrl}
                               alt={`Edit page ${editorPage + 1}`}
                               className="block w-full select-none"
                               draggable={false}
+                              decoding="async"
                             />
                           ) : (
                             <div className="flex aspect-[3/4] items-center justify-center">

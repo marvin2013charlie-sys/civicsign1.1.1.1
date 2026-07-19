@@ -4,13 +4,19 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown } from "lucide-react";
-import { ALL_SOLUTIONS, solutionTestId } from "@/lib/solutionsNav";
+import {
+  NAV_MENU_SOLUTIONS,
+  FEATURED_SOLUTION,
+  FEATURED_TRUST,
+  solutionTestId,
+} from "@/lib/solutionsNav";
 import { FooterLink } from "@/components/FooterLink";
 import { getMarketingHeaderCta } from "@/lib/authPortal";
 
 const PRODUCT_LINKS = [
   { label: "E-signatures", to: { pathname: "/", hash: "#features" } },
   { label: "Manage PDF", to: "/product/manage-pdf" },
+  { label: "ID verification", comingSoon: true },
 ];
 
 const LINKS = [
@@ -133,7 +139,11 @@ export const SiteHeader = () => {
                     <FooterLink
                       key={p.label}
                       link={p}
-                      className="flex rounded-[14px] px-3 py-2.5 text-sm font-semibold text-[var(--c-ink)] transition-all hover:bg-[var(--c-paper)]"
+                      className={
+                        p.comingSoon
+                          ? "flex rounded-[14px] px-3 py-2.5 text-sm font-semibold"
+                          : "flex rounded-[14px] px-3 py-2.5 text-sm font-semibold text-[var(--c-ink)] transition-all hover:bg-[var(--c-paper)]"
+                      }
                     />
                   ))}
                 </div>
@@ -150,38 +160,111 @@ export const SiteHeader = () => {
                 Solutions
                 <ChevronDown className="h-3.5 w-3.5 transition-transform duration-150 group-hover:rotate-180 group-focus-within:rotate-180" />
               </button>
-              <div className={`${DESKTOP_PANEL} left-1/2 w-[min(640px,92vw)] -translate-x-1/2 pt-2`} data-testid="nav-solutions-panel-wrap">
+              <div
+                className={`${DESKTOP_PANEL} left-1/2 w-[min(780px,94vw)] -translate-x-1/2 pt-2`}
+                data-testid="nav-solutions-panel-wrap"
+              >
                 <div
-                  className="overflow-hidden rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] shadow-[0_20px_50px_rgba(18,33,32,.14)]"
+                  className="overflow-hidden rounded-[24px] border border-[var(--c-border)] bg-[var(--card)] shadow-[0_24px_60px_rgba(18,33,32,.16)]"
                   data-testid="nav-solutions-panel"
                 >
-                  <div className="flex items-center justify-between border-b border-[var(--c-border)] bg-[var(--c-paper)] px-4 py-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">By industry</p>
-                    <Link
-                      to="/solutions"
-                      className="text-xs font-semibold text-[var(--c-primary)] hover:underline"
-                      data-testid="nav-solutions-all"
-                    >
-                      View all →
-                    </Link>
-                  </div>
-                  <div className="grid grid-cols-1 gap-1.5 p-2 sm:grid-cols-2">
-                    {ALL_SOLUTIONS.map((s) => (
-                      <Link
-                        key={s.to}
-                        to={s.to}
-                        data-testid={solutionTestId(s.label)}
-                        className="flex items-center gap-3 rounded-[14px] border border-transparent px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:border-[var(--c-primary)] hover:bg-[var(--c-paper)] hover:shadow-md"
-                      >
-                        <span
-                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
-                          style={{ background: "var(--badge-teal-bg)" }}
+                  <div className="flex flex-col lg:flex-row">
+                    {/* Browse by industry */}
+                    <div className="min-w-0 flex-1 p-4 sm:p-5">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[1.6px] text-[var(--c-muted-fg)]">
+                          Browse by industry
+                        </p>
+                        <Link
+                          to="/solutions"
+                          className="text-xs font-semibold text-[var(--c-primary)] hover:underline"
+                          data-testid="nav-solutions-all"
                         >
-                          <s.icon className="h-4 w-4" style={{ color: "var(--badge-teal-fg)" }} />
-                        </span>
-                        <span className="text-sm font-semibold text-[var(--c-ink)]">{s.label}</span>
-                      </Link>
-                    ))}
+                          View all →
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 sm:gap-x-2 sm:gap-y-0.5">
+                        {NAV_MENU_SOLUTIONS.map((s) => {
+                          const chip = s.chip || { bg: "var(--badge-teal-bg)", fg: "var(--badge-teal-fg)" };
+                          return (
+                            <Link
+                              key={s.to}
+                              to={s.to}
+                              data-testid={solutionTestId(s.label)}
+                              className="flex items-start gap-3 rounded-[14px] px-2.5 py-2.5 transition-all hover:bg-[var(--c-paper)]"
+                            >
+                              <span
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+                                style={{ background: chip.bg }}
+                              >
+                                <s.icon className="h-[18px] w-[18px]" style={{ color: chip.fg }} strokeWidth={1.75} />
+                              </span>
+                              <span className="min-w-0 pt-0.5">
+                                <span className="block text-[13.5px] font-semibold leading-tight text-[var(--c-ink)]">
+                                  {s.label}
+                                </span>
+                                <span className="mt-0.5 block text-[12px] leading-snug text-[var(--c-muted-fg)]">
+                                  {s.shortBlurb || s.blurb}
+                                </span>
+                              </span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Most popular feature rail */}
+                    {FEATURED_SOLUTION && (
+                      <div
+                        className="flex w-full flex-col justify-between gap-5 border-t border-[var(--c-border)] p-5 sm:p-6 lg:w-[280px] lg:shrink-0 lg:border-l lg:border-t-0"
+                        style={{ background: "var(--c-ink-solid)", color: "#F8F7F2" }}
+                        data-testid="nav-solutions-featured"
+                      >
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[1.8px] text-[#2DD4BF]">
+                            Most popular
+                          </p>
+                          <span
+                            className="mt-4 inline-flex h-12 w-12 items-center justify-center rounded-[14px]"
+                            style={{ background: "rgba(45,212,191,.18)" }}
+                          >
+                            <FEATURED_SOLUTION.icon
+                              className="h-6 w-6"
+                              style={{ color: "#2DD4BF" }}
+                              strokeWidth={1.75}
+                            />
+                          </span>
+                          <h3 className="mt-4 font-heading text-[22px] font-bold leading-tight tracking-[-0.02em]">
+                            {FEATURED_SOLUTION.label}
+                          </h3>
+                          <p className="mt-2 text-[13.5px] leading-relaxed text-white/65">
+                            {FEATURED_SOLUTION.featuredBody || FEATURED_SOLUTION.blurb}
+                          </p>
+                        </div>
+                        <div className="space-y-3">
+                          <div
+                            className="rounded-2xl border px-3.5 py-3"
+                            style={{ borderColor: "rgba(248,247,242,.12)", background: "rgba(248,247,242,.06)" }}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <FEATURED_TRUST.icon className="mt-0.5 h-4 w-4 shrink-0 text-[#2DD4BF]" />
+                              <div>
+                                <p className="text-[13px] font-semibold text-white">{FEATURED_TRUST.title}</p>
+                                <p className="mt-0.5 text-[12px] text-white/55">{FEATURED_TRUST.body}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <Link
+                            to={FEATURED_SOLUTION.to}
+                            className="inline-flex h-11 w-full items-center justify-center rounded-full text-[14px] font-semibold transition-opacity hover:opacity-95"
+                            style={{ background: "#2DD4BF", color: "#122120" }}
+                            data-testid="nav-solutions-featured-cta"
+                          >
+                            Explore solutions →
+                          </Link>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -247,36 +330,65 @@ export const SiteHeader = () => {
           >
             <nav className="mx-auto flex max-h-[calc(100dvh-var(--site-header-height,64px)-env(safe-area-inset-top,0px))] max-w-6xl flex-col gap-1 overflow-y-auto overscroll-contain cs-scroll px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">Product</p>
-              <FooterLink
-                link={{ label: "E-signatures", to: { pathname: "/", hash: "#features" } }}
-                className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
-                onNavigate={closeMenu}
-              />
-              <FooterLink
-                link={{ label: "Manage PDF", to: "/product/manage-pdf" }}
-                className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
-                onNavigate={closeMenu}
-              />
+              {PRODUCT_LINKS.map((p) => (
+                <FooterLink
+                  key={p.label}
+                  link={p}
+                  className={
+                    p.comingSoon
+                      ? "flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium"
+                      : "flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-[var(--c-ink)]"
+                  }
+                  onNavigate={closeMenu}
+                />
+              ))}
               <div className="my-2 border-t border-[var(--c-border)]" />
               <p className="px-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">Solutions</p>
               <Link
                 to="/solutions"
                 className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-semibold text-[var(--c-primary)]"
                 onClick={closeMenu}
+                data-testid="nav-solutions-all-mobile"
               >
-                All industries
+                View all industries →
               </Link>
-              {ALL_SOLUTIONS.map((s) => (
+              {NAV_MENU_SOLUTIONS.map((s) => {
+                const chip = s.chip || { bg: "var(--badge-teal-bg)", fg: "var(--c-primary)" };
+                return (
+                  <Link
+                    key={s.to}
+                    to={s.to}
+                    className="flex min-h-[48px] items-center gap-3 rounded-xl px-2 py-1.5 text-sm font-medium text-[var(--c-ink)] transition-colors hover:bg-[var(--c-paper-2)]"
+                    onClick={closeMenu}
+                  >
+                    <span
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
+                      style={{ background: chip.bg }}
+                    >
+                      <s.icon className="h-4 w-4" style={{ color: chip.fg }} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold leading-tight">{s.label}</span>
+                      <span className="block text-[12px] font-normal text-[var(--c-muted-fg)]">
+                        {s.shortBlurb || s.blurb}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+              {FEATURED_SOLUTION && (
                 <Link
-                  key={s.to}
-                  to={s.to}
-                  className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--c-ink)] transition-colors hover:bg-[var(--c-paper-2)]"
+                  to={FEATURED_SOLUTION.to}
                   onClick={closeMenu}
+                  className="mx-1 mt-1 flex flex-col gap-1 rounded-xl px-3 py-3 text-sm"
+                  style={{ background: "var(--c-ink-solid)", color: "#F8F7F2" }}
+                  data-testid="nav-solutions-featured-mobile"
                 >
-                  <s.icon className="h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
-                  {s.label}
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#2DD4BF]">Most popular</span>
+                  <span className="font-semibold">{FEATURED_SOLUTION.label}</span>
+                  <span className="text-[12px] text-white/65">Explore solutions →</span>
                 </Link>
-              ))}
+              )}
               <div className="my-2 border-t border-[var(--c-border)]" />
               {LINKS.map((l) => (
                 <FooterLink

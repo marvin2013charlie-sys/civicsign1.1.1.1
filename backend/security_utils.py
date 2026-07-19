@@ -106,6 +106,11 @@ def allowed_redirect_origins() -> set[str]:
             seeds.append(origin)
     if not seeds:
         seeds = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # Local CRA / Vite often use 3001+ when :3000 is taken by another app.
+    if is_dev_mode() or not raw or raw == "*":
+        for port in (3000, 3001, 3002, 5173, 5174):
+            seeds.append(f"http://localhost:{port}")
+            seeds.append(f"http://127.0.0.1:{port}")
     out: set[str] = set()
     for seed in seeds:
         origin = _normalize_redirect_origin(seed)

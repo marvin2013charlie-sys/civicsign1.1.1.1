@@ -202,7 +202,10 @@ export default function Login() {
             data-testid="login-submit-button"
           >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Signing in…
+              </span>
             ) : (
               <span className="inline-flex items-center gap-2">
                 Sign in

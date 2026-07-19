@@ -49,14 +49,17 @@ def _impersonation_headers(user: dict) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _admin_headers() -> dict[str, str]:
-    r = requests.post(
+def _admin_session() -> requests.Session:
+    """Login sets HttpOnly cookies; do not expect access_token in JSON body."""
+    s = requests.Session()
+    r = s.post(
         f"{API_BASE}/api/auth/login",
         json={"email": "admin@civicbot.co.uk", "password": "CivicSign2026!Admin"},
         timeout=15,
     )
     assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert s.cookies.get("access_token"), "expected access_token cookie"
+    return s
 
 
 def test_impersonation_blocks_envelope_pdf_download():
@@ -124,12 +127,12 @@ def test_impersonation_blocks_pdf_workspace_download():
 
 
 def test_admin_panel_cannot_browse_envelopes():
-    headers = _admin_headers()
-    r = requests.get(f"{API_BASE}/api/admin/envelopes", headers=headers)
+    s = _admin_session()
+    r = s.get(f"{API_BASE}/api/admin/envelopes")
     assert r.status_code == 404
 
 
 def test_admin_panel_cannot_export_envelopes():
-    headers = _admin_headers()
-    r = requests.get(f"{API_BASE}/api/admin/export/envelopes.csv", headers=headers)
+    s = _admin_session()
+    r = s.get(f"{API_BASE}/api/admin/export/envelopes.csv")
     assert r.status_code == 404

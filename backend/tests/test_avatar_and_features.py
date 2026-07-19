@@ -35,22 +35,29 @@ def _make_png(size_px: int = 8) -> bytes:
     return sig + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
 
 
-@pytest.fixture(scope="session")
-def user_token():
-    r = requests.post(f"{BASE_URL}/api/auth/login",
-                      json={"email": USER_EMAIL, "password": USER_PASS}, timeout=20)
+def _login_session(email: str, password: str) -> requests.Session:
+    """Login returns HttpOnly cookies only (no access_token in JSON body)."""
+    s = requests.Session()
+    r = s.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"email": email, "password": password},
+        timeout=20,
+    )
     if r.status_code != 200:
-        pytest.skip(f"User login failed: {r.status_code} {r.text[:200]}")
-    return r.json()["access_token"]
+        pytest.skip(f"Login failed for {email}: {r.status_code} {r.text[:200]}")
+    if not s.cookies.get("access_token"):
+        pytest.skip("Login did not set access_token cookie")
+    return s
 
 
 @pytest.fixture(scope="session")
-def admin_token():
-    r = requests.post(f"{BASE_URL}/api/auth/login",
-                      json={"email": ADMIN_EMAIL, "password": ADMIN_PASS}, timeout=20)
-    if r.status_code != 200:
-        pytest.skip(f"Admin login failed: {r.status_code} {r.text[:200]}")
-    return r.json()["access_token"]
+def user_session():
+    return _login_session(USER_EMAIL, USER_PASS)
+
+
+@pytest.fixture(scope="session")
+def admin_session():
+    return _login_session(ADMIN_EMAIL, ADMIN_PASS)
 
 
 # -------- Auth regression -----------------------------------------------
@@ -60,9 +67,9 @@ class TestAuthRegression:
                           json={"email": USER_EMAIL, "password": USER_PASS}, timeout=20)
         assert r.status_code == 200, r.text
         body = r.json()
-        assert "access_token" in body and isinstance(body["access_token"], str)
         assert body["user"]["email"] == USER_EMAIL
         assert body["user"]["role"] == "user"
+        assert r.cookies.get("access_token"), "expected HttpOnly access_token cookie"
 
     def test_admin_login(self):
         r = requests.post(f"{BASE_URL}/api/auth/login",
@@ -70,10 +77,10 @@ class TestAuthRegression:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["user"]["role"] == "admin"
+        assert r.cookies.get("access_token")
 
-    def test_me_with_bearer(self, user_token):
-        r = requests.get(f"{BASE_URL}/api/auth/me",
-                         headers={"Authorization": f"Bearer {user_token}"}, timeout=20)
+    def test_me_with_session_cookie(self, user_session):
+        r = user_session.get(f"{BASE_URL}/api/auth/me", timeout=20)
         assert r.status_code == 200, r.text
         assert r.json()["email"] == USER_EMAIL
 
@@ -90,29 +97,26 @@ class TestAvatar:
         r = requests.post(f"{BASE_URL}/api/auth/avatar", files=files, timeout=20)
         assert r.status_code == 401
 
-    def test_upload_rejects_non_image(self, user_token):
+    def test_upload_rejects_non_image(self, user_session):
         files = {"file": ("note.txt", b"hello world this is not an image", "text/plain")}
-        r = requests.post(f"{BASE_URL}/api/auth/avatar", files=files,
-                          headers={"Authorization": f"Bearer {user_token}"}, timeout=20)
+        r = user_session.post(f"{BASE_URL}/api/auth/avatar", files=files, timeout=20)
         assert r.status_code == 400
         assert "image" in (r.json().get("detail", "").lower())
 
-    def test_upload_rejects_oversized(self, user_token):
+    def test_upload_rejects_oversized(self, user_session):
         # >2MB, but use a valid mime type so size validation is what triggers
         big = b"\x00" * (2 * 1024 * 1024 + 100)
         files = {"file": ("big.png", big, "image/png")}
-        r = requests.post(f"{BASE_URL}/api/auth/avatar", files=files,
-                          headers={"Authorization": f"Bearer {user_token}"}, timeout=30)
+        r = user_session.post(f"{BASE_URL}/api/auth/avatar", files=files, timeout=30)
         assert r.status_code == 400
         assert "large" in r.json().get("detail", "").lower() or "2 mb" in r.json().get("detail", "").lower()
 
-    def test_upload_and_fetch_and_delete_flow(self, user_token):
+    def test_upload_and_fetch_and_delete_flow(self, user_session):
         png = _make_png(16)
         files = {"file": ("avatar.png", png, "image/png")}
-        h = {"Authorization": f"Bearer {user_token}"}
 
         # Upload
-        r = requests.post(f"{BASE_URL}/api/auth/avatar", files=files, headers=h, timeout=20)
+        r = user_session.post(f"{BASE_URL}/api/auth/avatar", files=files, timeout=20)
         assert r.status_code == 200, r.text
         user = r.json()
         pic = user.get("picture")
@@ -120,7 +124,7 @@ class TestAvatar:
         file_id = pic.rsplit("/", 1)[-1]
 
         # Confirm /me reflects the change
-        me = requests.get(f"{BASE_URL}/api/auth/me", headers=h, timeout=20).json()
+        me = user_session.get(f"{BASE_URL}/api/auth/me", timeout=20).json()
         assert me["picture"] == pic
 
         # Public fetch — no auth needed
@@ -130,7 +134,7 @@ class TestAvatar:
         assert len(rget.content) >= 64
 
         # Delete
-        rdel = requests.delete(f"{BASE_URL}/api/auth/avatar", headers=h, timeout=20)
+        rdel = user_session.delete(f"{BASE_URL}/api/auth/avatar", timeout=20)
         assert rdel.status_code == 200
         assert rdel.json().get("picture") in (None, "")
 
@@ -166,13 +170,11 @@ class TestPublicLists:
 
 # -------- RBAC regression ----------------------------------------------
 class TestRBAC:
-    def test_admin_can_list_users(self, admin_token):
-        r = requests.get(f"{BASE_URL}/api/admin/users",
-                         headers={"Authorization": f"Bearer {admin_token}"}, timeout=20)
+    def test_admin_can_list_users(self, admin_session):
+        r = admin_session.get(f"{BASE_URL}/api/admin/users", timeout=20)
         # 200 or empty page is fine; just ensure not 401/403
         assert r.status_code in (200, 404), f"admin users got {r.status_code}: {r.text[:200]}"
 
-    def test_user_cannot_access_admin(self, user_token):
-        r = requests.get(f"{BASE_URL}/api/admin/users",
-                         headers={"Authorization": f"Bearer {user_token}"}, timeout=20)
+    def test_user_cannot_access_admin(self, user_session):
+        r = user_session.get(f"{BASE_URL}/api/admin/users", timeout=20)
         assert r.status_code in (401, 403), f"expected forbidden, got {r.status_code}"

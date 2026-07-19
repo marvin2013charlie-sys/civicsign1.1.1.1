@@ -274,12 +274,44 @@ def extract_pdf_text(pdf_bytes: bytes, max_chars: int = 12000) -> str:
     return text[:max_chars]
 
 
-def render_page_png(pdf_bytes: bytes, page_index: int = 0, dpi: int = 110) -> bytes:
+def render_page_preview(
+    pdf_bytes: bytes,
+    page_index: int = 0,
+    dpi: int = 72,
+    fmt: str = "jpeg",
+    quality: int = 78,
+) -> tuple[bytes, str]:
+    """Render a single page to JPEG (default) or PNG for Manage PDF previews.
+
+    JPEG at 72–96 DPI is much faster and smaller than PNG at 110 DPI, which
+    previously made multi-page workspaces feel sluggish.
+    """
+    fmt_l = (fmt or "jpeg").strip().lower()
+    if fmt_l in ("jpg", "jpeg"):
+        fmt_l = "jpeg"
+    elif fmt_l != "png":
+        fmt_l = "jpeg"
+
+    dpi = max(36, min(int(dpi or 72), 200))
+    quality = max(40, min(int(quality or 78), 95))
+
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    page = doc[page_index]
-    pix = page.get_pixmap(dpi=dpi)
-    data = pix.tobytes("png")
-    doc.close()
+    try:
+        if page_index < 0 or page_index >= len(doc):
+            raise IndexError(f"page_index {page_index} out of range")
+        page = doc[page_index]
+        # alpha=False → smaller/faster pixmap; required for JPEG encode
+        pix = page.get_pixmap(dpi=dpi, alpha=False)
+        if fmt_l == "png":
+            return pix.tobytes("png"), "image/png"
+        return pix.tobytes("jpeg", jpg_quality=quality), "image/jpeg"
+    finally:
+        doc.close()
+
+
+def render_page_png(pdf_bytes: bytes, page_index: int = 0, dpi: int = 110) -> bytes:
+    """Backward-compatible PNG render (higher default DPI for legacy callers)."""
+    data, _ctype = render_page_preview(pdf_bytes, page_index, dpi=dpi, fmt="png")
     return data
 
 
@@ -433,9 +465,122 @@ def _append_certificate(
     return doc_hash
 
 
+def _apply_seal_document_metadata(
+    doc: "fitz.Document",
+    envelope_meta: dict,
+    doc_hash: str,
+) -> None:
+    """Write consistent CivicSign metadata onto the completed PDF.
+
+    Both the stored GridFS file and the user's download share this metadata so
+    verify can require matching identity fields (title, creator, keywords, etc.).
+    """
+    env_id = (envelope_meta.get("envelope_id") or "").strip()
+    title = (envelope_meta.get("title") or "CivicSign Document").strip()[:200]
+    doc.set_metadata({
+        "title": title,
+        "author": "CivicSign",
+        "subject": f"Sealed CivicSign envelope {env_id}".strip(),
+        "keywords": f"civicsign,sealed,envelope:{env_id},doc_hash:{doc_hash[:16]}",
+        "creator": "CivicSign",
+        "producer": "CivicSign Seal Engine",
+        # creation/mod date set by PyMuPDF on save; we fingerprint structure separately
+    })
+
+
+def extract_seal_metadata(pdf_bytes: bytes) -> dict:
+    """Extract comparable PDF metadata + page geometry for seal verification."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        meta = doc.metadata or {}
+        geometry = []
+        for i in range(doc.page_count):
+            r = doc[i].rect
+            geometry.append(f"{i}:{r.width:.2f}x{r.height:.2f}")
+        return {
+            "title": (meta.get("title") or "").strip(),
+            "author": (meta.get("author") or "").strip(),
+            "subject": (meta.get("subject") or "").strip(),
+            "creator": (meta.get("creator") or "").strip(),
+            "producer": (meta.get("producer") or "").strip(),
+            "keywords": (meta.get("keywords") or "").strip(),
+            "page_count": int(doc.page_count),
+            "page_geometry": "|".join(geometry),
+        }
+    finally:
+        doc.close()
+
+
+def seal_metadata_fingerprint(meta: dict | None) -> str:
+    """Stable SHA-256 over the comparable metadata fields."""
+    if not meta:
+        return ""
+    keys = (
+        "title", "author", "subject", "creator", "producer",
+        "keywords", "page_count", "page_geometry",
+    )
+    parts = []
+    for k in keys:
+        v = meta.get(k, "")
+        parts.append(f"{k}={v}")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def compare_seal_metadata(expected: dict | None, actual: dict | None) -> dict:
+    """Field-level metadata comparison for verify UI."""
+    if not expected:
+        return {
+            "match": None,
+            "fingerprint_match": None,
+            "mismatched_fields": [],
+            "expected": expected,
+            "actual": actual,
+        }
+    actual = actual or {}
+    keys = (
+        "title", "author", "subject", "creator", "producer",
+        "keywords", "page_count", "page_geometry",
+    )
+    mismatched = []
+    for k in keys:
+        exp = expected.get(k, "")
+        act = actual.get(k, "")
+        # normalize page_count to int/str compare
+        if k == "page_count":
+            try:
+                exp, act = int(exp), int(act)
+            except (TypeError, ValueError):
+                pass
+        if exp != act:
+            mismatched.append({
+                "field": k,
+                "expected": exp,
+                "actual": act,
+            })
+    exp_fp = seal_metadata_fingerprint(expected)
+    act_fp = seal_metadata_fingerprint(actual)
+    return {
+        "match": len(mismatched) == 0 and exp_fp == act_fp and bool(exp_fp),
+        "fingerprint_match": exp_fp == act_fp and bool(exp_fp),
+        "mismatched_fields": mismatched,
+        "expected_fingerprint": exp_fp,
+        "actual_fingerprint": act_fp,
+        "expected": expected,
+        "actual": actual,
+    }
+
+
 def finalize_envelope(pdf_bytes: bytes, fields, envelope_meta, audit_events):
-    """Stamp all field values onto the PDF, append the Certificate of Completion,
-    and return (completed_pdf_bytes, doc_hash, signed_page_count)."""
+    """Stamp fields, append Certificate of Completion, set seal metadata.
+
+    Returns
+    -------
+    completed_pdf_bytes, doc_hash, signed_page_count, package_hash, seal_metadata
+
+    doc_hash       — SHA-256 of signed page content streams (printed on the certificate).
+    package_hash   — SHA-256 of the full completed PDF file (includes cert + metadata).
+    seal_metadata  — Snapshot of PDF metadata + page geometry for verify comparison.
+    """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     _stamp_fields(doc, fields)
     signed_page_count = doc.page_count
@@ -444,9 +589,17 @@ def finalize_envelope(pdf_bytes: bytes, fields, envelope_meta, audit_events):
     _append_certificate(
         doc, envelope_meta, audit_events, signature_level=sig_level, doc_hash=doc_hash,
     )
+    _apply_seal_document_metadata(doc, envelope_meta, doc_hash)
     out = doc.tobytes(garbage=4, deflate=True)
     doc.close()
-    return out, doc_hash, signed_page_count
+    package_hash = hashlib.sha256(out).hexdigest()
+    seal_metadata = extract_seal_metadata(out)
+    return out, doc_hash, signed_page_count, package_hash, seal_metadata
+
+
+def compute_package_hash(pdf_bytes: bytes) -> str:
+    """SHA-256 of the full PDF file bytes (entire package including certificate)."""
+    return hashlib.sha256(pdf_bytes).hexdigest()
 
 
 def normalize_uploaded_pdf_bytes(raw: bytes) -> bytes:
@@ -503,51 +656,150 @@ def verify_completed_pdf_seal(
     expected_hash: str,
     signed_page_count: int | None = None,
     reference_hash: str | None = None,
+    expected_package_hash: str | None = None,
+    expected_seal_metadata: dict | None = None,
+    source: str = "stored",
 ) -> dict:
-    """Compare a completed PDF's signed content against the stored doc_hash."""
+    """Compare a completed PDF against stored seals + metadata snapshot.
+
+    Tight checks:
+    - content_match: signed-page streams vs doc_hash
+    - package_match: full file bytes vs package_hash (when stored)
+    - metadata_match: PDF identity fields + page geometry vs seal_metadata
+    - accept_as_proof: all applicable checks must pass
+    """
     expected = (expected_hash or "").strip().lower()
     if len(expected) != 64:
         raise ValueError("Invalid document seal")
+
+    expected_pkg = (expected_package_hash or "").strip().lower() or None
+    if expected_pkg and len(expected_pkg) != 64:
+        expected_pkg = None
+
+    actual_meta = extract_seal_metadata(pdf_bytes)
+    meta_cmp = compare_seal_metadata(expected_seal_metadata, actual_meta)
+
     try:
         computed = compute_signed_content_hash(pdf_bytes, signed_page_count)
     except ValueError as exc:
         return {
             "match": False,
+            "accept_as_proof": False,
+            "content_match": False,
+            "package_match": None,
+            "metadata_match": meta_cmp.get("match"),
+            "metadata": meta_cmp,
             "expected_hash": expected,
             "computed_hash": None,
+            "expected_package_hash": expected_pkg,
+            "computed_package_hash": None,
+            "source": source,
+            "source_label": _source_label(source),
+            "proof_verdict": "reject",
             "message": str(exc),
+            "seal_migrated": False,
         }
 
     ref = (reference_hash or "").strip().lower() or None
-    match = computed == expected
+    content_match = computed == expected
     seal_migrated = False
 
-    if not match and ref and computed == ref:
+    if not content_match and ref and computed == ref:
         # Stored seal used an older serialization; signed content is intact.
-        match = True
+        content_match = True
         seal_migrated = True
         expected = ref
 
-    if match:
-        message = (
-            "The signed document content matches the tamper-evident seal. "
-            "No changes were detected since completion."
-        )
+    computed_pkg = compute_package_hash(pdf_bytes)
+    package_match = None
+    if expected_pkg:
+        package_match = computed_pkg == expected_pkg
+
+    metadata_match = meta_cmp.get("match")  # None = legacy (no stored metadata)
+
+    # Build accept rule progressively:
+    # - always need content_match
+    # - package_hash if recorded
+    # - metadata fingerprint if recorded
+    accept_as_proof = bool(content_match)
+    if expected_pkg is not None:
+        accept_as_proof = accept_as_proof and bool(package_match)
+    if expected_seal_metadata:
+        accept_as_proof = accept_as_proof and bool(metadata_match)
+
+    match = accept_as_proof
+    source_label = _source_label(source)
+
+    if accept_as_proof:
+        if source == "uploaded":
+            message = (
+                "This uploaded file matches the sealed CivicSign package. "
+                "Signed content, package bytes, and PDF metadata match — "
+                "safe to accept as sealed proof."
+            )
+        else:
+            message = (
+                "The CivicSign stored copy matches the tamper-evident seal. "
+                "Signed content, package, and metadata are intact."
+            )
         if seal_migrated:
             message += " The on-file seal was refreshed to the current verification format."
+        if expected_pkg is None or not expected_seal_metadata:
+            message += (
+                " (Legacy seal — some checks upgrade when you verify the stored copy.)"
+            )
+        proof_verdict = "accept"
+    elif content_match and package_match is False:
+        message = (
+            "Signed page content matches, but the full PDF package does not. "
+            "The Certificate of Completion or file packaging was altered after completion. "
+            "Do not accept this file as sealed proof."
+        )
+        proof_verdict = "reject"
+        match = False
+    elif content_match and metadata_match is False:
+        fields = ", ".join(f["field"] for f in meta_cmp.get("mismatched_fields") or []) or "metadata"
+        message = (
+            f"Signed content may look intact, but PDF metadata does not match the sealed record "
+            f"(differing: {fields}). Editors often rewrite Creator/Producer/Title when re-saving. "
+            "Do not accept this file as sealed proof."
+        )
+        proof_verdict = "reject"
+        match = False
     else:
         message = (
-            "The seal does not match. The signed pages were modified after completion "
+            "The seal does not match. The document was modified after completion "
             "(for example edited in Word, Preview, or Acrobat), re-saved, or this is not "
-            "the original completed PDF from CivicSign."
+            "the original completed PDF from CivicSign. "
+            "Do not accept this file as sealed proof."
         )
+        proof_verdict = "reject"
+
     return {
         "match": match,
+        "accept_as_proof": accept_as_proof,
+        "content_match": content_match,
+        "package_match": package_match,
+        "metadata_match": metadata_match,
+        "metadata": meta_cmp,
         "expected_hash": expected,
         "computed_hash": computed,
+        "expected_package_hash": expected_pkg,
+        "computed_package_hash": computed_pkg if expected_pkg else None,
+        "source": source,
+        "source_label": source_label,
+        "proof_verdict": proof_verdict,
         "message": message,
         "seal_migrated": seal_migrated,
     }
+
+
+def _source_label(source: str) -> str:
+    if source == "uploaded":
+        return "Uploaded file (your computer or email)"
+    if source == "stored":
+        return "Stored copy (CivicSign server)"
+    return source or "Unknown"
 
 
 def _rect_from_pct(page: "fitz.Page", rect_pct: dict) -> fitz.Rect:

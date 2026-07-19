@@ -39,7 +39,14 @@ from auth import (
     set_access_cookie,
 )
 from security_utils import is_dev_mode, validate_redirect_base
-from models import AdminUserUpdate, ContactHandle, ImpersonateVerify, SendReset, RefundRequest
+from models import (
+    AdminUserUpdate,
+    AdminUserDelete,
+    ContactHandle,
+    ImpersonateVerify,
+    SendReset,
+    RefundRequest,
+)
 from billing import (
     downgrade_user_for_plan_refund,
     _is_plan_purchase_tx,
@@ -178,9 +185,31 @@ def _build_user_list_query(
 STATUSES = ["draft", "sent", "viewed", "completed", "declined", "expired"]
 PLANS = ["free", "pro", "business"]
 
+# Admin-granted paid access lengths (relative to grant time).
+PLAN_DURATIONS = {
+    "15d": (15, "15 days"),
+    "1m": (30, "1 month"),
+    "3m": (90, "3 months"),
+    "6m": (180, "6 months"),
+    "1y": (365, "1 year"),
+}
+
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _period_end_for_duration(duration_key: str) -> tuple[str, str, int]:
+    """Return (iso period end, human label, days) for a plan_duration key."""
+    key = (duration_key or "").strip().lower()
+    if key not in PLAN_DURATIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid plan_duration. Use one of: {', '.join(PLAN_DURATIONS)}",
+        )
+    days, label = PLAN_DURATIONS[key]
+    end = datetime.now(timezone.utc) + timedelta(days=days)
+    return end.isoformat(), label, days
 
 
 def _impersonation_otp_hash(code: str) -> str:
@@ -189,6 +218,13 @@ def _impersonation_otp_hash(code: str) -> str:
 
 def _clean_user(doc: dict) -> dict:
     """Remove sensitive fields from user document."""
+    if not doc:
+        return doc
+    from plan_signing import get_effective_plan
+
+    # Compute while signature is still present
+    doc["effective_plan"] = get_effective_plan(doc)
+    doc["admin_plan_grant"] = bool(doc.get("admin_plan_grant"))
     doc.pop("password_hash", None)
     doc.pop("_id", None)
     doc.pop("plan_signature", None)  # Don't expose signature to frontend
@@ -461,50 +497,55 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
                 status_code=403,
                 detail="Admin roles can only be assigned on the backend. Signed-up users cannot be promoted to admin from the portal.")
         
-        # SECURITY: Plan changes require payment verification signature
+        # Admin may grant any tier (free / pro / business) with an optional duration.
+        # Paid grants get a valid plan_signature so get_effective_plan() honours them.
         if body.plan is not None:
             if body.plan not in PLANS:
                 raise HTTPException(status_code=400, detail="Invalid plan")
-            
-            # Only allow plan downgrades or manual admin intervention (log it!)
+
+            from plan_signing import generate_plan_signature
+
             current_plan = target.get("plan", "free")
-            if body.plan != current_plan:
-                # If changing to a paid plan, require it to be via payment (has signature)
-                if body.plan in ("pro", "business"):
-                    # Check if user already has valid payment signature
-                    if not target.get("plan_upgraded_via_payment"):
-                        logger.warning(
-                            f"[admin] Admin {admin['email']} attempted to upgrade user "
-                            f"{user_id} to {body.plan} without payment - BLOCKED"
-                        )
-                        raise HTTPException(
-                            status_code=403,
-                            detail="Cannot upgrade to paid plan without payment. Use billing system instead."
-                        )
-                
-                # For downgrade to free, require admin reason
-                if body.plan == "free" and current_plan in ("pro", "business"):
+            now_ts = _now()
+            new_plan = body.plan
+
+            if new_plan == "free":
+                updates["plan"] = "free"
+                updates["plan_updated_at"] = now_ts
+                updates["plan_signature"] = None
+                updates["plan_upgraded_via_payment"] = False
+                updates["admin_plan_grant"] = False
+                updates["admin_plan_duration"] = None
+                updates["subscription_status"] = "admin_downgraded"
+                updates["subscription_cancel_at_period_end"] = False
+                updates["monthly_envelope_limit"] = None
+                updates["enterprise_unlimited"] = False
+                # Clear period end via $unset after $set
+                updates["_unset_period_end"] = True
+                if current_plan in ("pro", "business"):
                     logger.warning(
                         f"[admin] Admin {admin['email']} downgraded user {user_id} "
                         f"from {current_plan} to free"
                     )
-                    await db.admin_audit.insert_one({
-                        "audit_id": f"aud_{uuid.uuid4().hex[:12]}",
-                        "action": "plan_downgrade",
-                        "admin_id": admin["user_id"],
-                        "admin_email": admin["email"],
-                        "target_user_id": user_id,
-                        "target_email": target.get("email"),
-                        "old_plan": current_plan,
-                        "new_plan": body.plan,
-                        "at": _now(),
-                    })
-                
-                updates["plan"] = body.plan
-                # Clear payment signature on plan change
-                updates["plan_signature"] = None
+            else:
+                duration_key = (body.plan_duration or "1m").strip().lower()
+                period_end, duration_label, days = _period_end_for_duration(duration_key)
+                updates["plan"] = new_plan
+                updates["plan_updated_at"] = now_ts
+                updates["plan_signature"] = generate_plan_signature(user_id, new_plan, now_ts)
                 updates["plan_upgraded_via_payment"] = False
-        
+                updates["admin_plan_grant"] = True
+                updates["admin_plan_duration"] = duration_key
+                updates["subscription_status"] = "admin_grant"
+                updates["subscription_current_period_end"] = period_end
+                updates["subscription_cancel_at_period_end"] = False
+                updates["billing_interval"] = "monthly" if days < 360 else "yearly"
+                logger.warning(
+                    f"[admin] Admin {admin['email']} granted plan={new_plan} "
+                    f"duration={duration_key} ({duration_label}) to user {user_id} "
+                    f"(was {current_plan})"
+                )
+
         if body.active is not None:
             updates["active"] = body.active
 
@@ -516,7 +557,8 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
             updates["enterprise_unlimited"] = False
 
         if body.enterprise_unlimited is not None:
-            if body.enterprise_unlimited and target.get("plan", "free") != "business":
+            plan_after = updates.get("plan", target.get("plan", "free"))
+            if body.enterprise_unlimited and plan_after != "business":
                 raise HTTPException(
                     status_code=400,
                     detail="Enterprise unlimited applies to Business plan accounts only",
@@ -542,8 +584,9 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
         if user_id == admin["user_id"] and updates.get("active") is False:
             raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
 
+        unset_period = updates.pop("_unset_period_end", False)
         updates["updated_at"] = _now()
-        
+
         # Log plan changes in audit
         if "plan" in updates:
             await db.admin_audit.insert_one({
@@ -553,11 +596,21 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
                 "admin_email": admin["email"],
                 "target_user_id": user_id,
                 "target_email": target.get("email"),
+                "old_plan": target.get("plan", "free"),
                 "new_plan": updates.get("plan"),
+                "plan_duration": updates.get("admin_plan_duration"),
+                "period_end": updates.get("subscription_current_period_end"),
+                "admin_grant": bool(updates.get("admin_plan_grant")),
                 "at": _now(),
             })
-        
-        await db.users.update_one({"user_id": user_id}, {"$set": updates})
+
+        mongo_update = {"$set": updates}
+        if unset_period:
+            mongo_update["$unset"] = {
+                "subscription_current_period_end": "",
+                "admin_plan_duration": "",
+            }
+        await db.users.update_one({"user_id": user_id}, mongo_update)
         fresh = await db.users.find_one({"user_id": user_id})
         return _clean_user(fresh)
     except HTTPException:
@@ -569,31 +622,57 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
 
 @admin_router.delete("/users/{user_id}")
 @limiter.limit("10/minute")
-async def delete_user(request: Request, user_id: str, admin: dict = Depends(require_admin)):
-    """Permanently delete a test/demo user and their data (not admins)."""
+async def delete_user(
+    request: Request,
+    user_id: str,
+    body: AdminUserDelete,
+    admin: dict = Depends(require_admin),
+):
+    """Permanently delete a customer account and their data (not admins/staff).
+
+    Cancels any active Stripe subscription first, then purges envelopes,
+    templates, contacts, and the user record.
+    """
     try:
         if not isinstance(user_id, str) or len(user_id) > 50:
             raise HTTPException(status_code=400, detail="Invalid user ID")
         if user_id == admin["user_id"]:
             raise HTTPException(status_code=400, detail="You cannot delete your own account")
+        if (body.confirm or "").strip().upper() != "DELETE":
+            raise HTTPException(
+                status_code=400,
+                detail='Type "DELETE" to confirm permanent account deletion',
+            )
 
         target = await db.users.find_one({"user_id": user_id})
         if not target:
             raise HTTPException(status_code=404, detail="User not found")
-        if target.get("role") == "admin":
-            raise HTTPException(status_code=403, detail="Admin accounts cannot be deleted from the portal")
-
-        from pilot_accounts import is_test_account
-        from auth import purge_user_data
-
-        from pilot_accounts import is_free_test_account
-
-        demo_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
-        if not is_test_account(target, demo_email=demo_email) and not is_free_test_account(target):
+        if target.get("role") in ("admin", "staff"):
             raise HTTPException(
                 status_code=403,
-                detail="Only test or free-plan accounts can be deleted here. Paid plans must cancel billing first.",
+                detail="Admin and staff accounts cannot be deleted from the portal",
             )
+
+        from auth import purge_user_data
+        import asyncio
+
+        stripe_cancelled = False
+        sub_id = target.get("stripe_subscription_id")
+        if sub_id:
+            try:
+                import stripe
+                from billing import _require_stripe_key
+
+                _require_stripe_key()
+                await asyncio.to_thread(stripe.Subscription.cancel, sub_id)
+                stripe_cancelled = True
+                logger.info(
+                    f"[admin] Cancelled Stripe subscription {sub_id} before deleting {user_id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[admin] Could not cancel Stripe sub {sub_id} for {user_id}: {e}"
+                )
 
         await purge_user_data(db, user_id)
         await db.users.delete_one({"user_id": user_id})
@@ -604,10 +683,19 @@ async def delete_user(request: Request, user_id: str, admin: dict = Depends(requ
             "admin_email": admin["email"],
             "target_user_id": user_id,
             "target_email": target.get("email"),
+            "target_plan": target.get("plan", "free"),
+            "stripe_cancelled": stripe_cancelled,
             "at": _now(),
         })
-        logger.warning(f"[admin] Deleted test user {target.get('email')} by {admin['email']}")
-        return {"ok": True, "deleted_email": target.get("email")}
+        logger.warning(
+            f"[admin] Deleted user {target.get('email')} (plan={target.get('plan')}) "
+            f"by {admin['email']} stripe_cancelled={stripe_cancelled}"
+        )
+        return {
+            "ok": True,
+            "deleted_email": target.get("email"),
+            "stripe_cancelled": stripe_cancelled,
+        }
     except HTTPException:
         raise
     except Exception as e:

@@ -194,7 +194,10 @@ export default function Register() {
             data-testid="register-submit-button"
           >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating account…
+              </span>
             ) : (
               <span className="inline-flex items-center gap-2">
                 {submitLabel}

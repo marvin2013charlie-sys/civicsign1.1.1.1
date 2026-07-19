@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Droplets, Loader2, Save, Upload } from "lucide-react";
-import api, { fetchPdfBlobUrl, formatApiError, parseBlobApiError } from "@/lib/api";
+import api, { formatApiError, parseBlobApiError, workspacePagePreviewUrl } from "@/lib/api";
 import { handleQuotaApiError } from "@/lib/quota";
 import { savePdfBlobToDocuments } from "@/lib/savePdfToDocuments";
 import { Button } from "@/components/ui/button";
@@ -37,21 +37,8 @@ export function PdfWatermarkPanel({ onBack, busy, setBusy, quotaHandlers }) {
   const [imageScale, setImageScale] = useState(35);
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
-  }, [previewUrl, imagePreview]);
-
-  const loadPreview = async (workspaceId) => {
-    try {
-      const url = await fetchPdfBlobUrl(`/pdf/workspace/${workspaceId}/page/0.png`);
-      setPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-    } catch {
-      setPreviewUrl("");
-    }
-  };
+  }, [imagePreview]);
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -69,7 +56,15 @@ export function PdfWatermarkPanel({ onBack, busy, setBusy, quotaHandlers }) {
         filename: data.filename,
         page_count: data.page_count,
       });
-      await loadPreview(data.workspace_id);
+      // Browser-native img load with session cookies — no blob round-trip
+      setPreviewUrl(
+        workspacePagePreviewUrl(data.workspace_id, 0, {
+          version: Date.now(),
+          dpi: 96,
+          fmt: "jpeg",
+          quality: 80,
+        }),
+      );
       toast.success("Document loaded — adjust watermark settings");
     } catch (err) {
       toast.error(formatApiError(err));

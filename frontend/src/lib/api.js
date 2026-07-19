@@ -174,6 +174,26 @@ export async function fetchPdfBlobUrl(path) {
   return blobToObjectUrl(res);
 }
 
+/**
+ * Same-origin URL for Manage PDF page previews (browser loads with session cookies).
+ * Prefer this over fetchPdfBlobUrl — avoids re-downloading every page into memory.
+ */
+export function workspacePagePreviewUrl(workspaceId, pageIndex, {
+  version = 0,
+  dpi = 72,
+  fmt = "jpeg",
+  quality = 78,
+} = {}) {
+  const ext = fmt === "png" ? "png" : "jpg";
+  const params = new URLSearchParams({
+    v: String(version),
+    dpi: String(dpi),
+    fmt: fmt === "png" ? "png" : "jpeg",
+    quality: String(quality),
+  });
+  return `${API_BASE}/pdf/workspace/${encodeURIComponent(workspaceId)}/page/${pageIndex}.${ext}?${params}`;
+}
+
 export async function fetchPublicPdfBlobUrl(path) {
   const res = await publicApi.get(path, { responseType: "blob" });
   return blobToObjectUrl(res);

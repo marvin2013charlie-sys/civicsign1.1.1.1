@@ -103,7 +103,12 @@ export function AuthProvider({ children }) {
   }, [resolveSession]);
 
   const login = async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
+    // Short timeout so a hung API never leaves the button spinning for 30s.
+    const { data } = await api.post(
+      "/auth/login",
+      { email, password },
+      { timeout: 12_000 },
+    );
     clearTokens();
     setImpersonation(null);
     checkStartedRef.current = true;
@@ -113,12 +118,16 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password, inviteCode) => {
-    const { data } = await api.post("/auth/register", {
-      name,
-      email,
-      password,
-      invite_code: inviteCode || undefined,
-    });
+    const { data } = await api.post(
+      "/auth/register",
+      {
+        name,
+        email,
+        password,
+        invite_code: inviteCode || undefined,
+      },
+      { timeout: 12_000 },
+    );
     return data;
   };
 

@@ -46,12 +46,12 @@ const CookiePolicy = lazyPage(() => import("@/pages/CookiePolicy"), "CookiePolic
 const RefundPolicy = lazyPage(() => import("@/pages/RefundPolicy"), "RefundPolicy");
 const NotFound = lazyPage(() => import("@/pages/NotFound"), "NotFound");
 
-// Auth
-const Login = lazyPage(() => import("@/pages/Login"), "Login");
-const Register = lazyPage(() => import("@/pages/Register"), "Register");
-const ForgotPassword = lazyPage(() => import("@/pages/ForgotPassword"), "ForgotPassword");
-const ResetPassword = lazyPage(() => import("@/pages/ResetPassword"), "ResetPassword");
-const VerifyEmail = lazyPage(() => import("@/pages/VerifyEmail"), "VerifyEmail");
+// Auth — eager imports so /login and /register feel instant (no chunk wait)
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 const AcceptInvite = lazyPage(() => import("@/pages/AcceptInvite"), "AcceptInvite");
 
 // Signer & public forms (react-pdf)

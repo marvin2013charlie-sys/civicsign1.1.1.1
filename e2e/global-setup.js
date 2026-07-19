@@ -9,16 +9,64 @@ const USERS = {
   orgOwner: { email: "org@civicbot.co.uk", password: "CivicSign2026!Org" },
 };
 
-function writeStorageState(key, token) {
+/**
+ * Parse Set-Cookie header values into Playwright storageState cookies.
+ * Auth is HttpOnly cookies only (login JSON no longer includes access_token).
+ */
+function parseSetCookieHeaders(rawHeaders, domain) {
+  const cookies = [];
+  for (const raw of rawHeaders) {
+    if (!raw || typeof raw !== "string") continue;
+    const parts = raw.split(";").map((p) => p.trim());
+    const [nv, ...attrs] = parts;
+    const eq = nv.indexOf("=");
+    if (eq < 1) continue;
+    const name = nv.slice(0, eq).trim();
+    const value = nv.slice(eq + 1).trim();
+    if (!name || !value) continue;
+
+    /** @type {import('@playwright/test').Cookie} */
+    const cookie = {
+      name,
+      value,
+      domain,
+      path: "/",
+      httpOnly: false,
+      secure: false,
+      sameSite: "Lax",
+      expires: -1,
+    };
+
+    for (const attr of attrs) {
+      const lower = attr.toLowerCase();
+      if (lower === "httponly") cookie.httpOnly = true;
+      else if (lower === "secure") cookie.secure = true;
+      else if (lower.startsWith("path=")) cookie.path = attr.slice(5) || "/";
+      else if (lower.startsWith("samesite=")) {
+        const v = attr.slice(9).toLowerCase();
+        cookie.sameSite = v === "strict" ? "Strict" : v === "none" ? "None" : "Lax";
+      } else if (lower.startsWith("max-age=")) {
+        const secs = parseInt(attr.slice(8), 10);
+        if (Number.isFinite(secs) && secs > 0) {
+          cookie.expires = Math.floor(Date.now() / 1000) + secs;
+        }
+      }
+    }
+    cookies.push(cookie);
+  }
+  return cookies;
+}
+
+function writeStorageState(key, cookies) {
   const outPath = authFilePath(key);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const state = {
-    cookies: [],
+    cookies,
     origins: [
       {
         origin: frontendUrl,
         localStorage: [],
-        sessionStorage: [{ name: "cs_access", value: token }],
+        sessionStorage: [],
       },
     ],
   };
@@ -26,7 +74,7 @@ function writeStorageState(key, token) {
   console.log(`[e2e] saved auth state (${authEnvSlug()}): ${key} → ${outPath}`);
 }
 
-async function loginToken(email, password) {
+async function loginCookies(email, password) {
   const resp = await fetch(`${backendUrl}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,11 +86,37 @@ async function loginToken(email, password) {
   if (!resp.ok) {
     throw new Error(`E2E auth setup failed for ${email}: ${resp.status} ${await resp.text()}`);
   }
-  const data = await resp.json();
-  if (!data.access_token) {
-    throw new Error(`E2E auth setup missing access_token for ${email}`);
+
+  const getSetCookie =
+    typeof resp.headers.getSetCookie === "function"
+      ? resp.headers.getSetCookie()
+      : [];
+  // Fallback for runtimes that only expose a single set-cookie header
+  let rawList = getSetCookie;
+  if (!rawList.length) {
+    const single = resp.headers.get("set-cookie");
+    if (single) rawList = [single];
   }
-  return { token: data.access_token };
+
+  const host = new URL(frontendUrl).hostname;
+  // Also cover backend host when it differs (localhost vs 127.0.0.1)
+  const backendHost = new URL(backendUrl).hostname;
+  const domains = host === backendHost ? [host] : [host, backendHost];
+
+  /** @type {import('@playwright/test').Cookie[]} */
+  const cookies = [];
+  for (const domain of domains) {
+    cookies.push(...parseSetCookieHeaders(rawList, domain));
+  }
+
+  const hasAccess = cookies.some((c) => c.name === "access_token" && c.value);
+  if (!hasAccess) {
+    throw new Error(
+      `E2E auth setup missing access_token cookie for ${email}. `
+        + `Got cookies: ${cookies.map((c) => c.name).join(", ") || "(none)"}`,
+    );
+  }
+  return { cookies };
 }
 
 function authFileValid(key, maxAgeMs = 45 * 60 * 1000) {
@@ -50,19 +124,13 @@ function authFileValid(key, maxAgeMs = 45 * 60 * 1000) {
   try {
     const stat = fs.statSync(outPath);
     const parsed = JSON.parse(fs.readFileSync(outPath, "utf8"));
-    const originEntry = (parsed.origins || []).find((o) => o.origin === frontendUrl);
-    const hasToken = Boolean(
-      originEntry?.sessionStorage?.some((e) => e.name === "cs_access" && e.value),
+    const hasCookie = (parsed.cookies || []).some(
+      (c) => c.name === "access_token" && c.value,
     );
-    return hasToken && Date.now() - stat.mtimeMs < maxAgeMs;
+    return hasCookie && Date.now() - stat.mtimeMs < maxAgeMs;
   } catch {
     return false;
   }
-}
-
-function tokenFromEnv(key) {
-  const envKey = `E2E_ACCESS_TOKEN_${key.replace(/-/g, "_").toUpperCase()}`;
-  return process.env[envKey] || null;
 }
 
 module.exports = async function globalSetup() {
@@ -83,24 +151,19 @@ module.exports = async function globalSetup() {
       continue;
     }
 
-    const envToken = tokenFromEnv(key);
-    if (envToken) {
-      writeStorageState(key, envToken);
-      continue;
-    }
-
-    const result = await loginToken(user.email, user.password);
+    const result = await loginCookies(user.email, user.password);
     if (result.rateLimited) {
       if (authFileValid(key, Number.MAX_SAFE_INTEGER)) {
-        console.warn(`[e2e] login rate limited for ${user.email}; reusing stale auth for ${authEnvSlug()}`);
+        console.warn(
+          `[e2e] login rate limited for ${user.email}; reusing stale auth for ${authEnvSlug()}`,
+        );
         continue;
       }
       throw new Error(
         `E2E auth setup rate limited for ${user.email} on ${authEnvSlug()}. `
-          + `Wait ~1h or set E2E_ACCESS_TOKEN_${key.replace(/-/g, "_").toUpperCase()} `
-          + `(from browser sessionStorage cs_access after manual login on ${frontendUrl}).`,
+          + "Wait ~1h and re-run, or log in via UI once.",
       );
     }
-    writeStorageState(key, result.token);
+    writeStorageState(key, result.cookies);
   }
 };

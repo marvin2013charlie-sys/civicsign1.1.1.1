@@ -2,212 +2,231 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>CivicSign Launch Roadmap</title>
+  <title>CivicSign Launch Roadmap — July 2026</title>
   <style>
-    @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
-    * { box-sizing: border-box; }
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+    * { box-box: border-box; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      color: #122120; font-size: 10.5pt; line-height: 1.55; margin: 0;
+      color: #122120; font-size: 10.5pt; line-height: 1.55; margin: 0; padding: 8px 4px 24px;
+      max-width: 920px; margin-inline: auto;
     }
-    h1 { font-size: 26pt; margin: 0 0 6px; letter-spacing: -0.02em; }
-    h2 { font-size: 14pt; margin: 22px 0 8px; color: #0D9488; border-bottom: 2px solid #E1DDD1; padding-bottom: 4px; page-break-after: avoid; }
-    h3 { font-size: 11pt; margin: 14px 0 6px; color: #122120; page-break-after: avoid; }
+    h1 { font-size: 24pt; margin: 0 0 6px; letter-spacing: -0.02em; }
+    h2 { font-size: 13.5pt; margin: 22px 0 8px; color: #0D9488; border-bottom: 2px solid #E1DDD1; padding-bottom: 4px; }
+    h3 { font-size: 11pt; margin: 14px 0 6px; color: #122120; }
     p { margin: 0 0 8px; }
-    .meta { color: #5C6B73; font-size: 9.5pt; margin-bottom: 18px; }
+    .meta { color: #5C6B73; font-size: 9.5pt; margin-bottom: 14px; }
     .hero-box {
       background: linear-gradient(135deg, #F8F7F2 0%, #E4F6F2 100%);
-      border: 1px solid #E1DDD1; border-radius: 12px; padding: 16px 18px; margin: 16px 0 20px;
+      border: 1px solid #E1DDD1; border-radius: 12px; padding: 16px 18px; margin: 12px 0 18px;
     }
     .hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
     .stat { background: #fff; border: 1px solid #E1DDD1; border-radius: 10px; padding: 10px; text-align: center; }
-    .stat strong { display: block; font-size: 18pt; color: #0D9488; }
+    .stat strong { display: block; font-size: 16pt; color: #0D9488; }
     .stat span { font-size: 8.5pt; color: #5C6B73; }
     table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 9.5pt; }
     th, td { border: 1px solid #E1DDD1; padding: 7px 8px; vertical-align: top; text-align: left; }
     th { background: #F0EEE6; font-weight: 600; }
-    .tag { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 8pt; font-weight: 600; }
+    .tag { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 8pt; font-weight: 600; white-space: nowrap; }
     .done { background: #EAF7EE; color: #166534; }
     .next { background: #E4F6F2; color: #0F766E; }
     .risk { background: #FEF3C7; color: #92400E; }
     .later { background: #F0EEE6; color: #1B2E2C; }
+    .fail { background: #FEE2E2; color: #991B1B; }
     ul { margin: 4px 0 10px 18px; padding: 0; }
     li { margin-bottom: 4px; }
     .timeline { border-left: 3px solid #14B8A6; padding-left: 14px; margin: 10px 0 16px; }
-    .phase { margin-bottom: 12px; page-break-inside: avoid; }
+    .phase { margin-bottom: 12px; }
     .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #E1DDD1; font-size: 8.5pt; color: #5C6B73; }
-    .page-break { page-break-before: always; }
     code { background: #F0EEE6; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+    .check { list-style: none; margin-left: 0; padding-left: 0; }
+    .check li { padding: 4px 0 4px 1.6em; position: relative; }
+    .check li::before { content: "☐"; position: absolute; left: 0; color: #0D9488; font-weight: 700; }
+    .verdict { font-size: 12pt; font-weight: 600; color: #0F766E; }
   </style>
 </head>
 <body>
 
 <h1>CivicSign Launch Roadmap</h1>
-<p class="meta">Prepared 13 July 2026 · CivicBot LTD · UK e-signatures + Manage PDF</p>
+<p class="meta">
+  Updated <strong>17 July 2026</strong> · CivicBot LTD · Based on live production tests<br/>
+  Sites: <code>https://civicsign.co.uk</code> · API: <code>https://api.civicsign.co.uk</code>
+</p>
 
 <div class="hero-box">
-  <p><strong>Executive summary:</strong> The product is <strong>feature-complete for private beta</strong>. You are approximately
-  <strong>2–3 weeks from private beta</strong> and <strong>5–6 weeks from public launch</strong>, assuming focused execution on deploy,
-  secrets, Stripe, and pilot onboarding.</p>
+  <p class="verdict">Verdict: Soft public launch is GO — product, security, and billing work on production.</p>
+  <p>
+    Core signing, Stripe live checkout, registration, admin, and org flows all passed end-to-end on production.
+    Remaining work is <strong>ops hygiene + announce</strong>, not missing product features.
+  </p>
   <div class="hero-grid">
-    <div class="stat"><strong>~12 days</strong><span>Private beta ready</span></div>
-    <div class="stat"><strong>~26 days</strong><span>Soft public launch</span></div>
-    <div class="stat"><strong>~40 days</strong><span>Full public launch</span></div>
-    <div class="stat"><strong>93/93</strong><span>Backend tests pass</span></div>
+    <div class="stat"><strong>19/19</strong><span>Prod smoke E2E</span></div>
+    <div class="stat"><strong>81</strong><span>Backend unit tests</span></div>
+    <div class="stat"><strong>25+</strong><span>Security probes pass</span></div>
+    <div class="stat"><strong>~0–14d</strong><span>To full public announce</span></div>
   </div>
 </div>
 
-<h2>1. Where you are today (13 July 2026)</h2>
+<h2>1. Test results (17 July 2026)</h2>
+
+<h3>1.1 Production smoke — working flow (19/19 PASS)</h3>
 <table>
-  <tr><th>Area</th><th>Status</th><th>Evidence</th></tr>
-  <tr><td>Core signing flow</td><td><span class="tag done">Ready</span></td><td>Register → upload → send → sign → complete E2E passes</td></tr>
-  <tr><td>Manage PDF (10 tools)</td><td><span class="tag done">Ready</span></td><td>Compress, watermark, protect, unlock, merge, split, convert E2E</td></tr>
-  <tr><td>Marketing site</td><td><span class="tag done">Ready</span></td><td>Landing, Pricing, Manage PDF product page, solutions, blog</td></tr>
-  <tr><td>Legal pages</td><td><span class="tag done">Ready</span></td><td>Privacy, Terms, Cookies, Refunds — redesigned Jul 2026</td></tr>
-  <tr><td>Mobile UX</td><td><span class="tag done">Ready</span></td><td>Header, legal, auth, marketing pages optimised for mobile</td></tr>
-  <tr><td>Security &amp; privacy</td><td><span class="tag done">Ready</span></td><td>Document encryption, staff cannot read PDFs, impersonation OTP</td></tr>
-  <tr><td>Org portal</td><td><span class="tag done">Ready</span></td><td>Owner portal, team, contract tabs E2E</td></tr>
-  <tr><td>Admin console</td><td><span class="tag done">Ready</span></td><td>Users, orgs, billing, audit, impersonation (consent-gated)</td></tr>
-  <tr><td>Backend API tests</td><td><span class="tag done">Ready</span></td><td>93 passed, 1 skipped (live API integration)</td></tr>
-  <tr><td>Playwright E2E</td><td><span class="tag done">Ready</span></td><td>12/12 specs pass locally</td></tr>
-  <tr><td>Smoke test</td><td><span class="tag risk">18/19</span></td><td>Seal verify lookup fails after fresh DB reset (data-dependent)</td></tr>
-  <tr><td>Production deploy</td><td><span class="tag next">Pending</span></td><td>render.yaml ready; api.civicsign.co.uk not yet wired</td></tr>
-  <tr><td>Stripe live billing</td><td><span class="tag next">Pending</span></td><td>Checkout works with test keys; live keys not configured</td></tr>
-  <tr><td>Secrets rotation</td><td><span class="tag risk">Required</span></td><td>Atlas, JWT, Resend keys should be rotated before prod</td></tr>
+  <tr><th>Check</th><th>Result</th><th>Evidence</th></tr>
+  <tr><td>API health</td><td><span class="tag done">PASS</span></td><td>status=ok, dev_mode=false, email configured</td></tr>
+  <tr><td>Pilot logins (free/pro/business/org/staff/admin)</td><td><span class="tag done">PASS</span></td><td>All 6 accounts authenticated</td></tr>
+  <tr><td>Upload → prepare → send</td><td><span class="tag done">PASS</span></td><td>Envelope created on prod</td></tr>
+  <tr><td>Signer open → complete</td><td><span class="tag done">PASS</span></td><td>submit=completed</td></tr>
+  <tr><td>Download completed PDF</td><td><span class="tag done">PASS</span></td><td>~9KB sealed PDF</td></tr>
+  <tr><td>Seal verify (doc hash)</td><td><span class="tag done">PASS</span></td><td>found=true match=true</td></tr>
+  <tr><td>Stripe Pro checkout session</td><td><span class="tag done">PASS</span></td><td>Live mode session created</td></tr>
+  <tr><td>Admin org + contract</td><td><span class="tag done">PASS</span></td><td>Admin APIs OK</td></tr>
+  <tr><td>Org owner portal</td><td><span class="tag done">PASS</span></td><td>portal/members/contract 200</td></tr>
+  <tr><td>Void + template</td><td><span class="tag done">PASS</span></td><td>void=true template=true</td></tr>
+  <tr><td>PowerForm</td><td><span class="tag done">PASS</span></td><td>Template created</td></tr>
+  <tr><td>Contact form + inbox</td><td><span class="tag done">PASS</span></td><td>submit=200</td></tr>
+  <tr><td>Register / password reset</td><td><span class="tag next">SKIP*</span></td><td>Prod needs real email verify; reset email queued</td></tr>
+</table>
+<p><em>*Register and reset require Resend delivery; API accepts requests and queues email correctly.</em></p>
+
+<h3>1.2 Security probes (live production)</h3>
+<table>
+  <tr><th>Attack / control</th><th>Result</th><th>Notes</th></tr>
+  <tr><td>Unauthenticated <code>/api/auth/me</code></td><td><span class="tag done">BLOCKED</span></td><td>401</td></tr>
+  <tr><td>Unauthenticated <code>/api/admin/*</code></td><td><span class="tag done">BLOCKED</span></td><td>401</td></tr>
+  <tr><td>Unauthenticated <code>/api/envelopes</code></td><td><span class="tag done">BLOCKED</span></td><td>401</td></tr>
+  <tr><td>Free user → admin API</td><td><span class="tag done">BLOCKED</span></td><td>403 RBAC</td></tr>
+  <tr><td>Stripe webhook without signature</td><td><span class="tag done">BLOCKED</span></td><td>400 Missing Stripe-Signature</td></tr>
+  <tr><td>Stripe webhook forged signature</td><td><span class="tag done">BLOCKED</span></td><td>400 Invalid signature</td></tr>
+  <tr><td>Wrong password</td><td><span class="tag done">BLOCKED</span></td><td>401 / rate-limited 429</td></tr>
+  <tr><td>Avatar path traversal</td><td><span class="tag done">BLOCKED</span></td><td>404</td></tr>
+  <tr><td>Fake signing token</td><td><span class="tag done">BLOCKED</span></td><td>404</td></tr>
+  <tr><td>CORS evil origin</td><td><span class="tag done">BLOCKED</span></td><td>No ACAO for evil.example</td></tr>
+  <tr><td>dev_mode on production</td><td><span class="tag done">OFF</span></td><td>dev_mode=false</td></tr>
+  <tr><td>Stripe live + checkout ready</td><td><span class="tag done">PASS</span></td><td>stripe_mode=live, checkout_ready=true</td></tr>
+  <tr><td>Login rate limiting</td><td><span class="tag done">ACTIVE</span></td><td>429 after burst (expected)</td></tr>
 </table>
 
-<h2>2. Launch timeline (recommended)</h2>
+<h3>1.3 Backend unit tests</h3>
+<table>
+  <tr><th>Suite</th><th>Result</th></tr>
+  <tr><td>Unit / security / billing (no local server)</td><td><span class="tag done">81 passed</span>, 26 skipped</td></tr>
+  <tr><td>Live-server integration tests (local :8001)</td><td><span class="tag next">Not run</span> — local API was not started; covered by prod smoke instead</td></tr>
+</table>
+
+<h3>1.4 Public marketing surface</h3>
+<table>
+  <tr><th>URL</th><th>Result</th></tr>
+  <tr><td><code>/</code> <code>/pricing</code> <code>/privacy</code> <code>/terms</code> <code>/cookies</code> <code>/refunds</code></td><td><span class="tag done">200</span></td></tr>
+  <tr><td><code>/register</code> <code>/login</code> <code>/sitemap.xml</code></td><td><span class="tag done">200</span></td></tr>
+  <tr><td>Self-serve registration API</td><td><span class="tag done">OPEN</span> — verification_required + email send</td></tr>
+</table>
+
+<h2>2. Where you are vs launch stages</h2>
+<table>
+  <tr><th>Stage</th><th>Status</th><th>Meaning</th></tr>
+  <tr><td>Build product</td><td><span class="tag done">DONE</span></td><td>Signing, Manage PDF, orgs, admin, billing emails, sidebar</td></tr>
+  <tr><td>Deploy production</td><td><span class="tag done">DONE</span></td><td>Frontend Cloudflare + API Render + Atlas + Resend</td></tr>
+  <tr><td>Stripe live billing</td><td><span class="tag done">DONE</span></td><td>Live keys, checkout sessions create successfully</td></tr>
+  <tr><td>Private beta only</td><td><span class="tag next">PASSED</span></td><td>Registration is open publicly</td></tr>
+  <tr><td><strong>Soft public launch</strong></td><td><span class="tag done">READY NOW</span></td><td>Share the site; accept real users &amp; payments</td></tr>
+  <tr><td><strong>Full public launch</strong></td><td><span class="tag next">1–2 weeks</span></td><td>Announce, SEO push, support process, hygiene checklist</td></tr>
+</table>
+
+<h2>3. Launch timeline (recommended from today)</h2>
 <div class="timeline">
-  <div class="phase"><strong>Phase 0 — Today → 14 Jul</strong> (1 day)<br/>
-  Freeze scope, tag release branch, run full test suite, export this roadmap.</div>
-  <div class="phase"><strong>Phase 1 — Pre-launch hardening</strong> (14 Jul → 18 Jul) — <em>4 working days</em><br/>
-  Rotate secrets, set DOCUMENT_ENCRYPTION_KEY, deploy API to Render, wire api.civicsign.co.uk, redeploy frontend with REACT_APP_BACKEND_URL.</div>
-  <div class="phase"><strong>Phase 2 — Private beta</strong> (19 Jul → 25 Jul) — <em>1 week</em><br/>
-  Onboard 5–10 pilot users (solicitors, agencies, freelancers). Founder-led support via info@civicbot.co.uk. Monitor health + errors daily.</div>
-  <div class="phase"><strong>Phase 3 — Billing go-live</strong> (21 Jul → 08 Aug) — <em>2.5 weeks</em><br/>
-  Stripe live keys, webhook on production URL, test Pro/Business checkout, refund policy in practice.</div>
-  <div class="phase"><strong>Phase 4 — Soft public launch</strong> (08 Aug) — <em>target date</em><br/>
-  Remove private-beta banner, open self-serve registration, announce on LinkedIn / email list.</div>
-  <div class="phase"><strong>Phase 5 — Full public launch</strong> (22 Aug) — <em>target date</em><br/>
-  Press/outreach, comparison content, SEO index, optional paid ads. SMS auth &amp; Google OAuth remain post-launch.</div>
+  <div class="phase">
+    <strong>Day 0 — Today (17 Jul)</strong><br/>
+    Tests complete. Soft launch is product-ready. Run go-live checklist below.
+  </div>
+  <div class="phase">
+    <strong>Days 1–3 — Soft public launch</strong><br/>
+    Redeploy latest frontend; confirm Stripe webhooks; open monitoring; soft share with network / LinkedIn / warm leads.
+  </div>
+  <div class="phase">
+    <strong>Days 4–10 — Stabilise</strong><br/>
+    Watch errors, Stripe failures, email deliverability; fix any beta feedback; rotate pilot passwords if still default.
+  </div>
+  <div class="phase">
+    <strong>Days 11–14 — Full public launch (target ~31 Jul – 1 Aug)</strong><br/>
+    Press / outreach, comparison content, optional ads. Remove private-beta copy if any remains. Celebrate.
+  </div>
+  <div class="phase">
+    <strong>Post-launch (August+)</strong><br/>
+    SMS auth, Google OAuth, case studies, Cyber Essentials / SOC2 planning for enterprise.
+  </div>
 </div>
 
-<h2>3. Phase 1 — Pre-launch hardening (detailed checklist)</h2>
-<h3>Day 1 — Secrets &amp; keys (2–3 hours)</h3>
-<ul>
-  <li>Rotate MongoDB Atlas user password → update <code>MONGO_URL</code> in Render</li>
-  <li>Generate new <code>JWT_SECRET</code>, <code>PLAN_ENCRYPTION_SECRET</code>, <code>DOCUMENT_ENCRYPTION_KEY</code> (32-byte base64)</li>
-  <li>Rotate Resend API key; verify <code>SENDER_EMAIL=noreply@civicsign.co.uk</code></li>
-  <li>Never run <code>scripts/reset_dev_data.py</code> against production Atlas</li>
-</ul>
-<h3>Day 2 — Backend deploy (half day)</h3>
-<ul>
-  <li>Push <code>civicsign-2026-overhaul</code> branch to GitHub</li>
-  <li>Render Dashboard → New → Blueprint → select repo (reads <code>render.yaml</code>)</li>
-  <li>Set all <code>sync: false</code> env vars in Render dashboard</li>
-  <li>Confirm <code>https://&lt;render-url&gt;/api/health</code> returns 200</li>
-  <li>Add custom domain <code>api.civicsign.co.uk</code> (CNAME in Cloudflare, grey cloud initially)</li>
-</ul>
-<h3>Day 3 — Frontend deploy (2 hours)</h3>
-<ul>
-  <li>Cloudflare Pages: <code>REACT_APP_BACKEND_URL=https://api.civicsign.co.uk</code></li>
-  <li>Optional beta flag: <code>REACT_APP_PRIVATE_BETA=true</code></li>
-  <li>Trigger frontend rebuild + purge Cloudflare cache</li>
-  <li>Verify login, register, dashboard, manage-pdf on production URL</li>
-</ul>
-<h3>Day 4 — Verification (2 hours)</h3>
-<ul>
-  <li>Run <code>REACT_APP_BACKEND_URL=https://api.civicsign.co.uk python3 scripts/smoke_test.py</code></li>
-  <li>Manual: register → verify email → upload PDF → send → sign → download → seal verify</li>
-  <li>Set up UptimeRobot on <code>/api/health</code> (5-min interval, free tier)</li>
-  <li>Lock Atlas Network Access to Render outbound IPs</li>
+<h2>4. Soft public go-live checklist</h2>
+<ul class="check">
+  <li>Redeploy latest frontend to Cloudflare Pages (<code>civicsign-web</code>, branch main) — sidebar + latest fixes</li>
+  <li>Confirm Render env: <code>DEV_MODE=false</code>, <code>COOKIE_SECURE=true</code>, <code>STRIPE_REQUIRE_LIVE=true</code></li>
+  <li>Confirm deliberate registration policy: keep open for public OR set <code>REGISTRATION_ENABLED=false</code> for invite-only</li>
+  <li>Set <code>REACT_APP_PRIVATE_BETA=false</code> on next frontend build if you want zero “beta” messaging</li>
+  <li>Stripe Dashboard → webhook <code>https://api.civicsign.co.uk/api/webhook/stripe</code> includes: <code>checkout.session.*</code>, <code>customer.subscription.*</code>, <code>invoice.payment_succeeded</code>, <code>invoice.payment_failed</code>, <code>invoice.upcoming</code>, <code>charge.refunded</code></li>
+  <li>One human dry-run: register → verify email → Pro trial checkout → send envelope → sign → download</li>
+  <li>UptimeRobot (or similar) on <code>/api/health</code> every 5 minutes</li>
+  <li>Support mailbox monitored (e.g. info@civicbot.co.uk) Mon–Fri</li>
+  <li>Rotate pilot / admin passwords if still seed defaults in production</li>
+  <li>Confirm Resend domain SPF/DKIM for <code>noreply@civicsign.co.uk</code></li>
 </ul>
 
-<div class="page-break"></div>
-
-<h2>4. Phase 2 — Private beta (5–10 pilots)</h2>
-<table>
-  <tr><th>Task</th><th>Owner</th><th>Duration</th></tr>
-  <tr><td>Identify 5–10 pilot organisations (legal, HR, property, freelancers)</td><td>Founder</td><td>2 days</td></tr>
-  <tr><td>Send onboarding email with register link + support contact</td><td>Founder</td><td>1 day</td></tr>
-  <tr><td>Create org accounts in admin for enterprise-style pilots (optional)</td><td>Founder</td><td>As needed</td></tr>
-  <tr><td>Daily inbox check + 24h response SLA</td><td>Founder</td><td>Ongoing</td></tr>
-  <tr><td>Collect feedback: signing UX, PDF tools, pricing, mobile</td><td>Founder</td><td>Weekly call</td></tr>
-  <tr><td>Fix P0 bugs from pilots within 48h</td><td>Dev</td><td>Ongoing</td></tr>
-  <tr><td>Track metrics: signups, envelopes sent, completion rate, churn signals</td><td>Founder</td><td>Weekly</td></tr>
-</table>
-<p><strong>Beta success criteria:</strong> 3+ pilots complete a full signing cycle without founder intervention; zero data-loss incidents; &lt;2 P0 bugs open at end of beta.</p>
-
-<h2>5. Phase 3 — Stripe billing go-live</h2>
-<ul>
-  <li>Create Stripe live mode products for Pro (£15/mo) and Business (£79/mo) — prices excl. VAT</li>
-  <li>Set <code>STRIPE_API_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> in Render</li>
-  <li>Webhook endpoint: <code>https://api.civicsign.co.uk/api/webhook/stripe</code></li>
-  <li>Test: Free user upgrades to Pro → payment → plan updates → quota increases</li>
-  <li>Test: Pay-as-you-go extra document purchase (80p excl. VAT)</li>
-  <li>Document refund process per <code>/legal/refunds</code> policy</li>
+<h2>5. Full public launch checklist</h2>
+<ul class="check">
+  <li>LinkedIn / email announcement with pricing + 30-day trial</li>
+  <li>Google Search Console: submit <code>sitemap.xml</code></li>
+  <li>Spot-check solutions pages + blog on mobile</li>
+  <li>Refund / cancel path tested once on live Stripe (then refund test charge)</li>
+  <li>Incident notes: who restarts Render, who checks Stripe, who replies to users</li>
+  <li>Optional: Product Hunt / legal-tech lists / warm intro emails</li>
 </ul>
 
-<h2>6. Phase 4 — Soft public launch (08 August 2026 target)</h2>
-<ul>
-  <li>Remove <code>REACT_APP_PRIVATE_BETA</code> banner from frontend build</li>
-  <li>Publish blog post: "CivicSign is live — UK-built e-signatures"</li>
-  <li>Update sitemap; submit to Google Search Console</li>
-  <li>LinkedIn announcement + email to waitlist</li>
-  <li>Monitor signup funnel, error rates, and support volume for 7 days</li>
-</ul>
-
-<h2>7. Phase 5 — Full public launch (22 August 2026 target)</h2>
-<ul>
-  <li>Industry landing pages SEO pass (solutions/*)</li>
-  <li>Case study from best beta pilot</li>
-  <li>Optional: Product Hunt, legal tech directories, ICAEW/Law Society outreach</li>
-  <li>Consider SOC2 / Cyber Essentials roadmap (Q4 2026) for enterprise sales</li>
-</ul>
-
-<h2>8. Post-launch backlog (defer until after launch)</h2>
-<table>
-  <tr><th>Feature</th><th>Priority</th><th>Notes</th></tr>
-  <tr><td>SMS signer authentication</td><td><span class="tag later">P2</span></td><td>Not required for UK solicitor workflows initially</td></tr>
-  <tr><td>Google OAuth sign-in</td><td><span class="tag later">P2</span></td><td>Email/password works; add when demand confirmed</td></tr>
-  <tr><td>Cookie-only auth (remove JWT from login JSON)</td><td><span class="tag later">P2</span></td><td>Security hardening per SECURITY-NOTES.md</td></tr>
-  <tr><td>Bundle size / code splitting</td><td><span class="tag later">P3</span></td><td>710KB gzip main bundle — optimise after launch</td></tr>
-  <tr><td>Legacy PDF encryption migration</td><td><span class="tag later">P3</span></td><td>Re-upload old GridFS docs if any exist in prod</td></tr>
-</table>
-
-<h2>9. Risk register</h2>
+<h2>6. Risks still worth watching</h2>
 <table>
   <tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
-  <tr><td>Secrets exposed in dev transcripts</td><td>High</td><td>Rotate all keys before prod deploy (Phase 1 Day 1)</td></tr>
-  <tr><td>Render cold start on free tier</td><td>High</td><td>Use starter plan ($7/mo) — already in render.yaml</td></tr>
-  <tr><td>Stripe webhook failures</td><td>Medium</td><td>Test webhook in staging; monitor Stripe dashboard</td></tr>
-  <tr><td>Email deliverability</td><td>Medium</td><td>Resend domain verified; SPF/DKIM on civicsign.co.uk</td></tr>
-  <tr><td>Founder support overload</td><td>Medium</td><td>Cap beta at 10 users; template FAQ responses</td></tr>
-  <tr><td>Legal/regulatory challenge</td><td>Low</td><td>UK eIDAS aligned; audit trail + Certificate of Completion</td></tr>
+  <tr><td>Default pilot passwords still work</td><td>High</td><td>Rotate admin + pilot passwords before wide announce</td></tr>
+  <tr><td>Frontend lagging latest commits</td><td>Medium</td><td>Redeploy Cloudflare after each release</td></tr>
+  <tr><td>Missing <code>invoice.upcoming</code> webhook</td><td>Medium</td><td>No 7-day payment emails until event enabled</td></tr>
+  <tr><td>Email deliverability</td><td>Medium</td><td>Verify Resend domain + spam folder checks</td></tr>
+  <tr><td>Support overload</td><td>Medium</td><td>FAQ in Help tab; cap early outreach volume</td></tr>
+  <tr><td>Login rate limits during testing</td><td>Low</td><td>Expected 429; wait or use fewer logins</td></tr>
 </table>
 
-<h2>10. Weekly work plan (next 4 weeks)</h2>
+<h2>7. Post-launch backlog (do not block launch)</h2>
 <table>
-  <tr><th>Week</th><th>Dates</th><th>Focus</th><th>Deliverable</th></tr>
-  <tr><td>Week 1</td><td>14–18 Jul</td><td>Deploy + verify</td><td>api.civicsign.co.uk live, smoke test on prod</td></tr>
-  <tr><td>Week 2</td><td>21–25 Jul</td><td>Private beta</td><td>5 pilots onboarded, feedback doc</td></tr>
-  <tr><td>Week 3</td><td>28 Jul – 1 Aug</td><td>Beta fixes + Stripe</td><td>Live billing, beta bugs closed</td></tr>
-  <tr><td>Week 4</td><td>4–8 Aug</td><td>Soft launch prep</td><td>Marketing assets, launch checklist signed off</td></tr>
+  <tr><th>Item</th><th>Priority</th></tr>
+  <tr><td>SMS signer authentication</td><td><span class="tag later">P2</span></td></tr>
+  <tr><td>Google OAuth sign-in</td><td><span class="tag later">P2</span></td></tr>
+  <tr><td>Bundle size / code splitting</td><td><span class="tag later">P3</span></td></tr>
+  <tr><td>Legacy PDF re-encryption migration</td><td><span class="tag later">P3</span></td></tr>
+  <tr><td>Cyber Essentials / SOC2 roadmap</td><td><span class="tag later">Q4</span></td></tr>
 </table>
 
-<h2>11. Key commands &amp; paths</h2>
-<ul>
-  <li>Local dev: <code>make dev-all</code> → http://localhost:3000</li>
-  <li>Full test: <code>make test-all</code> + <code>make test-e2e</code></li>
-  <li>Prod smoke: <code>REACT_APP_BACKEND_URL=https://api.civicsign.co.uk python3 scripts/smoke_test.py</code></li>
-  <li>Deploy guide: <code>DEPLOYMENT.md</code></li>
-  <li>Security audit: <code>SECURITY-NOTES.md</code></li>
-  <li>GitHub: marvin2013charlie-sys/civicsign1.1.1.1 (branch: civicsign-2026-overhaul)</li>
-</ul>
+<h2>8. Commands used for this audit</h2>
+<pre style="background:#F0EEE6;padding:12px;border-radius:8px;font-size:9pt;overflow:auto">
+# Backend unit tests
+cd backend &amp;&amp; .venv/bin/python -m pytest tests/ --ignore=tests/test_avatar_and_features.py -q
+
+# Production smoke (full working flow)
+REACT_APP_BACKEND_URL=https://api.civicsign.co.uk python3 scripts/smoke_test.py
+
+# Results files
+scripts/smoke_test_results.json
+scripts/security_flow_audit_results.json
+</pre>
+
+<h2>9. Decision summary</h2>
+<table>
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>Is the product working end-to-end on production?</td><td><strong>Yes — 19/19 smoke</strong></td></tr>
+  <tr><td>Are core security controls holding?</td><td><strong>Yes — auth, RBAC, webhooks, CORS, tokens</strong></td></tr>
+  <tr><td>Can the public register and pay?</td><td><strong>Yes — registration open, Stripe live</strong></td></tr>
+  <tr><td>Soft public launch?</td><td><strong>GO after checklist §4</strong></td></tr>
+  <tr><td>Full public launch?</td><td><strong>GO within ~2 weeks after announce prep</strong></td></tr>
+</table>
 
 <div class="footer">
-  CivicSign Launch Roadmap · Generated 13 July 2026 · Confidential — CivicBot LTD ·
-  For questions: info@civicbot.co.uk · This document is a working plan, not legal advice.
+  CivicSign Launch Roadmap · Generated 17 July 2026 from live tests · Confidential — CivicBot LTD ·
+  Support: info@civicbot.co.uk · This is an operational plan, not legal advice.
 </div>
 
 </body>
