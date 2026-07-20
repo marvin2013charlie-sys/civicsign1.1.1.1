@@ -34,6 +34,7 @@ const Education = lazyPage(() => import("@/pages/solutions/Education"), "Educati
 const Sales = lazyPage(() => import("@/pages/solutions/Sales"), "Sales");
 const Freelancers = lazyPage(() => import("@/pages/solutions/Freelancers"), "Freelancers");
 const ManagePdfProduct = lazyPage(() => import("@/pages/ManagePdfProduct"), "ManagePdfProduct");
+const IdVerificationProduct = lazyPage(() => import("@/pages/IdVerificationProduct"), "IdVerificationProduct");
 const Pricing = lazyPage(() => import("@/pages/Pricing"), "Pricing");
 const Blog = lazyPage(() => import("@/pages/Blog"), "Blog");
 const BlogPost = lazyPage(() => import("@/pages/BlogPost"), "BlogPost");
@@ -165,6 +166,7 @@ function AppRoutes() {
           <Route path="/solutions/sales" element={<Sales />} />
           <Route path="/solutions/freelancers" element={<Freelancers />} />
           <Route path="/product/manage-pdf" element={<ManagePdfProduct />} />
+          <Route path="/product/id-verification" element={<IdVerificationProduct />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />

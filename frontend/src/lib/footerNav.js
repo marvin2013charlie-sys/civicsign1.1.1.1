@@ -7,7 +7,7 @@ export const FOOTER_COLS = [
     links: [
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
-      { label: "ID verification", comingSoon: true },
+      { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },
       { label: "Solutions", to: "/solutions" },
       { label: "How it works", to: { pathname: "/", hash: "#how" } },
       { label: "Security", to: { pathname: "/", hash: "#security" } },

@@ -352,9 +352,10 @@ export default function Landing() {
             </div>
           </MarketingInkSurface>
 
-          {/* ID verification — coming soon */}
+          {/* ID verification — product page */}
           <div
-            className="group relative overflow-hidden rounded-[20px] border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 md:col-span-2"
+            id="id-verification"
+            className="group relative scroll-mt-header overflow-hidden rounded-[20px] border border-dashed border-[var(--c-border)] bg-[var(--card)] p-8 md:col-span-2"
             data-testid="landing-id-verification-coming-soon"
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -371,8 +372,15 @@ export default function Landing() {
                 <p className="mt-4 text-[11px] font-semibold uppercase tracking-[1.5px] text-[var(--c-muted-fg)]">Product</p>
                 <h3 className="mt-1 text-[21px] font-semibold text-[var(--c-ink)]" style={H_FONT}>ID verification</h3>
                 <p className="mt-2 text-[14.5px] leading-relaxed text-[var(--c-muted-fg)]">
-                  Confirm signer identity with document checks and liveness before they sign — built for high-trust UK workflows. Join the waitlist via Contact when you need this for your team.
+                  Confirm signer identity with document checks and liveness before they sign — built for high-trust UK workflows.
                 </p>
+                <Link
+                  to="/product/id-verification"
+                  className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--c-primary)] hover:underline"
+                  data-testid="landing-id-verification-explore"
+                >
+                  Learn more <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
               <ul className="grid gap-2 text-sm text-[var(--c-muted-fg)] sm:min-w-[200px]">
                 {["Passport & driving licence checks", "Liveness / selfie match", "Optional step before signing"].map((item) => (

@@ -68,6 +68,161 @@ export function BlogBackLink() {
   );
 }
 
+/** Breadcrumb: Blog / Category — matches article design. */
+export function BlogBreadcrumb({ category }) {
+  return (
+    <nav
+      className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-[var(--c-muted-fg)]"
+      aria-label="Breadcrumb"
+      data-testid="blogpost-breadcrumb"
+    >
+      <Link to="/blog" className="transition-colors hover:text-[var(--c-primary)]">
+        Blog
+      </Link>
+      <span aria-hidden className="text-[var(--c-border)]">/</span>
+      <span style={{ color: "var(--c-primary)" }}>{category}</span>
+    </nav>
+  );
+}
+
+export function authorInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "CS";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+}
+
+/**
+ * Dark gradient cover with floating certificate card — from Blog Article design.
+ */
+export function BlogArticleCover({ post }) {
+  const tags = [
+    post.category,
+    ...(Array.isArray(post.tags) ? post.tags.slice(0, 1) : []),
+  ].filter(Boolean).slice(0, 2);
+
+  const certRows = [
+    { k: "Status", v: "Completed" },
+    { k: "Parties", v: "3 of 3" },
+    { k: "Seal", v: "SHA-256" },
+  ];
+
+  return (
+    <div
+      className="overflow-hidden rounded-[24px]"
+      style={{
+        background: "linear-gradient(160deg, var(--c-ink-solid) 0%, #0d3d31 100%)",
+        boxShadow: "0 24px 60px -20px rgba(18,33,32,.35)",
+      }}
+      data-testid="blogpost-cover"
+    >
+      <div className="flex flex-col items-stretch gap-8 p-8 sm:p-10 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:p-12">
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[12px] font-bold uppercase tracking-[0.12em]"
+            style={{ color: "#5FCBA6" }}
+          >
+            {post.category || "CivicSign Insights"}
+          </p>
+          {/* Single page title (h1) — lives in the cover so it is not repeated above */}
+          <h1
+            className="mt-3.5 max-w-xl font-heading text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-white sm:text-[34px] lg:text-[38px]"
+            style={H_FONT}
+            data-testid="blogpost-title"
+          >
+            {post.coverHeadline || post.title}
+          </h1>
+          {tags.length > 0 && (
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-[9px] px-3 py-2 text-[13px] font-semibold"
+                  style={{
+                    background: "rgba(255,255,255,.08)",
+                    border: "1px solid rgba(255,255,255,.14)",
+                    color: "#D6E5DE",
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Floating certificate preview */}
+        <div
+          className="w-full max-w-[230px] shrink-0 self-center rounded-[14px] p-[18px] lg:self-auto"
+          style={{
+            background: "#FBFAF6",
+            transform: "rotate(2deg)",
+            boxShadow: "0 24px 50px -18px rgba(0,0,0,.4)",
+          }}
+          aria-hidden
+        >
+          <div className="text-[12px] font-bold text-[var(--c-ink-solid)]">Agreement.pdf</div>
+          <div className="my-3 h-px" style={{ background: "#E7E4DA" }} />
+          {certRows.map((r) => (
+            <div key={r.k} className="flex justify-between py-1.5 text-[11px]">
+              <span style={{ color: "#8A968F" }}>{r.k}</span>
+              <span className="font-semibold text-[var(--c-ink-solid)]">{r.v}</span>
+            </div>
+          ))}
+          <div
+            className="mt-2.5 rounded-lg py-1.5 text-center text-[11px] font-bold"
+            style={{ background: "#DCEFE7", color: "#0b7d61" }}
+          >
+            3 of 3 signed ✓
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** In-article CTA band matching the design mock. */
+export function BlogArticleCta({
+  headline = "Put this into practice",
+  body = "Send your first UK-ready document in minutes. Free plan available, UK GDPR by default.",
+  primaryLabel = "Start free →",
+  primaryTo = "/register",
+  secondaryLabel = "View pricing",
+  secondaryTo = "/pricing",
+}) {
+  return (
+    <div
+      className="mt-12 overflow-hidden rounded-[20px] px-8 py-9 sm:px-10"
+      style={{ background: "linear-gradient(160deg, var(--c-ink-solid) 0%, #0d3d31 100%)" }}
+      data-testid="blogpost-inline-cta"
+    >
+      <h3 className="font-heading text-[24px] font-semibold leading-snug text-white sm:text-[26px]" style={H_FONT}>
+        {headline}
+      </h3>
+      <p className="mt-3 max-w-md text-[15.5px] leading-relaxed" style={{ color: "#A9BDB4" }}>
+        {body}
+      </p>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link
+          to={primaryTo}
+          className="inline-flex items-center rounded-xl px-6 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-95"
+          style={{ background: "#16b088" }}
+          data-testid="blogpost-cta-register"
+        >
+          {primaryLabel}
+        </Link>
+        <Link
+          to={secondaryTo}
+          className="inline-flex items-center rounded-xl border px-6 py-3.5 text-[15px] font-bold text-white transition-colors hover:bg-white/10"
+          style={{ background: "rgba(255,255,255,.09)", borderColor: "rgba(255,255,255,.15)" }}
+        >
+          {secondaryLabel}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export function BlogCategoryPill({ category, size = "sm" }) {
   const { bg, fg } = blogCategoryStyle(category);
   const cls = size === "lg"
@@ -158,7 +313,7 @@ export function BlogArticleBlock({ block }) {
     return (
       <h2
         id={id}
-        className="scroll-mt-28 mt-12 font-heading text-2xl font-bold leading-tight tracking-[-0.03em] text-[var(--c-ink)] first:mt-0 sm:text-3xl"
+        className="scroll-mt-28 mt-11 font-heading text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-[var(--c-ink)] first:mt-0 sm:text-[28px]"
         style={H_FONT}
       >
         {block.content}
@@ -170,7 +325,7 @@ export function BlogArticleBlock({ block }) {
     return (
       <h3
         id={id}
-        className="scroll-mt-28 mt-8 font-heading text-xl font-semibold tracking-[-0.02em] text-[var(--c-ink)]"
+        className="scroll-mt-28 mt-8 font-heading text-[20px] font-semibold tracking-[-0.02em] text-[var(--c-ink)] sm:text-[22px]"
         style={H_FONT}
       >
         {block.content}
@@ -178,7 +333,11 @@ export function BlogArticleBlock({ block }) {
     );
   }
   if (block.type === "p") {
-    return <p className="mt-4 text-[17px] leading-[1.75] text-[var(--c-muted-fg)]">{block.content}</p>;
+    return (
+      <p className="mt-5 text-[17px] leading-[1.7]" style={{ color: "#4C5A54" }}>
+        {block.content}
+      </p>
+    );
   }
   if (block.type === "ul") {
     return (
@@ -187,15 +346,20 @@ export function BlogArticleBlock({ block }) {
           const label = typeof item === "string" ? item : item?.text;
           const href = typeof item === "object" && item?.href ? item.href : null;
           return (
-            <li key={i} className="flex gap-3 text-[16px] leading-relaxed text-[var(--c-muted-fg)]">
-              <span className="mt-2.5 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--c-primary)" }} aria-hidden />
+            <li key={i} className="flex gap-3 text-[16.5px] leading-relaxed" style={{ color: "#4C5A54" }}>
+              <span
+                className="mt-2.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: "var(--c-primary)" }}
+                aria-hidden
+              />
               <span>
                 {href && isSafeExternalHref(href) ? (
                   <a
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-[var(--c-primary)] underline decoration-[var(--c-primary)]/30 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                    className="font-medium underline decoration-[var(--c-primary)]/30 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                    style={{ color: "#0F9D7A" }}
                   >
                     {label}
                   </a>
@@ -212,11 +376,18 @@ export function BlogArticleBlock({ block }) {
   if (block.type === "callout") {
     return (
       <div
-        className={`mt-6 border-l-4 p-5 sm:p-6 ${BLOG_SURFACE_CARD}`}
-        style={{ borderLeftColor: "var(--c-primary)" }}
+        className="mt-7 rounded-2xl border p-5 sm:p-6"
+        style={{
+          background: "#FBFAF6",
+          borderColor: "#E1DED3",
+          borderLeft: "3px solid var(--c-primary)",
+        }}
       >
-        <p className="flex items-start gap-3 text-[15px] font-medium leading-relaxed text-[var(--c-ink)]">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--badge-teal-bg)" }}>
+        <p className="flex items-start gap-3 text-[15.5px] font-medium leading-relaxed text-[var(--c-ink)]">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: "var(--badge-teal-bg)" }}
+          >
             <Lightbulb className="h-4 w-4" style={{ color: "var(--badge-teal-fg)" }} aria-hidden />
           </span>
           <span>{block.content}</span>
@@ -227,8 +398,8 @@ export function BlogArticleBlock({ block }) {
   if (block.type === "quote") {
     return (
       <blockquote
-        className="mt-6 rounded-2xl border-l-4 bg-[var(--c-paper-2)] px-6 py-5 italic leading-relaxed text-[var(--c-ink)]"
-        style={{ borderLeftColor: "var(--c-accent)" }}
+        className="mt-7 border-l-[3px] pl-5 font-heading text-[20px] font-medium italic leading-snug text-[var(--c-ink)] sm:text-[22px]"
+        style={{ borderLeftColor: "var(--c-accent)", ...H_FONT }}
       >
         &ldquo;{block.content}&rdquo;
       </blockquote>
@@ -455,10 +626,12 @@ export function BlogTableOfContents({ headings }) {
     if (!headings.length) return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
         if (visible[0]?.target?.id) setActiveId(visible[0].target.id);
       },
-      { rootMargin: "-80px 0px -70% 0px", threshold: [0, 0.25, 0.5, 1] },
+      { rootMargin: "-100px 0px -65% 0px", threshold: [0, 0.25, 0.5, 1] },
     );
     headings.forEach((h) => {
       const el = document.getElementById(h.id);
@@ -470,24 +643,32 @@ export function BlogTableOfContents({ headings }) {
   if (headings.length < 2) return null;
 
   return (
-    <nav className={`p-5 sm:p-6 ${BLOG_SURFACE_CARD}`} aria-label="Table of contents" data-testid="blogpost-toc">
-      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1.5px] text-[var(--c-muted-fg)]">
-        <List className="h-3.5 w-3.5" aria-hidden />
+    <nav aria-label="Table of contents" data-testid="blogpost-toc">
+      <div
+        className="mb-3.5 text-[12px] font-bold uppercase tracking-[0.1em]"
+        style={{ color: "#8A968F" }}
+      >
         On this page
       </div>
-      <ol className="mt-4 space-y-2">
-        {headings.map((h) => (
-          <li key={h.id} className={h.level === 3 ? "pl-4" : ""}>
-            <a
-              href={`#${h.id}`}
-              className={`block rounded-lg px-2 py-1 text-sm leading-snug transition-colors hover:bg-[var(--c-paper-2)] hover:text-[var(--c-primary)] ${
-                activeId === h.id ? "font-semibold text-[var(--c-primary)]" : "text-[var(--c-muted-fg)]"
-              }`}
-            >
-              {h.text}
-            </a>
-          </li>
-        ))}
+      <ol className="flex flex-col gap-0.5 border-l-2" style={{ borderColor: "#E1DED3" }}>
+        {headings.map((h) => {
+          const active = activeId === h.id;
+          return (
+            <li key={h.id} className={h.level === 3 ? "pl-3" : ""}>
+              <a
+                href={`#${h.id}`}
+                className="block border-l-2 py-[7px] pl-4 text-[14px] font-semibold leading-snug transition-colors"
+                style={{
+                  marginLeft: -2,
+                  borderLeftColor: active ? "var(--c-primary)" : "transparent",
+                  color: active ? "var(--c-primary)" : "#5C6B64",
+                }}
+              >
+                {h.text}
+              </a>
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );
@@ -496,8 +677,19 @@ export function BlogTableOfContents({ headings }) {
 export function BlogSourcesPanel({ sources }) {
   if (!sources?.length) return null;
   return (
-    <div className={`mt-6 p-6 sm:p-7 ${BLOG_SURFACE_CARD}`} style={{ borderLeft: "3px solid var(--c-primary)" }} data-testid="blogpost-sources">
-      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1.5px] text-[var(--c-muted-fg)]">
+    <div
+      className="mt-8 rounded-2xl border p-6 sm:p-7"
+      style={{
+        background: "#FBFAF6",
+        borderColor: "#E1DED3",
+        borderLeft: "3px solid var(--c-primary)",
+      }}
+      data-testid="blogpost-sources"
+    >
+      <div
+        className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[1.5px]"
+        style={{ color: "#8A968F" }}
+      >
         <ExternalLink className="h-3.5 w-3.5" aria-hidden />
         Sources &amp; further reading
       </div>
@@ -509,13 +701,14 @@ export function BlogSourcesPanel({ sources }) {
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-start gap-2 text-sm font-medium text-[var(--c-primary)] underline decoration-[var(--c-primary)]/30 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                className="inline-flex items-start gap-2 text-sm font-medium underline decoration-[var(--c-primary)]/30 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                style={{ color: "#0F9D7A" }}
               >
                 <span>{s.label}</span>
                 <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
               </a>
             ) : (
-              <span className="text-sm text-[var(--c-muted-fg)]">{s.label}</span>
+              <span className="text-sm" style={{ color: "#7C8983" }}>{s.label}</span>
             )}
           </li>
         ))}
@@ -525,54 +718,64 @@ export function BlogSourcesPanel({ sources }) {
 }
 
 /** Single render path for any post body — static or staff-published via the API. */
-export function BlogArticleContent({ post, editorial, sources, solutionLink }) {
+export function BlogArticleContent({ post, editorial, sources, solutionLink, showInlineCta = true }) {
   const body = Array.isArray(post?.body) ? post.body : [];
 
   return (
-    <>
-      <div className={`px-6 py-8 sm:px-8 sm:py-10 ${BLOG_SURFACE_CARD}`}>
+    <div className="max-w-[680px]" data-testid="blogpost-article">
+      <div>
         {body.map((block, i) => (
           <BlogArticleBlock key={`${block.type}-${i}`} block={block} />
         ))}
-        <BlogEditorialFooter editorial={editorial} />
       </div>
+      <BlogEditorialFooter editorial={editorial} />
       <BlogSourcesPanel sources={sources} />
       {solutionLink ? (
         <div
-          className={`mt-6 p-6 sm:p-7 ${BLOG_SURFACE_CARD}`}
-          style={{ borderLeft: "3px solid var(--c-accent)" }}
+          className="mt-6 rounded-2xl border p-6 sm:p-7"
+          style={{
+            background: "#FBFAF6",
+            borderColor: "#E1DED3",
+            borderLeft: "3px solid var(--c-accent)",
+          }}
           data-testid="blogpost-solution-link"
         >
-          <p className="text-sm text-[var(--c-muted-fg)]">
+          <p className="text-sm" style={{ color: "#4C5A54" }}>
             Putting this into practice for your team?
           </p>
           <Link
             to={solutionLink.to}
-            className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[var(--c-primary)] hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+            style={{ color: "#0F9D7A" }}
           >
             {solutionLink.label} <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
       ) : null}
-    </>
+      {showInlineCta ? <BlogArticleCta /> : null}
+    </div>
   );
 }
 
 export function BlogEditorialFooter({ editorial }) {
   return (
     <div
-      className={`mt-8 border-l-4 p-5 sm:p-6 ${BLOG_SURFACE_CARD}`}
-      style={{ borderLeftColor: "var(--c-primary)" }}
+      className="mt-10 rounded-2xl border p-5 sm:p-6"
+      style={{
+        background: "#FBFAF6",
+        borderColor: "#E1DED3",
+        borderLeft: "3px solid var(--c-primary)",
+      }}
       data-testid="blogpost-editorial-footer"
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--c-muted-fg)]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs" style={{ color: "#7C8983" }}>
         <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--c-ink)]">
           <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--c-primary)" }} aria-hidden />
           Last reviewed: {editorial.lastReviewed}
         </span>
         <span>{editorial.note}</span>
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-[var(--c-muted-fg)]">
+      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "#7C8983" }}>
         This article is general information, not legal advice. Consult a qualified professional for your specific documents.
       </p>
     </div>

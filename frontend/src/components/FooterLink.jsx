@@ -69,10 +69,19 @@ export function FooterLink({ link, className = "", onNavigate }) {
     <Link
       to={link.to}
       onClick={onClick}
-      className={cn(baseClass, className)}
+      className={cn(baseClass, className, link.badge && "inline-flex items-center gap-2")}
       data-testid={testId}
     >
-      {link.label}
+      <span>{link.label}</span>
+      {link.badge ? (
+        <span
+          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+          style={{ background: "var(--badge-warning-bg)", color: "var(--badge-warning-fg)" }}
+          data-testid={`${testId}-badge`}
+        >
+          {link.badge}
+        </span>
+      ) : null}
     </Link>
   );
 }

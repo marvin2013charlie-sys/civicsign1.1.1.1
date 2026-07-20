@@ -116,6 +116,12 @@ const STATIC_ROUTES = {
       "CivicSign Manage PDF: edit, merge, split, compress, watermark, protect, unlock, convert and AI-scan PDFs in one UK workspace. Included on all paid plans — save to Documents and send for signature.",
     path: "/product/manage-pdf",
   },
+  "/product/id-verification": {
+    title: `ID Verification — Confirm Signer Identity Before They Sign${TITLE_SUFFIX}`,
+    description:
+      "CivicSign ID verification (coming soon): government document checks, liveness selfie and face match before e-signature. Designed for UK GDPR-aligned, high-trust signing workflows.",
+    path: "/product/id-verification",
+  },
   "/solutions": {
     title: `Industry Solutions — E-Signatures by Sector${TITLE_SUFFIX}`,
     description:

@@ -16,7 +16,7 @@ import { getMarketingHeaderCta } from "@/lib/authPortal";
 const PRODUCT_LINKS = [
   { label: "E-signatures", to: { pathname: "/", hash: "#features" } },
   { label: "Manage PDF", to: "/product/manage-pdf" },
-  { label: "ID verification", comingSoon: true },
+  { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },
 ];
 
 const LINKS = [
@@ -92,8 +92,9 @@ export const SiteHeader = () => {
   const solActive = location.pathname.startsWith("/solutions");
   const productActive =
     location.pathname === "/product/manage-pdf" ||
+    location.pathname === "/product/id-verification" ||
     (location.pathname === "/" &&
-      (location.hash === "#features" || location.hash === "#manage-pdf"));
+      (location.hash === "#features" || location.hash === "#manage-pdf" || location.hash === "#id-verification"));
 
   const navTriggerClass = (active) =>
     `flex items-center gap-1 text-sm font-medium transition-colors group-hover:text-[var(--c-ink)] ${
@@ -133,7 +134,7 @@ export const SiteHeader = () => {
                   data-testid="nav-product-panel"
                 >
                   <p className="border-b border-[var(--c-border)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-[var(--c-muted-fg)]">
-                    E-signatures + Manage PDF · all paid plans
+                    E-signatures · Manage PDF · ID verification
                   </p>
                   {PRODUCT_LINKS.map((p) => (
                     <FooterLink
