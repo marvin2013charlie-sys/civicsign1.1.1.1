@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Eye,
   FileCheck2,
+  FileSearch,
   Fingerprint,
   Globe2,
   IdCard,
@@ -239,6 +240,78 @@ const FLOW_STEPS = [
   { n: "04", title: "Pass → sign → seal", body: "Only successful checks unlock signing; results stay with the envelope evidence." },
 ];
 
+/** Timeline: ID verification vs document seal vs “Sealed & verify” in the app. */
+const WHEN_HOW = [
+  {
+    when: "Before anyone signs",
+    title: "ID verification (optional)",
+    body: "If you require it, the signer must pass document + liveness + face match before consent. This answers: “Is this the right person?”",
+    icon: Fingerprint,
+    badge: "Identity",
+  },
+  {
+    when: "When the last party signs",
+    title: "Document is sealed",
+    body: "CivicSign finalises the PDF, appends a Certificate of Completion, and records SHA-256 content and package hashes. This answers: “Was the file changed after completion?”",
+    icon: ShieldCheck,
+    badge: "Integrity",
+  },
+  {
+    when: "Any time after completion",
+    title: "Sealed & verify",
+    body: "In Documents → Sealed & verify you re-check a downloaded PDF against the stored seal — or bulk-verify your library. This answers: “Is this still the original sealed file?”",
+    icon: FileSearch,
+    badge: "Proof",
+  },
+];
+
+const SEALED_HOW = [
+  {
+    title: "Open Documents → Sealed & verify",
+    body: "Filter completed envelopes that have a document hash. Each row can show last seal check status (verified / mismatch / not checked).",
+  },
+  {
+    title: "Verify one file",
+    body: "Use Verify on a row or upload a completed PDF. CivicSign compares package hash, signed content hash and seal metadata where available.",
+  },
+  {
+    title: "Bulk verify",
+    body: "Re-check many sealed documents in one pass so you can spot post-completion edits or wrong file versions.",
+  },
+  {
+    title: "Accept or reject as proof",
+    body: "If package or metadata no longer matches, treat the file as altered after sealing — even if it still “looks” signed.",
+  },
+];
+
+const IDV_VS_SEAL = [
+  {
+    topic: "Question it answers",
+    idv: "Who is the signer?",
+    seal: "Is this still the original completed PDF?",
+  },
+  {
+    topic: "When it runs",
+    idv: "Before consent / signature (if required)",
+    seal: "At completion; re-checked any time later",
+  },
+  {
+    topic: "What you capture",
+    idv: "Document + liveness + face match result",
+    seal: "Doc hash, package hash, seal metadata, certificate",
+  },
+  {
+    topic: "Where you manage it",
+    idv: "Prepare / recipient auth (roadmap)",
+    seal: "Documents → Sealed & verify · envelope detail",
+  },
+  {
+    topic: "Fails if…",
+    idv: "Forged ID, spoof selfie, face mismatch",
+    seal: "File edited, re-exported, or wrong PDF uploaded",
+  },
+];
+
 const FAQS = [
   [
     "Is ID verification available today?",
@@ -279,6 +352,18 @@ const FAQS = [
   [
     "Who can turn it on?",
     "Planned as an optional control for teams on higher tiers (Business-style plans), so you only add friction where the document risk justifies it.",
+  ],
+  [
+    "What is the difference between ID verification and Sealed & verify?",
+    "ID verification happens before signing and checks the person (document + liveness + face match). Sealed & verify happens after completion and checks the file integrity (SHA-256 seals, package hash, metadata). Use both for high-trust packs: identity up front, seal proof later.",
+  ],
+  [
+    "When should I open Documents → Sealed & verify?",
+    "Any time after an envelope is completed — especially before you rely on a downloaded PDF as proof, after it has been shared outside CivicSign, or if you suspect the file was re-saved or edited.",
+  ],
+  [
+    "Does a verified seal prove who the signer was?",
+    "No. A matching seal proves the completed package was not altered after CivicSign sealed it. Proving identity is the role of ID verification (and other attribution evidence such as email, SMS/KBA, and the audit trail).",
   ],
 ];
 
@@ -481,6 +566,187 @@ export default function IdVerificationProduct() {
               <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{s.body}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* When & how: IDV + sealed + verify */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-sealed-verify">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <div className="max-w-2xl">
+            <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+              How &amp; when
+            </p>
+            <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              ID verification, sealed PDFs &amp; verify<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+              These are three related but different tools. Use this section to know <strong>when</strong> each runs
+              and <strong>how</strong> they work together after everyone has signed.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {WHEN_HOW.map((item) => (
+              <div key={item.title} className={`${MARKETING_CARD} flex h-full flex-col p-6 sm:p-7`}>
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[13px]"
+                    style={{ background: "var(--badge-teal-bg)" }}
+                  >
+                    <item.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+                  </span>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: "var(--badge-coral-bg)", color: "var(--badge-coral-fg)" }}
+                  >
+                    {item.badge}
+                  </span>
+                </div>
+                <p className="mt-4 text-[12px] font-semibold uppercase tracking-wide text-[var(--c-primary)]">
+                  {item.when}
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>{item.title}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{item.body}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Timeline strip */}
+          <div
+            className="mt-10 overflow-hidden rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] p-6 sm:p-8"
+            data-testid="idv-timeline"
+          >
+            <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--c-primary)]">Timeline</p>
+            <h3 className="mt-2 text-xl font-semibold text-[var(--c-ink)]" style={H_FONT}>
+              One envelope, end to end
+            </h3>
+            <ol className="mt-6 space-y-0">
+              {[
+                { t: "Prepare & send", d: "You choose recipients, fields, and (when available) require ID verification for high-risk parties." },
+                { t: "ID verification", d: "Signer passes document + liveness + face match — or signing stays locked if required checks fail." },
+                { t: "Consent & sign", d: "Same CivicSign signing experience after identity clears." },
+                { t: "Seal on completion", d: "Final PDF + Certificate of Completion + SHA-256 content/package seals written to the envelope." },
+                { t: "Sealed & verify later", d: "Re-upload or re-check the completed file any time under Documents → Sealed & verify." },
+              ].map((row, i, arr) => (
+                <li key={row.t} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ background: "var(--c-ink-solid)" }}
+                    >
+                      {i + 1}
+                    </span>
+                    {i < arr.length - 1 && (
+                      <span className="my-1 w-px flex-1 min-h-[20px] bg-[var(--c-border)]" aria-hidden />
+                    )}
+                  </div>
+                  <div className="pb-6">
+                    <p className="font-semibold text-[var(--c-ink)]">{row.t}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{row.d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Comparison table */}
+          <div className="mt-10 overflow-x-auto rounded-[20px] border border-[var(--c-border)] bg-[var(--card)]" data-testid="idv-vs-seal-table">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--c-border)] bg-[var(--c-paper)]">
+                  <th className="px-5 py-3.5 font-semibold text-[var(--c-muted-fg)]">Topic</th>
+                  <th className="px-5 py-3.5 font-semibold text-[var(--c-ink)]">ID verification</th>
+                  <th className="px-5 py-3.5 font-semibold text-[var(--c-ink)]">Seal &amp; verify</th>
+                </tr>
+              </thead>
+              <tbody>
+                {IDV_VS_SEAL.map((row) => (
+                  <tr key={row.topic} className="border-b border-[var(--c-border)] last:border-0">
+                    <td className="px-5 py-3.5 font-medium text-[var(--c-ink)]">{row.topic}</td>
+                    <td className="px-5 py-3.5 text-[var(--c-muted-fg)]">{row.idv}</td>
+                    <td className="px-5 py-3.5 text-[var(--c-muted-fg)]">{row.seal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* How to use Sealed & verify */}
+          <div className="mt-10 grid gap-8 lg:grid-cols-2 lg:items-start">
+            <div>
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--c-primary)]">
+                Sealed &amp; verify
+              </p>
+              <h3 className="mt-2 text-2xl font-bold text-[var(--c-ink)]" style={H_FONT}>
+                How to use it after signing<span style={{ color: "var(--c-accent)" }}>.</span>
+              </h3>
+              <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+                Once an envelope is completed, CivicSign already stores tamper-evident seals.
+                The <strong>Sealed &amp; verify</strong> tab is where you prove a file still matches that seal —
+                whether you downloaded it last week or received it by email.
+              </p>
+              <Link
+                to="/documents?tab=sealed"
+                className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--c-primary)] hover:underline"
+                data-testid="idv-goto-sealed"
+              >
+                Open Sealed &amp; verify <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <ol className="space-y-4">
+              {SEALED_HOW.map((step, i) => (
+                <li key={step.title} className={`${MARKETING_CARD} flex gap-4 p-5`}>
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                    style={{ background: "var(--c-ink-solid)" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="font-semibold text-[var(--c-ink)]">{step.title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--c-muted-fg)]">{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Certificate note */}
+          <div
+            className="mt-10 grid gap-4 rounded-[20px] border border-[var(--c-border)] bg-[var(--card)] p-6 sm:grid-cols-2 sm:p-8"
+            data-testid="idv-certificate-note"
+          >
+            <div>
+              <ShieldCheck className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+              <h3 className="mt-3 text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>
+                On the Certificate of Completion
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">
+                Every completed CivicSign PDF includes a certificate with audit events, timestamps and the document seal.
+                When ID verification is required and passes, the design goal is to record a short identity-check summary
+                in that same evidence package — without dumping raw biometrics into the PDF.
+              </p>
+            </div>
+            <div>
+              <FileSearch className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+              <h3 className="mt-3 text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>
+                When to re-verify a seal
+              </h3>
+              <ul className="mt-3 space-y-2 text-sm text-[var(--c-muted-fg)]">
+                {[
+                  "Before relying on a file as legal proof",
+                  "After sharing or archiving outside CivicSign",
+                  "If someone claims the PDF was edited after signing",
+                  "During audits or disputes over document integrity",
+                ].map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -703,6 +969,7 @@ export default function IdVerificationProduct() {
                 { to: { pathname: "/", hash: "#features" }, label: "E-signatures" },
                 { to: "/product/manage-pdf", label: "Manage PDF" },
                 { to: "/product/id-verification", label: "ID verification (this page)" },
+                { to: "/documents?tab=sealed", label: "Sealed & verify (in app)" },
                 { to: "/solutions", label: "Industry solutions" },
               ].map((item) => (
                 <Link
@@ -749,8 +1016,8 @@ export default function IdVerificationProduct() {
         id="id-verification-faq"
         eyebrow="Questions"
         caveat="Honest answers"
-        title="ID verification FAQs"
-        subtitle="While the product is still on the roadmap."
+        title="ID verification &amp; seal FAQs"
+        subtitle="Identity before signing · seal &amp; verify after completion."
         faqs={FAQS}
         testIdPrefix="idv-faq"
       />
