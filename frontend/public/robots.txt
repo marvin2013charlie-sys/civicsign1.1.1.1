@@ -1,6 +1,5 @@
 # CivicSign — https://www.civicsign.co.uk/robots.txt
-# Valid robots.txt (RFC 9309 / Google Search Central).
-# Do not use non-standard directives such as "Content-Signal" (GSC reports them as errors).
+# Valid robots.txt for Google Search Central (standard directives only).
 
 # Default: allow public marketing pages; block app, auth, and tokenised flows.
 User-agent: *
