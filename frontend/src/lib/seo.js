@@ -117,9 +117,9 @@ const STATIC_ROUTES = {
     path: "/product/manage-pdf",
   },
   "/product/id-verification": {
-    title: `ID Verification — Confirm Signer Identity Before They Sign${TITLE_SUFFIX}`,
+    title: `ID Verification — Document, Liveness & Face Match Before You Sign${TITLE_SUFFIX}`,
     description:
-      "CivicSign ID verification (coming soon): government document checks, liveness selfie and face match before e-signature. Designed for UK GDPR-aligned, high-trust signing workflows.",
+      "CivicSign ID verification (coming soon): passport and driving licence checks, liveness, face match and fail-closed fraud signals before e-signature. UK GDPR-aligned, optional on high-trust envelopes.",
     path: "/product/id-verification",
   },
   "/solutions": {

@@ -11,11 +11,18 @@ import {
   Globe2,
   IdCard,
   Lock,
+  Mail,
+  Scale,
   ScanFace,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Users,
+  XCircle,
+  Briefcase,
+  HeartPulse,
+  Home,
 } from "lucide-react";
 import { MarketingGradient } from "@/components/MarketingGradient";
 import { MarketingCtaBanner, MarketingDarkSection, MarketingInkSurface } from "@/components/MarketingDarkBand";
@@ -44,30 +51,30 @@ import {
 
 /**
  * Informational product page for CivicSign ID verification (coming soon).
- * Structure informed by common UK IDV product pages (document scan, liveness,
- * face match, KYC use cases) — original CivicSign copy, not third-party text.
+ * Structure informed by common UK IDV product patterns (document scan, liveness,
+ * face match, KYC-style use cases) — original CivicSign copy.
  */
 
 const STEPS = [
   {
     icon: IdCard,
     title: "Scan a government ID",
-    body: "The signer photographs a passport, UK driving licence or other supported photo ID on their phone — no app install required.",
+    body: "The signer photographs a passport, UK photocard driving licence or other supported photo ID on their phone — no separate app install required.",
   },
   {
     icon: ScanFace,
     title: "Liveness selfie",
-    body: "A short selfie check confirms a real person is present and reduces photo, screen and basic deepfake spoofing attempts.",
+    body: "A short selfie check confirms a real person is present and reduces photo, screen replay and basic deepfake spoofing attempts.",
   },
   {
     icon: Fingerprint,
     title: "Face match + authenticity",
-    body: "The selfie is matched to the document portrait while document fields and security cues are checked for consistency.",
+    body: "The selfie is matched to the document portrait while document fields and authenticity signals are checked for consistency.",
   },
   {
     icon: FileCheck2,
     title: "Then sign with confidence",
-    body: "Only after a successful check does the envelope open for signature — with the result recorded on the audit trail.",
+    body: "Only after a successful check does the envelope open for signature — with the result recorded on the CivicSign audit trail.",
   },
 ];
 
@@ -75,22 +82,22 @@ const CAPABILITIES = [
   {
     icon: IdCard,
     title: "Document verification",
-    body: "Automated checks on identity documents used in UK workflows — passports, photocard driving licences and other photo IDs where supported.",
+    body: "Automated checks on identity documents used in UK workflows — passports, photocard driving licences and other photo IDs where supported by the verification stack.",
   },
   {
     icon: Eye,
     title: "Liveness detection",
-    body: "Confirm the person is live at the moment of verification, not a still image held up to the camera.",
+    body: "Confirm the person is live at the moment of verification, not a still image, print-out or video held up to the camera.",
   },
   {
     icon: ScanFace,
     title: "Biometric face match",
-    body: "Compare the live selfie to the portrait on the ID so the document holder and the signer are the same person.",
+    body: "Compare the live selfie to the portrait on the ID so the document holder and the person at the device are the same individual.",
   },
   {
     icon: ShieldCheck,
-    title: "Fraud signals",
-    body: "Surface document quality issues, suspected manipulation and failed match scores so high-risk envelopes do not proceed blindly.",
+    title: "Fraud & forgery signals",
+    body: "Surface document quality issues, suspected manipulation, template-style fakes and failed match scores so high-risk envelopes do not proceed blindly.",
   },
   {
     icon: Lock,
@@ -102,6 +109,39 @@ const CAPABILITIES = [
     title: "Tied to the envelope",
     body: "Verification is not a separate silo — it attaches to the CivicSign envelope so auditors can see who was checked before they signed.",
   },
+];
+
+const FRAUD_LAYERS = [
+  {
+    title: "Document authenticity",
+    body: "Check whether the capture looks like a real issuing-authority document — not a casual photo, blank template or obviously generated card.",
+  },
+  {
+    title: "Data consistency",
+    body: "Where available, cross-check machine-readable zones, barcodes and printed fields so edited or mismatched data is harder to slip through.",
+  },
+  {
+    title: "Liveness / anti-spoof",
+    body: "Reduce attacks that use a printed face, another phone screen, or a static photo of someone else.",
+  },
+  {
+    title: "Face match",
+    body: "Block cases where a genuine-looking document is used by a different person at signing time.",
+  },
+  {
+    title: "Fail closed",
+    body: "If required checks do not pass, the signer cannot complete the signature. No silent skip.",
+  },
+  {
+    title: "Audit evidence",
+    body: "Pass/fail outcomes and a verification reference are recorded with the envelope — not just a claim in an email.",
+  },
+];
+
+const DOC_TYPES = [
+  { title: "UK photocard driving licence", body: "Common for employment, tenancy and consumer onboarding packs." },
+  { title: "Passport", body: "Strong photo ID for higher-value or cross-border style checks (subject to coverage)." },
+  { title: "Other national photo IDs", body: "Where the verification stack supports them — coverage expands with the provider network." },
 ];
 
 const USE_CASES = [
@@ -123,14 +163,86 @@ const USE_CASES = [
   {
     icon: Smartphone,
     title: "Remote-first signers",
-    body: "Works in the browser on mobile and desktop so recipients can prove identity and sign without downloading a separate consumer app.",
+    body: "Designed for browser flows on mobile and desktop so recipients can prove identity and sign without a separate consumer ID app.",
   },
+  {
+    icon: Home,
+    title: "Property & lettings",
+    body: "Strengthen confidence on tenancy packs, guarantor forms and sale-related documents when parties sign off-site.",
+  },
+  {
+    icon: HeartPulse,
+    title: "Healthcare & care providers",
+    body: "Where appropriate, add an identity step before sensitive consent or policy acknowledgements signed remotely.",
+  },
+  {
+    icon: Scale,
+    title: "Disputes & high-stakes packs",
+    body: "When the risk of a later “it wasn’t me” claim is material, identity evidence sits alongside the sealed PDF.",
+  },
+  {
+    icon: Briefcase,
+    title: "B2B sales & MSAs",
+    body: "Confirm the person accepting commercial terms is the intended counterparty before the deal is sealed.",
+  },
+];
+
+const COMPARE_ROWS = [
+  {
+    label: "Email signing link only",
+    icon: Mail,
+    points: [
+      "Proves control of an inbox (or access to the link)",
+      "Fast and frictionless",
+      "Does not prove government identity",
+    ],
+  },
+  {
+    label: "SMS / knowledge checks",
+    icon: Smartphone,
+    points: [
+      "Extra factor on the phone or shared secret (e.g. postcode)",
+      "Useful step-up for Business plans today",
+      "Still not a passport or licence check",
+    ],
+  },
+  {
+    label: "ID verification (roadmap)",
+    icon: Fingerprint,
+    points: [
+      "Government document + liveness + face match",
+      "Stronger attribution for high-trust envelopes",
+      "Outcome written into the signing audit trail",
+    ],
+  },
+];
+
+const WHY_POINTS = [
+  {
+    title: "Email is not identity",
+    body: "Anyone with access to a mailbox — or a forwarded link — can look like the intended signer. ID verification raises the bar before the pen hits the PDF.",
+  },
+  {
+    title: "Remote work is the norm",
+    body: "Hires, clients and counterparties often never visit your office. You still need a defensible record of who completed the pack.",
+  },
+  {
+    title: "One UK platform",
+    body: "Prepare the document, verify identity when risk requires it, collect the signature, seal the package — without bolting on a disconnected ID app.",
+  },
+];
+
+const FLOW_STEPS = [
+  { n: "01", title: "Sender enables IDV", body: "Optional per recipient on high-risk envelopes — not forced on every free-plan send." },
+  { n: "02", title: "Signer opens the link", body: "Same CivicSign signing experience; identity step appears before consent when required." },
+  { n: "03", title: "Document + selfie checks", body: "Authenticity, liveness and face match run through the verification stack." },
+  { n: "04", title: "Pass → sign → seal", body: "Only successful checks unlock signing; results stay with the envelope evidence." },
 ];
 
 const FAQS = [
   [
     "Is ID verification available today?",
-    "Not yet. ID verification is on the CivicSign roadmap as a Coming soon capability. You can register interest via Contact — we will prioritise teams with clear use cases.",
+    "Not yet in production. ID verification is on the CivicSign roadmap as a Coming soon capability. Register interest via Contact and we will prioritise teams with clear use cases.",
   ],
   [
     "How is this different from a simple email signing link?",
@@ -138,15 +250,35 @@ const FAQS = [
   ],
   [
     "Will it work with CivicSign envelopes?",
-    "Yes — that is the goal. Verification will sit as an optional step on send or on the signing link, with outcomes written into the same audit trail as the completed document.",
+    "Yes — that is the design goal. Verification sits as an optional step on the signing journey, with outcomes written into the same audit trail as the completed document and seal.",
   ],
   [
-    "What about UK GDPR?",
-    "Identity data is sensitive. The product is being designed for UK-hosted processing, clear retention limits, purpose limitation and the same privacy posture CivicSign already applies to signed documents.",
+    "What about UK GDPR and biometrics?",
+    "Identity and biometric data are sensitive. The product is being designed for purpose limitation, clear retention, encryption in transit, and UK-hosted processing aligned with the same privacy posture CivicSign already applies to signed documents. A DPIA will sit behind production launch.",
+  ],
+  [
+    "Can it stop every fake ID?",
+    "No honest product can claim 100%. Modern verification uses layered checks (document authenticity, consistency, liveness, face match) and fail-closed policy so failed or uncertain checks cannot complete the signature. Extremely sophisticated forgeries remain an industry-wide residual risk.",
   ],
   [
     "Is this the same as a Digital ID wallet?",
-    "No. The first release focuses on document + liveness checks for signers. Wallet / reusable Digital ID may come later; this page describes identity verification for high-trust signing flows.",
+    "No. The first release focuses on document + liveness checks for signers. Reusable Digital ID wallets may come later; this page is about identity verification for high-trust signing flows.",
+  ],
+  [
+    "How does this relate to SES / AES / QES?",
+    "CivicSign already supports signature levels under UK eIDAS language (SES/AES; QES via future QTSP). ID verification strengthens attribution evidence for high-assurance sends. It is not automatically a Qualified Electronic Signature without a QTSP.",
+  ],
+  [
+    "What documents will be supported?",
+    "Launch targeting focuses on UK-relevant photo IDs such as photocard driving licences and passports, expanding with the verification network. Exact lists will be published at general availability.",
+  ],
+  [
+    "Will signers need to install an app?",
+    "The intended experience is browser-based on mobile or desktop — capture ID and selfie, then continue into the existing CivicSign signing flow.",
+  ],
+  [
+    "Who can turn it on?",
+    "Planned as an optional control for teams on higher tiers (Business-style plans), so you only add friction where the document risk justifies it.",
   ],
 ];
 
@@ -224,7 +356,6 @@ export default function IdVerificationProduct() {
               </ul>
             </div>
 
-            {/* Product mock */}
             <MarketingInkSurface
               className="relative overflow-hidden rounded-[24px] p-6 sm:p-8"
               style={{ color: PAPER_TEXT }}
@@ -246,7 +377,7 @@ export default function IdVerificationProduct() {
                     { step: "1", label: "Capture passport or driving licence" },
                     { step: "2", label: "Complete liveness selfie" },
                     { step: "3", label: "Face match & document checks" },
-                    { step: "4", label: "Open secure signing link" },
+                    { step: "4", label: "Open secure signing flow" },
                   ].map((row) => (
                     <div
                       key={row.step}
@@ -275,37 +406,78 @@ export default function IdVerificationProduct() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-how-it-works">
+      {/* Why it matters */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-why">
         <div className="max-w-2xl">
-          <p
-            style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}
-          >
-            Simple for signers
+          <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+            The problem
           </p>
           <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
-            How ID verification works<span style={{ color: "var(--c-accent)" }}>.</span>
+            Why email alone is not enough<span style={{ color: "var(--c-accent)" }}>.</span>
           </h2>
           <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
-            Inspired by leading remote ID check flows used across regulated and high-trust industries:
-            document capture, liveness, face match, then your business action — in our case, a CivicSign signature.
+            Most e-signature links are convenient by design. That convenience is perfect for low-risk paperwork —
+            and thin when the stakes rise. ID verification is the optional step-up for those moments.
           </p>
         </div>
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {WHY_POINTS.map((w) => (
+            <div key={w.title} className={`${MARKETING_CARD} p-6 sm:p-7`}>
+              <h3 className="text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>{w.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{w.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-how-it-works">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <div className="max-w-2xl">
+            <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+              Simple for signers
+            </p>
+            <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              How ID verification works<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+              The same pattern used across modern remote identity products: capture a document, prove liveness,
+              match the face, then complete your business action — here, a CivicSign signature.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((s, i) => (
+              <div key={s.title} className={`${MARKETING_CARD} relative p-6`} data-testid={`idv-step-${i + 1}`}>
+                <span className="absolute right-4 top-4 text-[11px] font-bold tabular-nums text-[var(--c-muted-fg)]">
+                  0{i + 1}
+                </span>
+                <span
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-[13px]"
+                  style={{ background: "var(--badge-teal-bg)" }}
+                >
+                  <s.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+                </span>
+                <h3 className="mt-4 text-base font-semibold text-[var(--c-ink)]" style={H_FONT}>{s.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Product flow */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-product-flow">
+        <div className="max-w-2xl">
+          <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--c-primary)]">In CivicSign</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+            Where it sits in your send flow<span style={{ color: "var(--c-accent)" }}>.</span>
+          </h2>
+        </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s, i) => (
-            <div key={s.title} className={`${MARKETING_CARD} relative p-6`} data-testid={`idv-step-${i + 1}`}>
-              <span
-                className="absolute right-4 top-4 text-[11px] font-bold tabular-nums text-[var(--c-muted-fg)]"
-              >
-                0{i + 1}
-              </span>
-              <span
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[13px]"
-                style={{ background: "var(--badge-teal-bg)" }}
-              >
-                <s.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
-              </span>
-              <h3 className="mt-4 text-base font-semibold text-[var(--c-ink)]" style={H_FONT}>{s.title}</h3>
+          {FLOW_STEPS.map((s) => (
+            <div key={s.n} className={`${MARKETING_CARD} p-6`}>
+              <span className="font-heading text-2xl font-bold tabular-nums" style={{ color: "var(--c-primary)" }}>{s.n}</span>
+              <h3 className="mt-3 text-base font-semibold text-[var(--c-ink)]" style={H_FONT}>{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{s.body}</p>
             </div>
           ))}
@@ -320,12 +492,12 @@ export default function IdVerificationProduct() {
               Capabilities
             </p>
             <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-white sm:text-4xl" style={H_FONT}>
-              What teams expect from modern IDV<span style={{ color: "#FF7A5C" }}>.</span>
+              What modern IDV includes<span style={{ color: "#FF7A5C" }}>.</span>
             </h2>
             <p className="mt-3 text-[15px] leading-relaxed text-white/65">
-              Public product pages from identity specialists typically cover document checks, biometrics and
-              anti-spoofing. CivicSign is designing the same building blocks for the moment before signature —
-              not a standalone consumer ID app.
+              Identity specialists typically combine document checks, biometrics and anti-spoofing.
+              CivicSign is designing those building blocks for the moment <em>before</em> signature — not a
+              standalone consumer ID app.
             </p>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -349,39 +521,143 @@ export default function IdVerificationProduct() {
         </div>
       </MarketingDarkSection>
 
-      {/* Use cases */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-use-cases">
-        <div className="max-w-2xl">
-          <p
-            style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}
+      {/* Fraud layers */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-fraud">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-2xl">
+            <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+              Fraud resistance
+            </p>
+            <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              How we think about fake IDs<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+              Generated cards, screen replays and mismatched faces are known attack classes.
+              Defence is layered — and the signing API must fail closed when checks do not pass.
+            </p>
+          </div>
+          <div
+            className="flex max-w-sm items-start gap-3 rounded-2xl border px-4 py-3 text-sm"
+            style={{ borderColor: "var(--badge-warning-bg)", background: "var(--badge-warning-bg)", color: "var(--badge-warning-fg)" }}
           >
-            Built for UK workflows
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              No vendor can honestly claim 100% detection. CivicSign will not market “fraud-proof” —
+              we market <strong>fail-closed, multi-check verification</strong> with audit evidence.
+            </span>
+          </div>
+        </div>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FRAUD_LAYERS.map((f) => (
+            <div key={f.title} className={`${MARKETING_CARD} p-6`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
+                <h3 className="text-base font-semibold text-[var(--c-ink)]" style={H_FONT}>{f.title}</h3>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{f.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <div className="flex gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-4 text-sm">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--c-primary)" }} />
+            <div>
+              <p className="font-semibold text-[var(--c-ink)]">Pass</p>
+              <p className="mt-1 text-[var(--c-muted-fg)]">Required checks clear → signer continues to consent and signature.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-4 text-sm">
+            <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+            <div>
+              <p className="font-semibold text-[var(--c-ink)]">Fail / uncertain</p>
+              <p className="mt-1 text-[var(--c-muted-fg)]">Forgery signals, spoof or face mismatch → signing stays locked; limited retries.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Documents */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-documents">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <div className="max-w-2xl">
+            <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--c-primary)]">Documents</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              What signers will typically present<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {DOC_TYPES.map((d) => (
+              <div key={d.title} className={`${MARKETING_CARD} p-6`}>
+                <IdCard className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+                <h3 className="mt-4 text-base font-semibold text-[var(--c-ink)]" style={H_FONT}>{d.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{d.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Compare */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-compare">
+        <div className="max-w-2xl">
+          <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+            Choose the right bar
           </p>
           <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
-            Where ID verification helps<span style={{ color: "var(--c-accent)" }}>.</span>
+            Email, step-up auth, or full IDV<span style={{ color: "var(--c-accent)" }}>.</span>
           </h2>
         </div>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {USE_CASES.map((u) => (
-            <div key={u.title} className={`${MARKETING_CARD} flex gap-4 p-6 sm:p-7`}>
-              <span
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px]"
-                style={{ background: "var(--badge-teal-bg)" }}
-              >
-                <u.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
-              </span>
-              <div>
-                <h3 className="text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>{u.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{u.body}</p>
-              </div>
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          {COMPARE_ROWS.map((row) => (
+            <div key={row.label} className={`${MARKETING_CARD} p-6 sm:p-7`}>
+              <row.icon className="h-6 w-6" style={{ color: "var(--c-primary)" }} />
+              <h3 className="mt-4 text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>{row.label}</h3>
+              <ul className="mt-4 space-y-2.5">
+                {row.points.map((p) => (
+                  <li key={p} className="flex gap-2 text-sm text-[var(--c-muted-fg)]">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--c-primary)" }} />
+                    {p}
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Privacy + trust */}
-      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-privacy">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:py-20">
+      {/* Use cases */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-use-cases">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <div className="max-w-2xl">
+            <p style={{ fontFamily: "'Caveat', cursive", fontSize: "26px", fontWeight: 600, color: "var(--c-primary-hover)" }}>
+              Built for UK workflows
+            </p>
+            <h2 className="mt-1 text-3xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-4xl" style={H_FONT}>
+              Where ID verification helps<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            {USE_CASES.map((u) => (
+              <div key={u.title} className={`${MARKETING_CARD} flex gap-4 p-6 sm:p-7`}>
+                <span
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px]"
+                  style={{ background: "var(--badge-teal-bg)" }}
+                >
+                  <u.icon className="h-5 w-5" style={{ color: "var(--c-primary)" }} />
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--c-ink)]" style={H_FONT}>{u.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--c-muted-fg)]">{u.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Privacy + platform */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" data-testid="idv-privacy">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div>
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
@@ -405,6 +681,7 @@ export default function IdVerificationProduct() {
                 "Clear retention windows for document images and biometrics",
                 "Results written back to the envelope history",
                 "Optional — enable only when the document risk requires it",
+                "Fail closed on the server — the browser cannot skip a required check",
               ].map((line) => (
                 <li key={line} className="flex items-start gap-2">
                   <Sparkles className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--c-primary)" }} />
@@ -426,6 +703,7 @@ export default function IdVerificationProduct() {
                 { to: { pathname: "/", hash: "#features" }, label: "E-signatures" },
                 { to: "/product/manage-pdf", label: "Manage PDF" },
                 { to: "/product/id-verification", label: "ID verification (this page)" },
+                { to: "/solutions", label: "Industry solutions" },
               ].map((item) => (
                 <Link
                   key={item.label}
@@ -436,6 +714,32 @@ export default function IdVerificationProduct() {
                   <ArrowRight className="h-4 w-4 text-[var(--c-primary)]" />
                 </Link>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Honest roadmap note */}
+      <section className="border-t border-[var(--c-border)] bg-[var(--c-paper-2)]" data-testid="idv-roadmap-note">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+          <div className={`${MARKETING_CARD} p-7 sm:p-8`}>
+            <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[var(--c-primary)]">Roadmap honesty</p>
+            <h2 className="mt-2 text-2xl font-bold text-[var(--c-ink)] sm:text-3xl" style={H_FONT}>
+              Coming soon — not vapourware theatre<span style={{ color: "var(--c-accent)" }}>.</span>
+            </h2>
+            <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+              We publish this page so you can plan workflows and register interest. Production ID verification will
+              use specialist document authenticity and liveness technology, fail-closed signing rules, and UK-first
+              privacy design. Until general availability, use CivicSign for e-signatures and Manage PDF today —
+              and tell us if IDV is critical for your rollout.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link to="/contact" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
+                Register interest <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link to="/register" className={SECONDARY_CTA}>
+                Start free e-signatures
+              </Link>
             </div>
           </div>
         </div>
@@ -463,8 +767,8 @@ export default function IdVerificationProduct() {
               Want ID verification on your envelopes<span style={{ color: "#FF7A5C" }}>?</span>
             </h2>
             <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>
-              Tell us your use case — remote hiring, high-value contracts, or regulated onboarding — and we&apos;ll
-              keep you updated as CivicSign ID verification launches.
+              Tell us your use case — remote hiring, high-value contracts, property packs, or regulated onboarding —
+              and we&apos;ll keep you updated as CivicSign ID verification launches.
             </p>
             <div className={CTA_ACTIONS_CLASS}>
               <Link
