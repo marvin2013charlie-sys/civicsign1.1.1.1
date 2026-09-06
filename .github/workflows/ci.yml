@@ -49,7 +49,7 @@ jobs:
 
       - name: Seed isolated CI database
         working-directory: backend
-        run: python -c 'import asyncio; from db import db; from pilot_accounts import seed_pilot_accounts; asyncio.run(seed_pilot_accounts(db))'
+        run: python -c 'import asyncio; from db import db; from pilot_accounts import seed_pilot_accounts; asyncio.get_event_loop().run_until_complete(seed_pilot_accounts(db))'
 
       - name: Start API server
         working-directory: backend
@@ -145,7 +145,7 @@ jobs:
 
       - name: Seed isolated CI database
         working-directory: backend
-        run: python -c 'import asyncio; from db import db; from pilot_accounts import seed_pilot_accounts; asyncio.run(seed_pilot_accounts(db))'
+        run: python -c 'import asyncio; from db import db; from pilot_accounts import seed_pilot_accounts; asyncio.get_event_loop().run_until_complete(seed_pilot_accounts(db))'
 
       - name: Start backend
         working-directory: backend
