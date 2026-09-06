@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 
 # Stripe statuses that keep paid access until period end (or renewal).
 _ACTIVE_SUB_STATUSES = frozenset({"active", "trialing"})
-# Statuses that revoke paid access immediately (or at period end if cancel_at_period_end).
+# Terminal or unpaid statuses revoke paid access immediately.
 _DEAD_SUB_STATUSES = frozenset({
-    "canceled", "unpaid", "past_due", "incomplete", "incomplete_expired",
+    "canceled", "unpaid", "past_due", "incomplete", "incomplete_expired", "paused",
 })
 
 
@@ -86,11 +86,8 @@ def paid_access_should_expire(user: dict) -> bool:
     - Admin grant past period end
     - Cancel-at-period-end and period has ended (user did not upgrade/renew)
     - Subscription status is dead (canceled / unpaid / past_due / incomplete*)
-    - Period end passed and there is no active Stripe subscription id
-      (local/manual paid windows)
-
-    Active or trialing Stripe subscriptions keep access past period_end briefly
-    so renewals can land; Stripe webhooks still update status.
+    - Paid period ended, even if a missed webhook left status active/trialing
+    - Stripe subscription has no usable period end (must be reconciled first)
     """
     plan = (user.get("plan") or "free").lower().strip()
     if plan not in ("pro", "business"):
@@ -103,25 +100,20 @@ def paid_access_should_expire(user: dict) -> bool:
 
     status = (user.get("subscription_status") or "").lower().strip()
     if status in _DEAD_SUB_STATUSES:
-        # canceled + cancel_at_period_end: keep access until period end
-        if status == "canceled" and user.get("subscription_cancel_at_period_end"):
-            return period_end_passed(user)
-        # unpaid / past_due / incomplete: stop paid access
-        if status in ("unpaid", "past_due", "incomplete", "incomplete_expired"):
-            return True
-        # plain canceled without future access window
-        if status == "canceled":
-            return period_end_passed(user) or not user.get("subscription_current_period_end")
-
-    # Explicit cancel scheduled → free after bill end if they did not upgrade
-    if user.get("subscription_cancel_at_period_end") and period_end_passed(user):
         return True
 
-    # Paid window without live sub (admin/manual/orphan) ends on period date
-    if period_end_passed(user) and not user.get("stripe_subscription_id"):
+    if period_end_passed(user):
         return True
 
-    # Active/trialing with period_end in the past: wait for webhook unless cancel scheduled
+    if (user.get("plan_upgraded_via_payment") or user.get("admin_plan_grant")) and (
+        _parse_iso_utc(user.get("subscription_current_period_end")) is None
+    ):
+        return True
+    if user.get("stripe_subscription_id"):
+        return (
+            status not in _ACTIVE_SUB_STATUSES
+            or _parse_iso_utc(user.get("subscription_current_period_end")) is None
+        )
     return False
 
 
@@ -138,9 +130,9 @@ def should_persist_plan_downgrade(user: dict) -> bool:
 def get_effective_plan(user: dict) -> str:
     """Return the user's plan after verifying payment signature (anti-tamper).
 
-    Also enforces bill-period end: if the paid period has ended and the user
-    cancelled / failed payment / had an admin grant expire without upgrading,
-    they are treated as free immediately (DB is synced by a background job).
+    Also enforces the paid/trial deadline, including when a webhook is missing.
+    Expired accounts are Free until renewal is verified; request-time and
+    background reconciliation persist the corresponding database state.
     """
     if is_internal_team(user):
         return "business"

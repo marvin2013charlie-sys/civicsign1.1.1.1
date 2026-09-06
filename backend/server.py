@@ -22,6 +22,7 @@ from starlette.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from rate_limits import limiter
+from api_errors import unhandled_api_error
 
 from db import (
     db, upload_file, download_file, delete_file, ping as db_ping,
@@ -83,6 +84,7 @@ logger = logging.getLogger("civicsign")
 app = FastAPI(title="CivicSign API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(Exception, unhandled_api_error)
 api_router = APIRouter(prefix="/api")
 
 RECIPIENT_COLORS = ["#14B8A6", "#38BDF8", "#F59E0B", "#FB7185", "#84CC16", "#A78BFA"]

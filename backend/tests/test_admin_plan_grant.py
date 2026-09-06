@@ -44,8 +44,10 @@ def test_admin_grant_expired_returns_free():
     assert get_effective_plan(user) == "free"
 
 
-def test_payment_plan_active_stripe_ignores_period_end_alone():
-    """Active Stripe sub keeps plan past period_end until webhook or cancel flag."""
+@pytest.mark.parametrize("interval", ["monthly", "yearly"])
+@pytest.mark.parametrize("status", ["active", "trialing"])
+def test_payment_plan_expires_even_when_stripe_webhook_is_missing(interval, status):
+    """A stale active status cannot grant access beyond the recorded deadline."""
     now = datetime.now(timezone.utc)
     ts = now.isoformat()
     uid = "user_stripe"
@@ -56,10 +58,35 @@ def test_payment_plan_active_stripe_ignores_period_end_alone():
         "plan_updated_at": ts,
         "plan_signature": generate_plan_signature(uid, "pro", ts),
         "admin_plan_grant": False,
-        "subscription_status": "active",
+        "subscription_status": status,
+        "billing_interval": interval,
         "stripe_subscription_id": "sub_live",
         "subscription_current_period_end": (now - timedelta(days=1)).isoformat(),
     }
+    assert get_effective_plan(user) == "free"
+
+
+@pytest.mark.parametrize("end", [None, "", "invalid-date"])
+def test_stripe_plan_without_valid_deadline_cannot_grant_access(end):
+    user = _grant()
+    user.update(admin_plan_grant=False, stripe_subscription_id="sub_live",
+                subscription_status="active", subscription_current_period_end=end)
+    assert get_effective_plan(user) == "free"
+
+
+@pytest.mark.parametrize("status", ["past_due", "unpaid", "incomplete", "paused", "canceled"])
+def test_unpaid_or_ended_subscription_revokes_even_with_future_deadline(status):
+    user = _grant()
+    user.update(admin_plan_grant=False, stripe_subscription_id="sub_live",
+                subscription_status=status)
+    assert get_effective_plan(user) == "free"
+
+
+@pytest.mark.parametrize("interval", ["monthly", "yearly"])
+def test_paid_subscription_keeps_access_before_deadline(interval):
+    user = _grant(days_offset=30 if interval == "monthly" else 365)
+    user.update(admin_plan_grant=False, stripe_subscription_id="sub_live",
+                subscription_status="active", billing_interval=interval)
     assert get_effective_plan(user) == "pro"
 
 
