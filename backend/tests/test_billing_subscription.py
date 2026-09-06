@@ -264,11 +264,11 @@ def test_plan_product_name_not_duplicating_subscribe_prefix():
     assert "Subscribe to" not in billing._plan_product_name("pro", "monthly")
 
 
-def test_stripe_subscription_missing_detects_invalid_request():
+def test_stripe_subscription_missing_detects_invalid_request(monkeypatch):
     class FakeInvalidRequestError(Exception):
         code = "resource_missing"
 
-    billing.stripe.error.InvalidRequestError = FakeInvalidRequestError
+    monkeypatch.setattr(billing.stripe.error, "InvalidRequestError", FakeInvalidRequestError)
     err = FakeInvalidRequestError("No such subscription: sub_123")
     assert billing._stripe_subscription_missing(err) is True
 
@@ -472,3 +472,229 @@ def test_webhook_accepts_matching_checkout(monkeypatch):
     }
     verified = run(billing._verify_webhook_checkout_session(obj))
     assert verified["user_id"] == "usr_real"
+
+
+# Expiry/reconciliation regressions. All Stripe and email calls below are mocked.
+@pytest.fixture
+def expiry_setup(paid_user, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import AsyncMock
+
+    paid_user['subscription_current_period_end'] = (
+        datetime.now(timezone.utc) - timedelta(seconds=1)
+    ).isoformat()
+    users = FakeUsers(paid_user)
+    monkeypatch.setattr(billing, 'db', FakeDB(users))
+    monkeypatch.setattr(billing, '_require_stripe_key', lambda: 'unit-test')
+    monkeypatch.setattr(billing.billing_emails, 'notify_plan_downgrade', AsyncMock())
+    return users
+
+
+@pytest.mark.parametrize('modern', [False, True])
+def test_subscription_period_end_supports_both_api_formats(modern):
+    sub = _subscription('active')
+    if modern:
+        ts = sub.pop('current_period_end')
+        sub['items'] = {'data': [{'current_period_end': ts}, {'current_period_end': ts + 100}]}
+    assert billing._sub_period_end_iso(sub) == '2030-01-01T00:00:00+00:00'
+
+
+def test_trial_end_limits_access_and_invalid_period_does_not_create_deadline():
+    sub = _subscription('trialing')
+    sub['trial_end'] = 1861920000
+    assert billing._sub_period_end_iso(sub) == '2029-01-01T00:00:00+00:00'
+    assert billing._sub_period_end_iso({'current_period_end': 'bad'}) is None
+
+
+@pytest.mark.parametrize('interval', ['monthly', 'yearly'])
+def test_expired_subscription_is_persisted_free_when_stripe_unavailable(expiry_setup, monkeypatch, interval):
+    users = expiry_setup
+    users._user['billing_interval'] = interval
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError('Stripe temporarily unavailable')
+
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', unavailable)
+    result = run(billing.ensure_period_end_downgrade(dict(users._user)))
+    assert result['plan'] == 'free'
+    assert get_effective_plan(result) == 'free'
+    assert result['stripe_subscription_id'] == 'sub_abc', 'keep identity for later renewal reconciliation'
+
+
+@pytest.mark.parametrize('interval', ['monthly', 'yearly'])
+def test_paid_renewal_recovers_access_when_webhook_was_delayed(expiry_setup, monkeypatch, interval):
+    users = expiry_setup
+    sub = _subscription('active')
+    sub['metadata']['billing_interval'] = interval
+    sub['items'] = {'data': [{'current_period_end': sub.pop('current_period_end')}]}
+    sub['latest_invoice'] = {'status': 'paid'}
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    result = run(billing.ensure_period_end_downgrade(dict(users._user)))
+    assert get_effective_plan(result) == 'pro'
+    assert result['billing_interval'] == interval
+    assert result['subscription_current_period_end'] == '2030-01-01T00:00:00+00:00'
+
+
+@pytest.mark.parametrize('invoice', [None, {'status': 'open'}, {'status': 'uncollectible'}])
+def test_active_status_does_not_renew_access_without_paid_invoice(expiry_setup, monkeypatch, invoice):
+    users = expiry_setup
+    sub = _subscription('active')
+    sub['latest_invoice'] = invoice
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    result = run(billing.ensure_period_end_downgrade(dict(users._user)))
+    assert result['plan'] == 'free'
+    assert result['subscription_status'] == 'past_due'
+    assert result['stripe_subscription_id'] == 'sub_abc'
+
+
+def test_checkout_link_records_trial_deadline(expiry_setup, monkeypatch):
+    users = expiry_setup
+    sub = _subscription('trialing')
+    sub['items'] = {'data': [{'current_period_end': sub.pop('current_period_end')}]}
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    run(billing._link_subscription_to_user('usr_123', 'sub_abc', 'cus_abc'))
+    assert users._user['subscription_status'] == 'trialing'
+    assert users._user['subscription_current_period_end'] == '2030-01-01T00:00:00+00:00'
+    assert get_effective_plan(users._user) == 'pro'
+
+
+def test_checkout_link_failure_never_invents_active_status(expiry_setup, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise RuntimeError('Stripe temporarily unavailable')
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', unavailable)
+    with pytest.raises(RuntimeError):
+        run(billing._link_subscription_to_user('usr_123', 'sub_abc', 'cus_abc'))
+    assert get_effective_plan(expiry_setup._user) == 'free'
+
+
+def _invoice_webhook(monkeypatch, event_type, modern=True):
+    from fastapi import Request
+    sub_ref = {'parent': {'subscription_details': {'subscription': 'sub_abc'}}} if modern else {'subscription': 'sub_abc'}
+    obj = {'id': 'in_abc', 'status': 'open' if event_type == 'invoice.payment_failed' else 'paid', **sub_ref}
+    event = {'type': event_type, 'data': {'object': obj}}
+    monkeypatch.setattr(billing, 'get_webhook_secret', lambda: 'unit-test')
+    monkeypatch.setattr(billing.stripe.Webhook, 'construct_event', lambda *a: event)
+    async def receive():
+        return {'type': 'http.request', 'body': b'{}', 'more_body': False}
+    return Request({'type': 'http', 'headers': [(b'stripe-signature', b'test')]}, receive)
+
+
+@pytest.mark.parametrize('modern', [False, True])
+@pytest.mark.parametrize('event_type', ['invoice.payment_failed', 'invoice.payment_succeeded', 'invoice.paid'])
+def test_invoice_webhooks_reconcile_failure_and_recovery(expiry_setup, monkeypatch, modern, event_type):
+    from unittest.mock import AsyncMock
+    users = expiry_setup
+    failed = event_type == 'invoice.payment_failed'
+    if not failed:
+        users._user.update(plan='free', plan_signature=None, subscription_status='past_due')
+    sub = _subscription('past_due' if failed else 'active')
+    sub['latest_invoice'] = {'status': 'open' if failed else 'paid'}
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    monkeypatch.setattr(billing, '_complete_pending_upgrade_from_invoice', AsyncMock())
+    request = _invoice_webhook(monkeypatch, event_type, modern)
+    assert run(billing.stripe_webhook(request)) == {'received': True}
+    assert get_effective_plan(users._user) == ('free' if failed else 'pro')
+    assert users._user['stripe_subscription_id'] == 'sub_abc'
+
+
+def test_failed_invoice_processing_error_is_not_acknowledged(expiry_setup, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise RuntimeError('Stripe temporarily unavailable')
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', unavailable)
+    request = _invoice_webhook(monkeypatch, 'invoice.payment_failed')
+    with pytest.raises(RuntimeError):
+        run(billing.stripe_webhook(request))
+
+
+def test_expiry_cannot_overwrite_concurrent_successful_renewal(expiry_setup, monkeypatch):
+    users = expiry_setup
+    snapshot = dict(users._user)
+
+    async def renewal_arrived(sub_id):
+        users._user['subscription_current_period_end'] = '2030-01-01T00:00:00+00:00'
+        raise RuntimeError('refresh request failed after webhook renewed the account')
+
+    monkeypatch.setattr(billing, '_refresh_subscription_state', renewal_arrived)
+    result = run(billing.ensure_period_end_downgrade(snapshot))
+    assert get_effective_plan(result) == 'pro'
+    assert result['subscription_current_period_end'] == '2030-01-01T00:00:00+00:00'
+
+
+def test_authenticated_request_returns_free_plan_and_free_quota_on_expiry(expiry_setup, monkeypatch):
+    import auth
+    from fastapi import Request
+    from plan_features import get_monthly_envelope_limit, has_feature
+    from unittest.mock import AsyncMock
+
+    user = dict(expiry_setup._user, monthly_envelope_limit=600, billing_interval='yearly')
+    expiry_setup._user.update(user)
+    # Even before persistence, old paid contract allowances cannot bypass expiry.
+    assert get_monthly_envelope_limit(user) == 2
+    assert has_feature(user, 'manage_pdf') is False
+    monkeypatch.setattr(auth, '_access_token_from_request', lambda request: 'unit-test')
+    monkeypatch.setattr(auth, 'user_from_access_token', AsyncMock(return_value=user))
+    monkeypatch.setattr(billing, '_refresh_subscription_state', AsyncMock(side_effect=RuntimeError('unavailable')))
+    result = run(auth.get_current_user(Request({'type': 'http', 'headers': []})))
+    assert result['plan'] == 'free'
+    assert result['billing_interval'] == 'monthly'
+    assert get_monthly_envelope_limit(result) == 2
+
+
+def test_background_expiry_reaches_accounts_beyond_first_500_active_users(expiry_setup, monkeypatch):
+    from plan_signing import generate_plan_signature
+
+    records = {}
+    for index in range(502):
+        user = dict(expiry_setup._user)
+        uid = f'usr_{index}'
+        user.update(user_id=uid, subscription_current_period_end='2030-01-01T00:00:00+00:00')
+        user['plan_signature'] = generate_plan_signature(uid, user['plan'], user['plan_updated_at'])
+        records[uid] = FakeUsers(user)
+    records['usr_501']._user.update(
+        subscription_current_period_end='2020-01-01T00:00:00+00:00',
+        stripe_subscription_id=None,
+    )
+
+    class Cursor:
+        def __init__(self, rows):
+            self.rows = rows
+        def limit(self, count):
+            self.rows = self.rows[:count]
+            return self
+        def __aiter__(self):
+            async def iterate():
+                for row in self.rows:
+                    yield dict(row)
+            return iterate()
+
+    class Users:
+        def find(self, query, projection):
+            return Cursor([dict(record._user) for record in records.values()])
+        async def find_one(self, query, projection=None):
+            return await records[query['user_id']].find_one(query, projection)
+        async def update_one(self, query, patch):
+            return await records[query['user_id']].update_one(query, patch)
+
+    monkeypatch.setattr(billing, 'db', FakeDB(Users()))
+    assert run(billing.process_period_end_downgrades(limit=100)) == 1
+    assert records['usr_501']._user['plan'] == 'free'
+    assert records['usr_0']._user['plan'] == 'pro'
+
+
+def test_unpaid_upgrade_keeps_existing_paid_tier_until_its_deadline(expiry_setup, monkeypatch):
+    users = expiry_setup
+    users._user['subscription_current_period_end'] = '2029-01-01T00:00:00+00:00'
+    sub = _subscription('active', plan_id='business')
+    sub['latest_invoice'] = {'status': 'open', 'billing_reason': 'subscription_update'}
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    run(billing._refresh_subscription_state('sub_abc'))
+    assert get_effective_plan(users._user) == 'pro'
+    assert users._user['subscription_current_period_end'] == '2029-01-01T00:00:00+00:00'
+
+
+def test_unpaid_upgrade_cannot_extend_an_expired_paid_tier(expiry_setup, monkeypatch):
+    sub = _subscription('active', plan_id='business')
+    sub['latest_invoice'] = {'status': 'open', 'billing_reason': 'subscription_update'}
+    monkeypatch.setattr(billing.stripe.Subscription, 'retrieve', lambda *a, **k: sub)
+    run(billing._refresh_subscription_state('sub_abc'))
+    assert get_effective_plan(expiry_setup._user) == 'free'

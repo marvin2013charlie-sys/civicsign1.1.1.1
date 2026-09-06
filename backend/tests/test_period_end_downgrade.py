@@ -50,12 +50,12 @@ def test_active_sub_keeps_plan_before_period_end():
     assert get_effective_plan(user) == "pro"
 
 
-def test_active_sub_keeps_plan_shortly_after_period_end_until_webhook():
-    """Active renewing subscriptions are not dropped solely because period_end passed."""
+def test_active_sub_expires_after_period_end_until_renewal_is_verified():
+    """A missed Stripe webhook cannot leave an expired account on a paid plan."""
     user = _paid_user(days_offset=-1, status="active", cancel_at_period_end=False)
     assert period_end_passed(user) is True
-    assert paid_access_should_expire(user) is False
-    assert get_effective_plan(user) == "pro"
+    assert paid_access_should_expire(user) is True
+    assert get_effective_plan(user) == "free"
 
 
 def test_cancel_at_period_end_downgrades_after_bill_date():

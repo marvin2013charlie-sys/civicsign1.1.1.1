@@ -22,6 +22,8 @@ import os
 import uuid
 import asyncio
 import logging
+import hashlib
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -551,13 +553,26 @@ def _stripe_checkout_error_detail(exc: Exception) -> str:
 
 
 def _sub_period_end_iso(subscription: dict) -> str | None:
-    ts = subscription.get("current_period_end") if isinstance(subscription, dict) else None
-    if not ts:
-        return None
-    try:
-        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
-    except (TypeError, ValueError, OSError):
-        return None
+    """Support both legacy and item-level Stripe billing periods (Basil+).
+
+    CivicSign's plan and VAT items renew together. Use the earliest deadline
+    defensively if their periods ever differ; never extend access using one item.
+    """
+    data = _stripe_object_dict(subscription)
+    timestamps = [data.get("current_period_end")]
+    items = data.get("items") or {}
+    timestamps.extend(item.get("current_period_end") for item in items.get("data", []))
+    if data.get("status") == "trialing":
+        timestamps.append(data.get("trial_end"))
+    ends = []
+    for ts in timestamps:
+        if ts is None:
+            continue
+        try:
+            ends.append(datetime.fromtimestamp(int(ts), tz=timezone.utc))
+        except (TypeError, ValueError, OverflowError, OSError):
+            continue
+    return min(ends).isoformat() if ends else None
 
 
 async def _activate_subscription(
@@ -603,28 +618,34 @@ async def _activate_subscription(
     return True
 
 
-async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status: str = "canceled") -> None:
+async def _downgrade_user_to_free(
+    user_id: str, reason: str, subscription_status: str = "canceled", *,
+    preserve_subscription: bool = False,
+    expected_user: dict | None = None,
+) -> None:
     """Revoke paid access. Clearing plan_signature makes get_effective_plan()
     return 'free' everywhere, so quotas and features immediately revert."""
+    query = {"user_id": user_id}
+    if expected_user is not None:
+        # A renewal may arrive between the expiry check and this database write.
+        # Only revoke the exact subscription snapshot that was checked.
+        for field in ("plan_updated_at", "stripe_subscription_id",
+                      "subscription_status", "subscription_current_period_end"):
+            query[field] = expected_user.get(field)
     user_before = await db.users.find_one(
-        {"user_id": user_id},
+        query,
         {"_id": 0, "email": 1, "name": 1, "plan": 1, "billing_interval": 1, "user_id": 1},
     )
-    previous_plan = (user_before or {}).get("plan")
-    if previous_plan in (None, "free"):
-        # Already free — still clear stale grant flags if present
-        now_ts = _now()
-        await db.users.update_one(
-            {"user_id": user_id, "plan": {"$ne": "free"}},
-            {"$set": {"plan": "free", "updated_at": now_ts}},
-        )
+    if not user_before:
         return
+    previous_plan = user_before.get("plan")
     now_ts = _now()
-    await db.users.update_one(
-        {"user_id": user_id},
+    result = await db.users.update_one(
+        query,
         {
             "$set": {
                 "plan": "free",
+                "billing_interval": "monthly",
                 "plan_updated_at": now_ts,
                 "plan_signature": None,
                 "plan_upgraded_via_payment": False,
@@ -636,11 +657,13 @@ async def _downgrade_user_to_free(user_id: str, reason: str, subscription_status
                 "updated_at": now_ts,
             },
             "$unset": {
-                "stripe_subscription_id": "",
+                **({} if preserve_subscription else {"stripe_subscription_id": ""}),
                 "subscription_current_period_end": "",
             },
         },
     )
+    if result.matched_count == 0:
+        return
     logger.info(f"[billing] downgraded user={user_id} to free ({reason}, status={subscription_status})")
     if user_before and previous_plan in PLANS:
         await billing_emails.notify_plan_downgrade(
@@ -660,6 +683,21 @@ async def ensure_period_end_downgrade(user: dict) -> dict:
     if not user or not should_persist_plan_downgrade(user):
         return user
 
+    # A delayed renewal webhook must not remove a payment that already succeeded.
+    # Refresh only at the access boundary; valid paid requests need no Stripe call.
+    sub_id = user.get("stripe_subscription_id")
+    if (sub_id and not user.get("admin_plan_grant")
+            and user.get("subscription_status") in ACTIVE_SUBSCRIPTION_STATES):
+        try:
+            await _refresh_subscription_state(sub_id)
+            fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+            if fresh:
+                user = fresh
+            if not should_persist_plan_downgrade(user):
+                return user
+        except Exception as exc:
+            logger.warning(f"[billing] expiry reconciliation failed for {sub_id}: {exc}")
+
     if user.get("admin_plan_grant") and paid_access_should_expire(user):
         reason = "admin plan grant expired"
     elif user.get("subscription_cancel_at_period_end") and paid_access_should_expire(user):
@@ -670,7 +708,12 @@ async def ensure_period_end_downgrade(user: dict) -> dict:
         reason = "plan access revoked"
 
     status = (user.get("subscription_status") or "canceled").lower() or "canceled"
-    await _downgrade_user_to_free(user["user_id"], reason=reason, subscription_status=status)
+    await _downgrade_user_to_free(
+        user["user_id"], reason=reason, subscription_status=status,
+        preserve_subscription=bool(user.get("stripe_subscription_id"))
+        and status not in ("canceled", "incomplete_expired"),
+        expected_user=user,
+    )
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return fresh or {**user, "plan": "free", "plan_signature": None}
 
@@ -686,7 +729,9 @@ async def process_period_end_downgrades(limit: int = 100) -> int:
         "plan": {"$in": ["pro", "business"]},
         "role": {"$nin": ["admin", "staff"]},
     }
-    cursor = db.users.find(query, {"_id": 0}).limit(max(limit * 5, 100))
+    # Stream the candidates: limiting the first N rows starves expired accounts
+    # behind a large set of still-active subscribers on every sweep.
+    cursor = db.users.find(query, {"_id": 0})
     downgraded = 0
     async for user in cursor:
         if user.get("org_id"):
@@ -973,7 +1018,45 @@ async def _handle_subscription_state(subscription: dict) -> None:
             user["user_id"],
             reason=f"subscription {subscription.get('id')} status={status}",
             subscription_status=status or "canceled",
+            preserve_subscription=status in ("past_due", "unpaid", "incomplete", "paused"),
         )
+
+
+async def _refresh_subscription_state(sub_id: str) -> None:
+    """Reconcile from Stripe's current state, including payment of the latest invoice.
+
+    Errors propagate to webhook callers so Stripe retries instead of losing an
+    expiry or renewal update. Request-time expiry still denies unverified access.
+    """
+    _require_stripe_key()
+    subscription = await asyncio.to_thread(
+        stripe.Subscription.retrieve, sub_id, expand=["latest_invoice"],
+    )
+    data = _stripe_object_dict(subscription)
+    if data.get("status") == "active":
+        invoice = data.get("latest_invoice")
+        if isinstance(invoice, str):
+            invoice = await asyncio.to_thread(stripe.Invoice.retrieve, invoice)
+        invoice = _stripe_object_dict(invoice or {})
+        if invoice.get("status") != "paid":
+            # An unpaid proration for a requested upgrade is not a failed
+            # renewal. Keep the already-paid tier until its existing deadline;
+            # the pending-upgrade path grants the new tier only after payment.
+            if invoice.get("billing_reason") == "subscription_update":
+                from plan_signing import get_effective_plan
+                user = await _user_for_subscription_event(data)
+                if user and get_effective_plan(user) in PLANS:
+                    return
+            data["status"] = "past_due"
+    await _handle_subscription_state(data)
+
+
+def _invoice_subscription_id(invoice: dict) -> str | None:
+    """Invoice subscription reference before and after Stripe API Basil."""
+    legacy = _stripe_resource_id(invoice.get("subscription"))
+    parent = invoice.get("parent") or {}
+    details = parent.get("subscription_details") or {}
+    return legacy or _stripe_resource_id(details.get("subscription"))
 
 
 def _valid_stripe_session_id(session_id: str) -> bool:
@@ -1061,6 +1144,7 @@ def _is_paid_upgrade(
 
 async def _build_subscription_modify_items(sub_id: str, plan_id: str, billing_interval: str) -> tuple[list, list]:
     """Stripe items[] payload to swap an existing subscription onto a new plan."""
+    _require_stripe_key()
     new_line_items, discounts, _amount_ex_vat = await _stripe_subscription_checkout_payload(plan_id, billing_interval)
     subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
     sub_dict = _stripe_object_dict(subscription)
@@ -1068,10 +1152,39 @@ async def _build_subscription_modify_items(sub_id: str, plan_id: str, billing_in
     items_param = [{"id": item["id"], "deleted": True} for item in existing_items]
     for li in new_line_items:
         items_param.append({
-            "price_data": li["price_data"],
+            "price": await _subscription_price_id(li["price_data"]),
             "quantity": li["quantity"],
         })
     return items_param, discounts
+
+
+async def _subscription_price_id(checkout_price_data: dict) -> str:
+    """Resolve reusable Prices; subscription updates do not accept Checkout product_data."""
+    fingerprint = hashlib.sha256(
+        json.dumps(checkout_price_data, sort_keys=True).encode()
+    ).hexdigest()[:32]
+    lookup_key = f"civicsign_{fingerprint}"
+    prices = await asyncio.to_thread(stripe.Price.list, lookup_keys=[lookup_key], active=True, limit=1)
+    existing = _stripe_object_dict(prices).get("data") or []
+    if existing:
+        return existing[0]["id"]
+    price_data = dict(checkout_price_data)
+    product_data = price_data.pop("product_data")
+    product_id = f"prod_civicsign_{fingerprint}"
+    try:
+        await asyncio.to_thread(stripe.Product.retrieve, product_id)
+    except stripe.error.InvalidRequestError as exc:
+        if getattr(exc, "code", None) != "resource_missing":
+            raise
+        await asyncio.to_thread(
+            stripe.Product.create, id=product_id, **product_data,
+            idempotency_key=f"product_{fingerprint}",
+        )
+    price = await asyncio.to_thread(
+        stripe.Price.create, product=product_id, **price_data,
+        lookup_key=lookup_key, idempotency_key=f"price_{fingerprint}",
+    )
+    return price["id"]
 
 
 def _parse_invoice_preview(invoice) -> dict:
@@ -1086,7 +1199,9 @@ def _parse_invoice_preview(invoice) -> dict:
         if not isinstance(line, dict):
             line = _stripe_object_dict(line)
         amount = int(line.get("amount") or 0)
-        if not line.get("proration"):
+        parent = line.get("parent") or {}
+        details = parent.get("subscription_item_details") or {}
+        if not (line.get("proration") or details.get("proration")):
             continue
         desc = (line.get("description") or "Proration").strip()
         if amount < 0:
@@ -1124,10 +1239,9 @@ async def _preview_plan_upgrade(user: dict, plan_id: str, billing_interval: str)
 
     current_plan = (user.get("plan") or "free").lower().strip()
     current_interval = (user.get("billing_interval") or "monthly").lower().strip()
-    items_param, _discounts = await _build_subscription_modify_items(sub_id, plan_id, billing_interval)
-
     _require_stripe_key()
     try:
+        items_param, _discounts = await _build_subscription_modify_items(sub_id, plan_id, billing_interval)
         preview = await asyncio.to_thread(
             stripe.Invoice.create_preview,
             customer=customer_id,
@@ -1135,9 +1249,11 @@ async def _preview_plan_upgrade(user: dict, plan_id: str, billing_interval: str)
             subscription_details={
                 "items": items_param,
                 "proration_behavior": "create_prorations",
-                "billing_cycle_anchor": "unchanged",
+                "billing_cycle_anchor": "unchanged" if current_interval == billing_interval else "now",
             },
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[billing] upgrade preview failed for {sub_id}: {e}")
         raise HTTPException(status_code=502, detail="Could not calculate your upgrade total. Please try again.")
@@ -1270,8 +1386,9 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
         "proration_behavior": "always_invoice",
         "payment_behavior": "pending_if_incomplete",
         "metadata": metadata,
-        "cancel_at_period_end": False,
     }
+    if preview.get("current_interval") != billing_interval:
+        modify_kwargs["billing_cycle_anchor"] = "now"
     if discounts:
         modify_kwargs["discounts"] = discounts
 
@@ -1287,6 +1404,8 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
 
     # Always verify payment with Stripe — never activate on preview alone.
     payment = await _verify_upgrade_invoice_payment(invoice_id)
+    if payment["paid"]:
+        await asyncio.to_thread(stripe.Subscription.modify, sub_id, cancel_at_period_end=False)
     sub_status = (updated_dict.get("status") or "").lower()
     if not payment["paid"] and sub_status in ("incomplete", "past_due", "unpaid"):
         logger.info(
@@ -1374,22 +1493,18 @@ async def _execute_paid_upgrade(user: dict, plan_id: str, billing_interval: str,
 async def _link_subscription_to_user(user_id: str, sub_id: str | None, cust_id: str | None) -> None:
     if not user_id or not sub_id:
         return
-    status = "active"
-    try:
-        _require_stripe_key()
-        subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
-        status = (subscription.get("status") or status).lower()
-    except Exception as exc:
-        logger.warning(f"[billing] could not read subscription {sub_id} status: {exc}")
+    # Store the identity first for reconciliation, but never invent active status
+    # when Stripe is unavailable. The refresh also records the billing deadline.
     patch = {
         "stripe_subscription_id": sub_id,
-        "subscription_status": status,
+        "subscription_status": "incomplete",
         "updated_at": _now(),
     }
     patch["subscription_trial_used"] = True
     if cust_id:
         patch["stripe_customer_id"] = cust_id
     await db.users.update_one({"user_id": user_id}, {"$set": patch})
+    await _refresh_subscription_state(sub_id)
 
 
 async def _change_subscription_plan(user: dict, plan_id: str, billing_interval: str) -> dict:
@@ -1977,13 +2092,15 @@ async def _complete_pending_upgrade_from_invoice(invoice_id: str, invoice_obj: d
         logger.warning(f"[billing] pending upgrade for {invoice_id} has invalid plan {plan_id}")
         return
 
-    sub_id = user.get("stripe_subscription_id") or invoice_obj.get("subscription")
+    sub_id = user.get("stripe_subscription_id") or _invoice_subscription_id(invoice_obj)
     period_end_iso = None
     sub_status = "active"
     if sub_id:
         try:
             _require_stripe_key()
-            subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+            subscription = await asyncio.to_thread(
+                stripe.Subscription.modify, sub_id, cancel_at_period_end=False,
+            )
             sub_dict = _stripe_object_dict(subscription)
             period_end_iso = _sub_period_end_iso(sub_dict)
             sub_status = sub_dict.get("status") or "active"
@@ -2035,7 +2152,7 @@ async def _complete_pending_upgrade_from_invoice(invoice_id: str, invoice_obj: d
 
 async def _handle_invoice_upcoming(invoice: dict) -> None:
     """Send a renewal reminder ~7 days before Stripe takes payment."""
-    sub_id = _stripe_resource_id(invoice.get("subscription"))
+    sub_id = _invoice_subscription_id(invoice)
     customer_id = _stripe_resource_id(invoice.get("customer"))
     user = None
     if sub_id:
@@ -2142,8 +2259,11 @@ async def stripe_webhook(request: Request):
         "customer.subscription.created",
         "customer.subscription.updated",
         "customer.subscription.deleted",
+        "customer.subscription.paused",
+        "customer.subscription.resumed",
     ):
-        await _handle_subscription_state(obj)
+        if obj.get("id"):
+            await _refresh_subscription_state(obj["id"])
         return {"received": True}
 
     # 3) Plan refund — downgrade immediately (do not wait for billing period end).
@@ -2157,21 +2277,20 @@ async def stripe_webhook(request: Request):
         return {"received": True}
 
     # 5) Prorated upgrade invoice paid — activate pending plan change.
-    if event_type == "invoice.payment_succeeded":
+    if event_type in ("invoice.payment_succeeded", "invoice.paid"):
         invoice_id = obj.get("id")
         if invoice_id:
             await _complete_pending_upgrade_from_invoice(invoice_id, obj)
+        sub_id = _invoice_subscription_id(obj)
+        if sub_id:
+            await _refresh_subscription_state(sub_id)
         return {"received": True}
 
     # 6) Failed renewal — revoke immediately rather than waiting for the status sync.
     if event_type == "invoice.payment_failed":
-        sub_id = obj.get("subscription")
+        sub_id = _invoice_subscription_id(obj)
         if sub_id:
-            try:
-                subscription = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
-                await _handle_subscription_state(dict(subscription))
-            except Exception as e:
-                logger.error(f"[billing] could not process failed invoice for {sub_id}: {e}")
+            await _refresh_subscription_state(sub_id)
         return {"received": True}
 
     # Acknowledge everything else.

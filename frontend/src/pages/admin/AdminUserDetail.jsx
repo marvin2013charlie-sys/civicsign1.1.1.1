@@ -223,7 +223,7 @@ export default function AdminUserDetail() {
     if (!data?.user) return;
     setPlanDraft(data.user.plan || "free");
     setDurationDraft(data.user.admin_plan_duration || "1m");
-  }, [data?.user?.plan, data?.user?.admin_plan_duration, data?.user?.user_id]);
+  }, [data?.user]);
 
   const patch = async (body) => {
     setSaving(true);

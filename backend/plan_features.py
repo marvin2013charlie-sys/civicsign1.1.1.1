@@ -131,6 +131,10 @@ def get_monthly_envelope_limit(user: dict) -> int:
     Yearly subscribers receive 12× the monthly allowance for the annual period.
     """
     plan = _effective_plan(user)
+    # A stale custom paid allowance must not survive subscription expiry while
+    # the request/background downgrade is still being persisted.
+    if plan == "free" and user.get("plan") in ("pro", "business"):
+        return PLAN_MONTHLY_QUOTA["free"]
     if is_enterprise_unlimited(user):
         return -1
     custom = user.get("monthly_envelope_limit")

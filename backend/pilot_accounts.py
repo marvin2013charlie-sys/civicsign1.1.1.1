@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from auth import hash_password
 from plan_signing import generate_plan_signature
@@ -135,7 +135,10 @@ async def upsert_pilot_user(db, spec: dict, *, created_by: str | None = None) ->
     if plan in ("pro", "business"):
         base["plan_updated_at"] = ts
         base["plan_signature"] = generate_plan_signature(user_id, plan, ts)
-        base["plan_upgraded_via_payment"] = True
+        base["plan_upgraded_via_payment"] = False
+        base["admin_plan_grant"] = True
+        base["subscription_status"] = "admin_grant"
+        base["subscription_current_period_end"] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
 
     if existing:
         await db.users.update_one({"user_id": user_id}, {"$set": base})

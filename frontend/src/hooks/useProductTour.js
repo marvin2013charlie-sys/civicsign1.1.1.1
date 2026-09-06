@@ -124,7 +124,7 @@ export function useProductTour({ surface, user, impersonation, onOpenMobileNav }
     return () => {
       cancelled = true;
     };
-  }, [user?.user_id, surface, impersonation, startTour]);
+  }, [user, surface, impersonation, startTour]);
 
   useEffect(() => {
     return () => {
