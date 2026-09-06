@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
@@ -45,14 +45,14 @@ export default function SignerFlow() {
   const [savedSig, setSavedSig] = useState(null);
   const fieldRefs = useRef({});
 
-  const loadPdf = async (cancelledRef) => {
+  const loadPdf = useCallback(async (cancelledRef) => {
     const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
     if (cancelledRef.current) {
       URL.revokeObjectURL(url);
       return;
     }
     setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
-  };
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +92,7 @@ export default function SignerFlow() {
       cancelled = true;
       cancelledRef.current = true;
     };
-  }, [token]);
+  }, [token, loadPdf]);
   useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
   useEffect(() => {
