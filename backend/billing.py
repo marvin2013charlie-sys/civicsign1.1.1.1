@@ -2458,7 +2458,6 @@ async def cancel_subscription(
     await _record_cancellation_feedback(user, body.reason, body.feedback)
 
     sub_id = user.get("stripe_subscription_id")
-    status = (user.get("subscription_status") or "").lower()
     api_key = os.environ.get("STRIPE_API_KEY", "").strip()
 
     async def _cancel_locally(reason: str) -> dict:
@@ -2471,7 +2470,10 @@ async def cancel_subscription(
             "user": _public_user(fresh) if fresh else None,
         }
 
-    if sub_id and status in ACTIVE_SUBSCRIPTION_STATES and api_key:
+    if sub_id and not api_key:
+        raise HTTPException(status_code=503, detail="Cancellation could not be confirmed. Please try again shortly or contact support. Your subscription has not been changed.")
+
+    if sub_id:
         # Cancellations must always work — do not block on live-key enforcement.
         _configure_stripe(enforce_live=False)
         try:
@@ -2541,8 +2543,7 @@ async def cancel_subscription(
                 logger.warning(f"[billing] cancel: missing subscription {sub_id}: {e}")
                 return await _cancel_locally(f"self-serve cancel (missing subscription {sub_id})")
             logger.error(f"[billing] cancel_subscription failed for {sub_id}: {e}")
-            # Do not leave the customer stuck on a paid plan when Stripe is unreachable.
-            return await _cancel_locally(f"self-serve cancel (stripe error: {e})")
+            raise HTTPException(status_code=502, detail="Cancellation could not be confirmed with Stripe. Please try again or open Payment methods & invoices to cancel in Stripe. Your subscription may still renew.") from e
 
     # No Stripe subscription on file — downgrade immediately.
     return await _cancel_locally("self-serve cancel (no active subscription)")
