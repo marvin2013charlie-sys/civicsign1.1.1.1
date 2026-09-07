@@ -74,9 +74,18 @@ export function StripeCheckoutRedirect({
           ) : null}
 
           {trialAlreadyRedeemed && !hasTrial ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-950" data-testid="trial-already-redeemed-notice">
-              You&apos;ve already redeemed your free trial on this account. Stripe will charge the normal plan price when your subscription starts.
-            </p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950" data-testid="trial-already-redeemed-notice">
+              <p className="font-semibold">Your free trial has already been used.</p>
+              {!preparing && priceLabel ? (
+                <>
+                  <p className="mt-2 font-semibold">Due at checkout: {priceLabel}</p>
+                  <p className="mt-1 text-xs">
+                    Renews at {priceLabel} every {billingInterval === "yearly" ? "year" : "month"} until you cancel.
+                    {" "}Any promotion code is applied on Stripe before you pay.
+                  </p>
+                </>
+              ) : null}
+            </div>
           ) : null}
           {hasTrial && (
             <p className="text-xs text-[var(--c-muted-fg)]">
