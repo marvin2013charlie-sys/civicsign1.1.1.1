@@ -220,23 +220,24 @@ function CancelSubscriptionDialog({
   acceptingOffer,
   planName,
   showRetentionOffer,
+  periodEndLabel,
 }) {
-  const [step, setStep] = useState("offer");
+  const [step, setStep] = useState("feedback");
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
     if (!open) {
       const t = setTimeout(() => {
-        setStep(showRetentionOffer ? "offer" : "feedback");
+        setStep("feedback");
         setReason("");
         setFeedback("");
       }, 0);
       return () => clearTimeout(t);
     }
-    setStep(showRetentionOffer ? "offer" : "feedback");
+    setStep("feedback");
     return undefined;
-  }, [open, showRetentionOffer]);
+  }, [open]);
 
   const handleOpenChange = (next) => {
     if (!cancelling && !acceptingOffer) onOpenChange(next);
@@ -282,14 +283,16 @@ function CancelSubscriptionDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="font-heading">Help us improve before you go</DialogTitle>
+              <DialogTitle className="font-heading">Cancel your subscription?</DialogTitle>
               <DialogDescription>
-                Tell us why you&apos;re leaving {planName}. Your feedback helps us build a better product.
+                Your subscription will not renew. {periodEndLabel
+                  ? `You keep ${planName} access until ${periodEndLabel}, then your account returns to Free.`
+                  : `You keep ${planName} access until the end of your current billing period, then your account returns to Free.`}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div>
-                <Label htmlFor="cancel-reason">Main reason</Label>
+                <Label htmlFor="cancel-reason">Reason (optional)</Label>
                 <select
                   id="cancel-reason"
                   className="mt-1 h-10 w-full rounded-xl border border-[var(--c-border)] bg-[var(--card)] px-3 text-sm text-[var(--c-ink)]"
@@ -304,7 +307,7 @@ function CancelSubscriptionDialog({
                 </select>
               </div>
               <div>
-                <Label htmlFor="cancel-feedback">Additional feedback</Label>
+                <Label htmlFor="cancel-feedback">Feedback (optional)</Label>
                 <Textarea
                   id="cancel-feedback"
                   className="mt-1 min-h-[88px]"
@@ -315,6 +318,11 @@ function CancelSubscriptionDialog({
                 />
               </div>
             </div>
+            {showRetentionOffer && (
+              <Button variant="link" onClick={() => setStep("offer")} disabled={cancelling}>
+                View an optional discount to keep my plan
+              </Button>
+            )}
             <DialogFooter className="gap-2 sm:gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={cancelling}>
                 Keep subscription
@@ -1376,6 +1384,11 @@ function SubscriptionTab() {
                   ? `Billed ${userInterval}. Your current period ends ${periodEndLabel}.`
                   : `Billed ${userInterval} via Stripe.`}
             </p>
+            {cancelScheduled && (
+              <p className="mt-2 text-sm font-semibold" role="status">
+                Renewal cancelled. No further action is needed.
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
               {user?.can_manage_billing && (
                 <Button
@@ -1385,7 +1398,7 @@ function SubscriptionTab() {
                   data-testid="manage-subscription-portal-button"
                 >
                   {managing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CreditCard className="mr-1.5 h-4 w-4" />}
-                  Manage in Stripe
+                  Payment methods & invoices
                 </Button>
               )}
               {!cancelScheduled && (
@@ -1432,6 +1445,7 @@ function SubscriptionTab() {
         onAcceptOffer={acceptRetentionOffer}
         cancelling={cancelling}
         acceptingOffer={acceptingOffer}
+        periodEndLabel={periodEndLabel}
         showRetentionOffer={!!user?.retention_offer_available}
         planName={current.charAt(0).toUpperCase() + current.slice(1)}
       />
