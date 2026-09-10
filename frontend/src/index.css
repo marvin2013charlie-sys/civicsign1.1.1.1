@@ -175,7 +175,7 @@ html[data-theme="dark"] {
   :root {
     --background: 50 30% 96%;
     --foreground: 176 29% 10%;
-    --card: 48 45% 98%;
+    --card: #FCFBF7;
     --card-foreground: 176 29% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 176 29% 10%;
@@ -203,7 +203,7 @@ html[data-theme="dark"] {
   html[data-theme="dark"] {
     --background: 163 23% 6%;
     --foreground: 150 12% 95%;
-    --card: 160 21% 10%;
+    --card: #141F1B;
     --card-foreground: 150 12% 95%;
     --popover: 160 21% 10%;
     --popover-foreground: 150 12% 95%;
@@ -542,33 +542,10 @@ html[data-theme="dark"] {
     position: relative;
     background: var(--c-paper);
   }
-  .cs-auth-form-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: var(--c-marketing-gradient);
-  }
+  /* Keep form and checkout surfaces opaque and free of decorative colour haze. */
+  .cs-auth-form-shell::before,
   .cs-auth-form-glow {
-    position: absolute;
-    border-radius: 9999px;
-    pointer-events: none;
-    filter: blur(48px);
-    z-index: 0;
-  }
-  .cs-auth-form-glow-a {
-    top: 12%;
-    right: 8%;
-    width: 180px;
-    height: 180px;
-    background: rgba(20, 184, 166, 0.12);
-  }
-  .cs-auth-form-glow-b {
-    bottom: 16%;
-    left: 6%;
-    width: 140px;
-    height: 140px;
-    background: rgba(255, 122, 92, 0.08);
+    display: none;
   }
   .cs-auth-form-shell > div:not(.cs-auth-form-glow) {
     position: relative;
@@ -1122,8 +1099,7 @@ html[data-theme="dark"] {
   }
   .cs-admin-header {
     border-bottom: 1px solid var(--c-border);
-    background: color-mix(in srgb, var(--card) 82%, transparent);
-    backdrop-filter: blur(10px);
+    background: var(--card);
   }
   .cs-admin-header-badge {
     display: inline-flex;
@@ -1161,49 +1137,14 @@ html[data-theme="dark"] {
     isolation: isolate;
   }
   .cs-portal-main-panel {
+    --c-paper: var(--c-portal-bg);
     position: relative;
     background: var(--c-portal-bg);
     overflow-x: clip;
   }
-  .cs-portal-main-panel::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    background: var(--c-marketing-gradient);
-    animation: cs-portal-gradient-drift 24s ease-in-out infinite alternate;
-  }
+  .cs-portal-main-panel::before,
   .cs-portal-main-panel::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    opacity: 0.55;
-    background:
-      radial-gradient(640px 360px at 72% 18%, rgba(45, 212, 191, 0.12), transparent),
-      radial-gradient(560px 320px at 18% 82%, rgba(255, 122, 92, 0.09), transparent);
-    animation: cs-portal-gradient-drift-alt 30s ease-in-out infinite alternate;
-  }
-  @keyframes cs-portal-gradient-drift {
-    0% { opacity: 0.92; }
-    50% { opacity: 1; }
-    100% { opacity: 0.94; }
-  }
-  @keyframes cs-portal-gradient-drift-alt {
-    0% { opacity: 0.45; }
-    50% { opacity: 0.58; }
-    100% { opacity: 0.48; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .cs-portal-main-panel::before,
-    .cs-portal-main-panel::after {
-      animation: none;
-      will-change: auto;
-    }
+    display: none;
   }
   .cs-portal-sidebar .cs-app-nav-link:hover:not(.cs-app-nav-link-active) {
     color: #f8f7f2;
@@ -1233,8 +1174,7 @@ html[data-theme="dark"] {
     background: var(--c-portal-hover);
   }
   .cs-portal-topbar {
-    background: color-mix(in srgb, var(--c-portal-card) 88%, transparent);
-    backdrop-filter: blur(10px);
+    background: var(--c-portal-card);
   }
   .cs-portal-topbar-search:focus-visible {
     border-color: var(--c-primary);
@@ -1268,7 +1208,7 @@ html[data-theme="dark"] {
     border-color: #2E3D37;
   }
   html[data-theme="dark"] .cs-portal-topbar {
-    background: color-mix(in srgb, var(--card) 92%, transparent);
+    background: var(--card);
   }
   html[data-theme="dark"] .cs-portal-main-panel header {
     background: color-mix(in srgb, var(--c-paper) 90%, var(--card));
@@ -1623,4 +1563,15 @@ html[data-theme="dark"] {
 
 .driver-popover.cs-product-tour-popover .driver-popover-close-btn {
   color: var(--c-muted-fg) !important;
+}
+
+/* Browser autofill must use the same surface and text as the form in either theme. */
+input:autofill,
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+  box-shadow: 0 0 0 1000px var(--card) inset;
+  -webkit-text-fill-color: var(--c-ink);
+  caret-color: var(--c-ink);
 }
