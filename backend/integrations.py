@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 
 from db import db
 from auth import get_current_user
-from plan_features import require_business_feature, has_feature, owner_has_feature
+from plan_features import require_business_feature, has_feature, owner_has_feature, get_monthly_envelope_limit
 from security_utils import validate_webhook_url
 from models import ApiKeyCreate, WebhookUpdate
 
@@ -186,6 +186,9 @@ async def deliver_webhook(
     user = await db.users.find_one({"user_id": owner_id}, {"_id": 0})
     if not user:
         return {"delivered": False, "reason": "user_not_found"}
+    if (user.get("active") is False or _org_member_blocked_for_api(user)
+            or not has_feature(user, "api_webhooks")):
+        return {"delivered": False, "reason": "feature_unavailable"}
 
     wh = user.get("webhook") or {}
     target_url = url or wh.get("url")
@@ -232,6 +235,13 @@ async def deliver_webhook(
     for delay in retry_schedule:
         if delay:
             await asyncio.sleep(delay)
+        if delay:
+            current_user = await db.users.find_one({"user_id": owner_id}, {"_id": 0})
+            if (not current_user or current_user.get("active") is False
+                    or _org_member_blocked_for_api(current_user)
+                    or not has_feature(current_user, "api_webhooks")):
+                last_error = "Integration access ended before retry"
+                break
         attempts += 1
         success, status_code, last_error = await _post_webhook_once(post_url, body, headers)
         if success:
@@ -439,6 +449,13 @@ async def integration_docs(user: dict = Depends(get_current_user)):
     base = "/api/v1"
     return {
         "api_version": WEBHOOK_API_VERSION,
+        "access": {
+            "required_plan": "business",
+            "document_allowance": get_monthly_envelope_limit(user),
+            "billing_interval": user.get("billing_interval") or "monthly",
+            "max_page_size": 100,
+            "note": "API access follows your active plan. Document allowances are not API request allowances. Paid API access ends when Business eligibility ends.",
+        },
         "authentication": {
             "type": "api_key",
             "header": "X-API-Key",

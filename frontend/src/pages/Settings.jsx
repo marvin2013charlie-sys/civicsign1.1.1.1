@@ -1791,6 +1791,19 @@ function IntegrationsTab() {
 
   return (
     <div className="space-y-5">
+      <div className="cs-portal-surface-card rounded-2xl p-5" data-testid="integration-plan-limits">
+        <h3 className="font-heading text-sm font-semibold">Access follows your Business plan</h3>
+        <p className="mt-2 text-sm text-[var(--c-muted-fg)]">
+          API keys and webhooks work while your account is eligible for Business access.
+          Cancelling renewal keeps access until your paid period ends; expiry or a downgrade ends API access.
+        </p>
+        <p className="mt-2 text-sm text-[var(--c-muted-fg)]">
+          {docs?.access?.document_allowance > 0
+            ? `Your document allowance is ${docs.access.document_allowance.toLocaleString()} per billing period. `
+            : "Your document allowance follows your subscription or contract. "}
+          Document allowances are separate from API requests. List responses contain up to 100 records per page.
+        </p>
+      </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="api-keys-card">
           <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
