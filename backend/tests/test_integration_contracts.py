@@ -86,3 +86,35 @@ def test_test_event_ignores_subscription_filter(setup, monkeypatch):
 def test_key_rejects_missing_unpaid_or_org_member(setup, user):
     setup.db.users.find_one.return_value = user
     assert asyncio.run(mod._user_by_api_key('cs_live_' + 'x' * 32)) is None
+
+
+def test_empty_event_selection_remains_empty(setup, monkeypatch):
+    response = setup.request('PATCH', '/api/me/webhook', json={'url': 'https://example.com/hook', 'enabled': True, 'events': []})
+    assert response.status_code == 200
+    assert response.json()['events'] == []
+    setup.user['webhook'] = setup.db.users.update_one.call_args.args[1]['$set']['webhook']
+    monkeypatch.setattr(mod, 'owner_has_feature', AsyncMock(return_value=True))
+    post = AsyncMock()
+    monkeypatch.setattr(mod, '_post_webhook_once', post)
+    result = asyncio.run(mod.deliver_webhook(setup.user['user_id'], 'envelope.sent', {}))
+    assert result['reason'] == 'event_not_subscribed'
+    post.assert_not_awaited()
+
+
+def test_key_creation_stores_only_hash_and_revoke_scopes_owner(setup):
+    response = setup.request('POST', '/api/me/api-keys', json={'label': 'Test connector'})
+    assert response.status_code == 200
+    raw = response.json()['api_key']
+    stored = setup.db.users.update_one.call_args.args[1]['$push']['api_keys']
+    assert stored['key_hash'] == mod._hash_key(raw)
+    assert raw not in str(stored)
+    setup.db.users.update_one.return_value = SimpleNamespace(modified_count=1)
+    assert setup.request('DELETE', '/api/me/api-keys/' + stored['key_id']).status_code == 200
+    assert setup.db.users.update_one.call_args.args == (
+        {'user_id': setup.user['user_id']}, {'$pull': {'api_keys': {'key_id': stored['key_id']}}},
+    )
+
+
+def test_expired_business_key_is_rejected(setup):
+    setup.user['subscription_current_period_end'] = '2000-01-01T00:00:00+00:00'
+    assert asyncio.run(mod._user_by_api_key('cs_live_' + 'x' * 32)) is None
