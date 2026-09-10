@@ -1564,3 +1564,14 @@ html[data-theme="dark"] {
 .driver-popover.cs-product-tour-popover .driver-popover-close-btn {
   color: var(--c-muted-fg) !important;
 }
+
+/* Browser autofill must use the same surface and text as the form in either theme. */
+input:autofill,
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+  box-shadow: 0 0 0 1000px var(--card) inset;
+  -webkit-text-fill-color: var(--c-ink);
+  caret-color: var(--c-ink);
+}
