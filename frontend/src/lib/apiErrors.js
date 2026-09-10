@@ -20,6 +20,8 @@ export function extractApiDetail(errOrDetail) {
 }
 
 export function formatApiError(detail) {
+  if (["ECONNABORTED", "ETIMEDOUT"].includes(detail?.code)) return "The server is taking longer than expected. Please try again shortly.";
+  if (detail?.code === "ERR_NETWORK") return "Unable to connect. Check your connection and try again.";
   const d = extractApiDetail(detail) ?? detail;
   if (d == null) return "Something went wrong. Please try again.";
   if (typeof d === "string") return d;

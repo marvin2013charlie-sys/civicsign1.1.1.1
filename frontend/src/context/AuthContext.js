@@ -2,7 +2,7 @@ import React, {
   createContext, useContext, useEffect, useState, useCallback, useRef,
 } from "react";
 import { useLocation } from "react-router-dom";
-import api, { restoreSession } from "@/lib/api";
+import api, { restoreSession, AUTH_TIMEOUT_MS } from "@/lib/api";
 import {
   clearTokens,
   setAccessToken,
@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
   // null = checking, false = not authenticated, object = authenticated
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [impersonation, setImpersonation] = useState(null);
   const location = useLocation();
   const checkStartedRef = useRef(false);
@@ -37,6 +38,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const resolveSession = useCallback(async () => {
+    setAuthError(false);
+    setAuthReady(false);
     try {
       const data = await restoreSession();
       if (data) {
@@ -48,9 +51,7 @@ export function AuthProvider({ children }) {
         clearTokens();
       }
     } catch {
-      setUser(false);
-      setImpersonation(null);
-      clearTokens();
+      setAuthError(true);
     } finally {
       setAuthReady(true);
     }
@@ -103,16 +104,17 @@ export function AuthProvider({ children }) {
   }, [resolveSession]);
 
   const login = async (email, password) => {
-    // Short timeout so a hung API never leaves the button spinning for 30s.
+    // Allow the hosted API to wake up, while keeping a bounded timeout.
     const { data } = await api.post(
       "/auth/login",
       { email, password },
-      { timeout: 12_000 },
+      { timeout: AUTH_TIMEOUT_MS },
     );
     clearTokens();
     setImpersonation(null);
     checkStartedRef.current = true;
     setAuthReady(true);
+    setAuthError(false);
     setUser(data.user);
     return data;
   };
@@ -126,7 +128,7 @@ export function AuthProvider({ children }) {
         password,
         invite_code: inviteCode || undefined,
       },
-      { timeout: 12_000 },
+      { timeout: AUTH_TIMEOUT_MS },
     );
     return data;
   };
@@ -137,6 +139,7 @@ export function AuthProvider({ children }) {
     setImpersonation(null);
     checkStartedRef.current = true;
     setAuthReady(true);
+    setAuthError(false);
     setUser(data.user);
     return data;
   };
@@ -191,7 +194,8 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.post("/auth/impersonation/exit");
       if (data?.user && (data.user.role === "admin" || data.user.role === "staff")) {
-        setUser(data.user);
+        setAuthError(false);
+    setUser(data.user);
         setAuthReady(true);
         return { ok: true, user: data.user };
       }
@@ -214,6 +218,7 @@ export function AuthProvider({ children }) {
       value={{
         user,
         authReady,
+        authError,
         setUser,
         login,
         register,
