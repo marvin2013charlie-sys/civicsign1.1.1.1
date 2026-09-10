@@ -1,28 +1,38 @@
-# Passport and driving-licence verification
+# Embedded passport and driving-licence checks
 
-Business senders can choose photo ID verification for each recipient when the provider is configured. The signer follows a Stripe-hosted flow that requests a live document capture and matching selfie. Accepted document categories are passport and driving licence; provider-supported issuing countries and documents still apply.
+Business senders can choose photo ID verification when the provider is configured. CivicSign opens Veriff's InContext SDK on its own signing page. Stripe is not involved in identity checks; Stripe billing is unchanged.
 
-CivicSign checks the VerificationSession on its server after the signer returns and clicks **Check verification result**. Returning to the page is not proof of success. Only a verified session bound to the envelope and recipient, in the correct Stripe mode, with a matching full legal name can unlock viewing and signing. Names are compared conservatively after Unicode/case/punctuation normalization. A name mismatch requires a new corrected request from the sender; there is no self-approval override.
+A dedicated Veriff **Document + Selfie IDV** integration must require document authenticity checks, live capture/liveness and face matching. Restrict the capture flow to passports and driving licences. CivicSign independently rejects approvals for other document types and conservatively matches the verified full name to the intended signer. A sender must issue a corrected request for a name mismatch. This is not an age check or a QES upgrade.
 
-The existing document-access and signing gates enforce the result. Editing a draft identity recipient rotates its signing token and discards prior verification. The audit records the provider, verification time, and outcome. CivicSign does not persist extracted names, ID numbers, dates of birth, ID images, or selfies from provider responses. Stripe processes and retains verification information according to the agreed provider setup.
+The SDK's FINISHED message means submission, never approval. CivicSign retrieves the decision server-to-server, signs the session ID with HMAC-SHA256, authenticates the response against the raw response bytes, then checks session ID, opaque recipient binding, approved status/code, supported document type and name. A verified result unlocks the existing PDF and signing gates. No unsigned browser callback can approve a signer.
 
-## Configuration
+## Setup required before live use
 
-Default: disabled. This is not an age check, a QES upgrade, or a claim of regulatory certification.
+The feature defaults to disabled. An active Veriff account and approved integration are required. Obtain the integration's API base and session origin from Veriff; both must be HTTPS Veriff domains. No new account or paid provider checks have been created by this change.
 
-- `IDENTITY_VERIFICATION_ENABLED=true`
-- `STRIPE_IDENTITY_API_KEY`: a dedicated Stripe Identity secret key. Production accepts live mode only. Local `DEV_MODE=true` permits a test-mode key for sandbox acceptance testing.
-- `IDENTITY_RETURN_ORIGIN=https://www.civicsign.co.uk`
+- `VERIFF_API_KEY` and `VERIFF_SHARED_SECRET`: server secrets from your dedicated integration.
+- `VERIFF_API_BASE`: exact API origin supplied for the integration, without `/v1`.
+- `VERIFF_SESSION_ORIGIN`: exact HTTPS origin used in returned verification URLs.
+- `VERIFF_IDV_PROFILE_CONFIRMED=true`: set only after confirming Document + Selfie IDV, live capture/liveness and face matching in the provider configuration.
+- `VERIFF_ENVIRONMENT=live`: set only with production credentials. Test environments may be used locally with `DEV_MODE=true`.
+- `IDENTITY_VERIFICATION_ENABLED=true`: enable only after sandbox and controlled live acceptance testing, provider terms/data processing and retention review, and updating the customer privacy notice.
 
-Enable Stripe Identity in the provider account, review its service terms, fees, data processing/retention and biometric privacy requirements, and update CivicSign's privacy notice before enabling customer use. The existing payments key is not automatically reused. No live verification was submitted during implementation.
+A provider profile is configured in Veriff, not by the create-session API. These deployment settings are administrator assertions, not certification checks. Mislabelled test credentials must never be installed in production.
 
-Use provider test scenarios first. Acceptance testing must include: valid passport; valid driving licence; failed document/selfie; processing; cancelled; wrong name; wrong recipient/session; expired/voided envelope; PDF/submit attempts before verification; recipient edit; provider outage. A real live check requires a consenting tester and authorized provider charges.
+CivicSign stores only the provider session reference/URL and minimal audit outcome, not ID images, selfies, ID numbers, DOB or extracted identity fields. Veriff still processes and retains data under its provider setup; embedded UI does not mean the data stays only with CivicSign. Session URLs are sensitive and follow document-access controls.
 
-## Limits
+## Failure and recovery
 
-This implementation polls on explicit user request; it does not depend on browser query parameters or an unsigned callback. It does not yet automate provider data redaction or offer manual ID review. If verification cannot be completed, the signer contacts the sender. The feature should remain disabled until those operational requirements are agreed.
+The server claims session creation atomically before calling Veriff, preventing concurrent clicks from creating multiple paid sessions. An uncertain create failure retains that claim to prevent duplicate charges. The signer should contact the sender; inspect the provider account before issuing a fresh request. Existing sessions are reused.
+
+Decision polling occurs when the signer clicks **Check verification result**. Pending, declined, expired, unsupported-document, mismatched-name and unauthenticated results leave signing locked. This version does not implement push webhooks, automatic provider redaction or manual ID review. Requests require the sender's Business feature and an envelope currently awaiting that recipient. Draft identity edits reset verification and rotate the signing link.
+
+## Acceptance checks
+
+Test valid passport and photocard driving licence, wrong person, failed selfie/liveness, unsupported ID, pending/declined/expired results, forged responses, cross-session results, parallel start requests, provider failure, revoked signing links, draft edits and attempted PDF/signing access before approval. Browser testing must verify camera permission and mobile behaviour. Use fictional provider test cases first; real ID submissions and charges require a consenting tester.
 
 References:
-- https://docs.stripe.com/identity/verification-checks
-- https://docs.stripe.com/api/identity/verification_sessions/create
-- https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/special-category-data/biometric-data-guidance-biometric-recognition/
+- https://devdocs.veriff.com/v1/docs/incontext-sdk-1
+- https://devdocs.veriff.com/apidocs/v1sessions
+- https://devdocs.veriff.com/apidocs/v1sessionsiddecision-1
+- https://devdocs.veriff.com/docs/hmac-authentication-and-endpoint-security

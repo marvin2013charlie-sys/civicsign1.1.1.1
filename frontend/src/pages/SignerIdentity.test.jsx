@@ -1,6 +1,8 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import SignerFlow from './SignerFlow';
+import { createVeriffFrame, MESSAGES } from '@veriff/incontext-sdk';
+jest.mock('@veriff/incontext-sdk', () => ({ createVeriffFrame: jest.fn(() => ({ close: jest.fn() })), MESSAGES: { FINISHED: 'FINISHED' } }));
 import { publicApi, fetchPublicPdfBlobUrl } from '@/lib/api';
 
 jest.mock('@/lib/pdf', () => ({ PDF_OPTIONS: {} }));
@@ -39,6 +41,17 @@ test('only verified server result unlocks the document', async () => {
 test('provider failure keeps the document locked', async () => {
   publicApi.post.mockRejectedValue(new Error('offline'));
   await act(async () => host.querySelector('[data-testid="signer-verify-auth"]').click());
+  expect(host.querySelector('[data-testid="signer-auth-gate"]')).not.toBeNull();
+  expect(fetchPublicPdfBlobUrl).not.toHaveBeenCalled();
+});
+
+test('opens embedded verification and SDK completion does not unlock signing', async () => {
+  const currentUrl = window.location.href;
+  publicApi.post.mockResolvedValue({ data: { url: 'https://magic.veriff.me/v/test' } });
+  await act(async () => host.querySelector('[data-testid="signer-start-identity"]').click());
+  expect(createVeriffFrame).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://magic.veriff.me/v/test' }));
+  await act(async () => createVeriffFrame.mock.calls[0][0].onEvent(MESSAGES.FINISHED));
+  expect(window.location.href).toBe(currentUrl);
   expect(host.querySelector('[data-testid="signer-auth-gate"]')).not.toBeNull();
   expect(fetchPublicPdfBlobUrl).not.toHaveBeenCalled();
 });

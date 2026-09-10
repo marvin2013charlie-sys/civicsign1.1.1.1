@@ -44,6 +44,8 @@ export default function SignerFlow() {
   const [authVerifying, setAuthVerifying] = useState(false);
   const [savedSig, setSavedSig] = useState(null);
   const fieldRefs = useRef({});
+  const identityFrame = useRef(null);
+  useEffect(() => () => identityFrame.current?.close(), []);
 
   const loadPdf = useCallback(async (cancelledRef) => {
     const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
@@ -181,8 +183,20 @@ export default function SignerFlow() {
       const { data: result } = await publicApi.post(`/sign/${token}/identity/start`, { consent: true });
       if (result.url) {
         const target = new URL(result.url);
-        if (target.protocol !== "https:" || target.hostname !== "verify.stripe.com") throw new Error("Invalid verification address");
-        window.location.assign(target.href);
+        if (target.protocol !== "https:" || target.username || target.password ||
+          !["veriff.com", "veriff.me"].some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))) {
+          throw new Error("Invalid verification address");
+        }
+        const { createVeriffFrame, MESSAGES } = await import("@veriff/incontext-sdk");
+        identityFrame.current?.close();
+        identityFrame.current = createVeriffFrame({
+          url: target.href,
+          onEvent: (event) => {
+            if (event === MESSAGES.FINISHED) {
+              toast.info("Documents submitted. Check the verification result when processing finishes.");
+            }
+          },
+        });
       } else {
         toast.info("Check your verification result below. If it is processing, try again shortly.");
       }
@@ -339,9 +353,9 @@ export default function SignerFlow() {
             </p>
             {data.auth_method === "identity" ? (
               <div className="mt-4 space-y-3">
-                <p className="text-sm text-[var(--c-muted-fg)]">Have your passport or photocard driving licence ready. Your full name must match the name on the signing request. Stripe will collect your ID and selfie; CivicSign records the verification result, not your ID images.</p>
-                <p className="text-sm text-[var(--c-muted-fg)]">Continue to review Stripe’s identity-verification terms and privacy information. If you cannot complete the check, contact the sender for assistance.</p>
-                <Button onClick={startIdentity} disabled={authVerifying} data-testid="signer-start-identity">Continue to ID verification</Button>
+                <p className="text-sm text-[var(--c-muted-fg)]">Have your passport or photocard driving licence ready. Your full name must match the name on the signing request. Veriff will collect your ID and selfie securely in this page; CivicSign records the verification result, not your ID images.</p>
+                <p className="text-sm text-[var(--c-muted-fg)]">Review Veriff’s identity-verification terms and privacy information before submitting your documents. If you cannot complete the check, contact the sender for assistance.</p>
+                <Button onClick={startIdentity} disabled={authVerifying} data-testid="signer-start-identity">Start ID verification</Button>
               </div>
             ) : data.auth_method === "sms" ? (
               <div className="mt-4 space-y-3">
