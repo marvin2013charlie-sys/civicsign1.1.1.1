@@ -118,3 +118,34 @@ def test_key_creation_stores_only_hash_and_revoke_scopes_owner(setup):
 def test_expired_business_key_is_rejected(setup):
     setup.user['subscription_current_period_end'] = '2000-01-01T00:00:00+00:00'
     assert asyncio.run(mod._user_by_api_key('cs_live_' + 'x' * 32)) is None
+
+
+@pytest.mark.parametrize('interval,expected', [('monthly', 600), ('yearly', 7200)])
+def test_docs_report_current_plan_allowance(setup, interval, expected):
+    setup.user['billing_interval'] = interval
+    response = setup.request('GET', '/api/me/integrations/docs')
+    assert response.status_code == 200
+    assert response.json()['access']['document_allowance'] == expected
+
+
+@pytest.mark.parametrize('state', ['inactive', 'expired', 'free'])
+def test_webhook_retry_stops_when_plan_access_ends(setup, monkeypatch, state):
+    setup.user['webhook'] = {'url': 'https://example.com/hook', 'enabled': True}
+    current = dict(setup.user)
+    if state == 'inactive':
+        current['active'] = False
+    elif state == 'expired':
+        current['subscription_current_period_end'] = '2000-01-01T00:00:00+00:00'
+    else:
+        current['plan'] = 'free'
+    setup.db.users.find_one.side_effect = [setup.user, current]
+    monkeypatch.setattr(mod, 'owner_has_feature', AsyncMock(return_value=True))
+    monkeypatch.setattr(mod.asyncio, 'sleep', AsyncMock())
+    post = AsyncMock(return_value=(False, 503, 'HTTP 503'))
+    monkeypatch.setattr(mod, '_post_webhook_once', post)
+    monkeypatch.setattr(mod, '_record_delivery', AsyncMock())
+    result = asyncio.run(mod.deliver_webhook(setup.user['user_id'], 'envelope.sent', {}))
+    assert result['delivered'] is False
+    assert result['attempts'] == 1
+    assert 'access ended' in result['error']
+    post.assert_awaited_once()
