@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 
 from db import db
 from auth import get_current_user
@@ -200,8 +200,8 @@ async def deliver_webhook(
         logger.warning(f"[webhook] blocked unsafe URL for owner={owner_id}")
         return {"delivered": False, "reason": "unsafe_url"}
 
-    allowed = allowed_events or set(wh.get("events") or WEBHOOK_EVENTS)
-    if event not in allowed:
+    allowed = allowed_events if allowed_events is not None else set(wh.get("events", WEBHOOK_EVENTS))
+    if not is_test and event not in allowed:
         return {"delivered": False, "reason": "event_not_subscribed"}
 
     delivery_id = f"whd_{uuid.uuid4().hex[:16]}"
@@ -350,7 +350,7 @@ async def get_webhook(user: dict = Depends(get_current_user)):
     return {
         "url": wh.get("url"),
         "enabled": bool(wh.get("enabled")),
-        "events": wh.get("events") or sorted(WEBHOOK_EVENTS),
+        "events": wh.get("events", sorted(WEBHOOK_EVENTS)),
         "has_secret": bool(wh.get("secret")),
         "api_version": WEBHOOK_API_VERSION,
         "available_events": sorted(WEBHOOK_EVENTS),
@@ -371,9 +371,10 @@ async def update_webhook(body: WebhookUpdate, user: dict = Depends(get_current_u
         if invalid:
             raise HTTPException(status_code=400, detail=f"Unknown webhook events: {', '.join(invalid)}")
         wh["events"] = body.events
-    if body.regenerate_secret:
-        wh["secret"] = secrets.token_urlsafe(24)
-    elif "secret" not in wh:
+    if wh.get("enabled") and not wh.get("url"):
+        raise HTTPException(status_code=400, detail="Set a webhook URL before enabling webhooks")
+    secret_created = bool(body.regenerate_secret) or not wh.get("secret")
+    if secret_created:
         wh["secret"] = secrets.token_urlsafe(24)
     await db.users.update_one(
         {"user_id": user["user_id"]},
@@ -382,12 +383,12 @@ async def update_webhook(body: WebhookUpdate, user: dict = Depends(get_current_u
     out = {
         "url": wh.get("url"),
         "enabled": bool(wh.get("enabled")),
-        "events": wh.get("events") or sorted(WEBHOOK_EVENTS),
+        "events": wh.get("events", sorted(WEBHOOK_EVENTS)),
         "has_secret": bool(wh.get("secret")),
         "api_version": WEBHOOK_API_VERSION,
         "available_events": sorted(WEBHOOK_EVENTS),
     }
-    if body.regenerate_secret:
+    if secret_created:
         out["secret"] = wh["secret"]
     return out
 
@@ -450,6 +451,7 @@ async def integration_docs(user: dict = Depends(get_current_user)):
             "retry_policy": "3 attempts at 0s, 60s, 300s",
             "idempotency_header": "X-CivicSign-Delivery-Id",
         },
+        "pagination": {"limit": "1–100 (default 50)", "offset": "0 or greater (default 0)", "status": "Optional envelope status filter"},
         "endpoints": [
             {"method": "GET", "path": f"{base}/envelopes", "description": "List envelopes"},
             {"method": "GET", "path": f"{base}/envelopes/{{envelope_id}}", "description": "Envelope detail"},
@@ -465,20 +467,21 @@ async def integration_docs(user: dict = Depends(get_current_user)):
 
 @v1_router.get("/envelopes")
 async def v1_list_envelopes(
-    request: Request,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: str = Query(""),
     user: dict = Depends(get_api_key_user),
 ):
     """List envelopes via API key (Business plan)."""
-    limit = min(100, max(1, int(request.query_params.get("limit", "50"))))
-    status = (request.query_params.get("status") or "").strip().lower()
+    status = status.strip().lower()
     query = {"owner_id": user["user_id"]}
     if status:
         query["status"] = status
     items = await db.envelopes.find(
         query,
         {"_id": 0, "envelope_id": 1, "title": 1, "status": 1, "created_at": 1, "sent_at": 1, "updated_at": 1},
-    ).sort("created_at", -1).limit(limit).to_list(limit)
-    return {"envelopes": items, "count": len(items)}
+    ).sort([("created_at", -1), ("envelope_id", -1)]).skip(offset).limit(limit).to_list(limit)
+    return {"envelopes": items, "count": len(items), "offset": offset, "limit": limit}
 
 
 @v1_router.get("/envelopes/{envelope_id}")
