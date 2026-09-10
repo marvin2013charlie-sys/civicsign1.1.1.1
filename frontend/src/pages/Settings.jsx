@@ -135,7 +135,7 @@ function PlanCard({
 }) {
   const Icon = plan.icon;
   const { price, note, savings, tax } = getPlanPriceDisplay(plan.name, billingInterval);
-  const showTrial = Boolean(trialDays > 0 && isPaidPlanWithTrial(plan.name) && plan.id !== "free");
+  const showTrial = Boolean(!isCurrent && trialDays > 0 && isPaidPlanWithTrial(plan.name) && plan.id !== "free");
   const trialOfferNote = formatPlanTrialOfferNote(trialDays);
   const trialBillingNote = formatPlanTrialBillingNote(trialDays);
   const borderColor = isCurrent || highlighted ? "var(--c-primary)" : "var(--c-portal-border)";
@@ -176,7 +176,7 @@ function PlanCard({
             compact
           />
           {showTrial && trialBillingNote ? (
-            <p className="mt-2 text-xs text-[var(--c-muted-fg)]">{trialBillingNote}</p>
+            <p className="mt-2 text-xs text-[var(--c-muted-fg)]">{trialBillingNote.replace("price below", "price shown")}</p>
           ) : null}
         </div>
       )}
@@ -1271,7 +1271,7 @@ function SubscriptionTab() {
           data-testid="billing-live-badge"
         >
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
-          Secure live payments via Stripe — UK cards only, VAT shown at checkout.
+          Secure checkout · VAT and the final total shown before you pay.
         </div>
       )}
       {subscriptionTrialUsed && current === "free" && billingConfig?.subscription_trial_enabled && (
@@ -1287,8 +1287,7 @@ function SubscriptionTab() {
           className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-950"
           data-testid="billing-test-warning"
         >
-          <b>Upgrades disabled:</b> Stripe is still in test mode (test cards like 4242… can fake payment).
-          Set <code className="text-xs">sk_live_…</code> and a live webhook secret in Render before accepting real payments.
+          <b>Upgrades temporarily unavailable.</b> Please try again later or contact support. Your current plan is unchanged.
         </div>
       )}
       {verifying && (
@@ -1297,75 +1296,44 @@ function SubscriptionTab() {
           <span className="text-[var(--c-ink)]">Confirming your payment…</span>
         </div>
       )}
-      <div className="cs-portal-surface-card flex items-center gap-2 rounded-2xl border-l-4 px-4 py-3.5 text-sm" style={{ borderLeftColor: "var(--c-primary)" }} data-testid="current-plan-banner">
-        <CreditCard className="h-4 w-4" style={{ color: "var(--c-primary)" }} />
-        <span className="text-[var(--c-ink)]">
-          You are on the <b className="capitalize">{current}</b> plan
-          {isPaid ? ` · billed ${userInterval}` : ""}.
-        </span>
-      </div>
-
-      {currentPlan && (
-        <div className={`mt-5 ${current === "free" ? "max-w-xl" : "max-w-lg"}`}>
-          <PlanCard
-            plan={currentPlan}
-            billingInterval={isPaid ? userInterval : billingInterval}
-            trialDays={subscriptionTrialDays}
-            isCurrent
-            showAction={false}
-          />
-        </div>
-      )}
-
-      {upgradePlans.length > 0 && (
-        <div
-          className="mt-6 flex flex-col gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-          data-testid="subscription-billing-interval"
-        >
+      <section className="cs-portal-surface-card rounded-2xl p-5 sm:p-6" data-testid="current-plan-banner">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">Monthly or annual billing</p>
-            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
-              Annual plans bill once a year at 10 months&apos; price (2 months free). Prices update below when you switch.
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">Your subscription</p>
+            <h3 className="mt-2 font-heading text-2xl font-bold text-[var(--c-ink)]">CivicSign {currentPlan?.name || current}</h3>
+            <p className="mt-1 text-sm text-[var(--c-muted-fg)]">{currentPlan?.tagline}</p>
           </div>
-          <BillingIntervalToggle
-            className="shrink-0 justify-start"
-            value={billingInterval}
-            onChange={setBillingInterval}
-          />
+          <span className="rounded-full bg-[var(--c-paper-2)] px-3 py-1.5 text-xs font-semibold text-[var(--c-ink)]">
+            {cancelScheduled ? "Renewal cancelled" : user?.subscription_status === "trialing" ? "Free trial" : isPaid ? "Paid plan" : "Free plan"}
+          </span>
         </div>
-      )}
-
-      {upgradePlans.length > 0 && (
-        <div id="upgrade-plans-section" className="mt-6 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="upgrade-plans-section">
-          <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
-            <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">
-              {isPaid ? "Upgrade your subscription" : "Upgrade your plan"}
-            </h3>
-            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
-              {isPaid
-                ? "Pay only the prorated difference — unused time on your current plan is credited this billing cycle."
-                : "Compare Pro and Business — pick the plan that fits how you send documents."}
+        {isPaid && (
+          <div className="mt-4 rounded-xl bg-[var(--c-paper-2)] p-4">
+            <p className="text-xs text-[var(--c-muted-fg)]">Standard plan price</p>
+            <p className="mt-1 text-lg font-semibold text-[var(--c-ink)]">
+              {buildCheckoutPriceLabel(currentPlan?.name, userInterval)} / {userInterval === "yearly" ? "year" : "month"}
             </p>
+            <p className="mt-1 text-xs text-[var(--c-muted-fg)]">Your invoices show any trial, discount or adjustment applied to your account.</p>
           </div>
-          <div className="grid gap-4 p-5 md:grid-cols-2">
-            {upgradePlans.map((p) => (
-              <PlanCard
-                key={p.id}
-                plan={p}
-                billingInterval={billingInterval}
-                trialDays={subscriptionTrialDays}
-                switching={switching}
-                verifying={verifying}
-                onSelect={choose}
-                highlighted={upgradeTarget === p.id}
-              />
-            ))}
+        )}
+        <dl className="mt-5 grid gap-4 border-t border-[var(--c-border)] pt-5 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-[var(--c-muted-fg)]">Billing frequency</dt>
+            <dd className="mt-1 text-sm font-semibold text-[var(--c-ink)]">{isPaid ? userInterval === "yearly" ? "Annual · paid once a year" : "Monthly" : "No subscription charge"}</dd>
           </div>
-        </div>
-      )}
+          <div>
+            <dt className="text-xs text-[var(--c-muted-fg)]">{!isPaid ? "Plan duration" : cancelScheduled ? "Paid access ends" : user?.subscription_status === "trialing" ? "Trial ends" : "Current period ends"}</dt>
+            <dd className="mt-1 text-sm font-semibold text-[var(--c-ink)]">{isPaid ? periodEndLabel || "See billing details" : "No expiry"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-[var(--c-muted-fg)]">Included document allowance</dt>
+            <dd className="mt-1 text-sm font-semibold text-[var(--c-ink)]">{formatPlanDocumentLimit(currentPlan?.name || "Free", isPaid ? userInterval : "monthly")}</dd>
+            <Link to="/usage" className="mt-1 inline-block text-xs font-medium text-[var(--c-primary-hover)] underline">View usage and limits</Link>
+          </div>
+        </dl>
+      </section>
 
-      <div className="mt-5 max-w-lg cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="manage-subscription-panel">
+      <div className="mt-4 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="manage-subscription-panel">
         <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
           <h3 className="flex items-center gap-2 font-heading text-sm font-semibold text-[var(--c-ink)]">
             <CreditCard className="h-4 w-4" style={{ color: "var(--c-primary)" }} /> Manage subscription
@@ -1416,11 +1384,59 @@ function SubscriptionTab() {
           </>
         ) : (
           <p className="text-sm text-[var(--c-muted-fg)]">
-            You&apos;re on the Free plan. Choose Pro or Business above to upgrade, or buy a one-off extra document from the dashboard when you hit your limit.
+            You&apos;re on the Free plan. Choose Pro or Business below to upgrade, or buy a one-off extra document from the dashboard when you hit your limit.
           </p>
         )}
         </div>
       </div>
+
+      {upgradePlans.length > 0 && (
+        <div
+          className="mt-6 flex flex-col gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          data-testid="subscription-billing-interval"
+        >
+          <div>
+            <p className="font-heading text-sm font-semibold text-[var(--c-ink)]">Monthly or annual billing</p>
+            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+              Annual plans bill once a year at 10 months&apos; price (2 months free). Prices update below when you switch.
+            </p>
+          </div>
+          <BillingIntervalToggle
+            className="shrink-0 justify-start"
+            value={billingInterval}
+            onChange={setBillingInterval}
+          />
+        </div>
+      )}
+
+      {upgradePlans.length > 0 && (
+        <div id="upgrade-plans-section" className="mt-6 cs-portal-surface-card overflow-hidden rounded-2xl" data-testid="upgrade-plans-section">
+          <div className="border-b border-[var(--c-border)] bg-[var(--c-paper-2)] px-5 py-3.5">
+            <h3 className="font-heading text-sm font-semibold text-[var(--c-ink)]">
+              {isPaid ? "Compare upgrade options" : "Choose the right plan for you"}
+            </h3>
+            <p className="mt-0.5 text-xs text-[var(--c-muted-fg)]">
+              {isPaid
+                ? "Pay only the prorated difference — unused time on your current plan is credited this billing cycle."
+                : "Compare Pro and Business — pick the plan that fits how you send documents."}
+            </p>
+          </div>
+          <div className="grid gap-4 p-5 md:grid-cols-2">
+            {upgradePlans.map((p) => (
+              <PlanCard
+                key={p.id}
+                plan={p}
+                billingInterval={billingInterval}
+                trialDays={subscriptionTrialDays}
+                switching={switching}
+                verifying={verifying}
+                onSelect={choose}
+                highlighted={upgradeTarget === p.id}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <PricingVatFootnote className="mt-4 text-xs" />
       <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--c-muted-fg)]">
