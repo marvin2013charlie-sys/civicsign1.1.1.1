@@ -1322,7 +1322,7 @@ function SubscriptionTab() {
             <dd className="mt-1 text-sm font-semibold text-[var(--c-ink)]">{isPaid ? userInterval === "yearly" ? "Annual · paid once a year" : "Monthly" : "No subscription charge"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-[var(--c-muted-fg)]">{!isPaid ? "Plan duration" : cancelScheduled ? "Paid access ends" : user?.subscription_status === "trialing" ? "Trial ends" : "Current period ends"}</dt>
+            <dt className="text-xs text-[var(--c-muted-fg)]">{!isPaid ? "Plan duration" : cancelScheduled ? "Paid access ends" : user?.subscription_status === "trialing" ? "Trial ends" : "Billing period ends"}</dt>
             <dd className="mt-1 text-sm font-semibold text-[var(--c-ink)]">{isPaid ? periodEndLabel || "See billing details" : "No expiry"}</dd>
           </div>
           <div>
