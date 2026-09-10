@@ -13,6 +13,7 @@ const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, ""
 export const API_BASE = `${BACKEND_URL}/api`;
 // Bare backend origin (no `/api` suffix), used for absolute media URLs like avatars.
 export const API_ORIGIN = BACKEND_URL;
+export const AUTH_TIMEOUT_MS = 75_000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -53,7 +54,7 @@ function redirectToSignIn() {
 async function refreshAccessToken() {
   if (!refreshPromise) {
     refreshPromise = api
-      .post("/auth/refresh", {}, { _skipAuthRefresh: true })
+      .post("/auth/refresh", {}, { _skipAuthRefresh: true, timeout: AUTH_TIMEOUT_MS })
       .then((res) => {
         if (res.data?.access_token) setAccessToken(res.data.access_token);
         return res.data?.access_token || true;
@@ -87,7 +88,8 @@ api.interceptors.response.use(
       try {
         await refreshAccessToken();
         return api(config);
-      } catch {
+      } catch (refreshError) {
+        if (refreshError.response?.status !== 401) return Promise.reject(refreshError);
         clearTokens();
         if (!path.includes("/auth/me")) redirectToSignIn();
         return Promise.reject(err);
@@ -105,15 +107,16 @@ api.interceptors.response.use(
 export async function restoreSession() {
   getAccessToken();
   try {
-    const { data } = await api.get("/auth/me", { timeout: 10_000 });
+    const { data } = await api.get("/auth/me", { timeout: AUTH_TIMEOUT_MS, _skipAuthRefresh: true });
     return data;
   } catch (err) {
     if (err.response?.status !== 401) throw err;
     try {
       await refreshAccessToken();
-      const { data } = await api.get("/auth/me", { timeout: 10_000 });
+      const { data } = await api.get("/auth/me", { timeout: AUTH_TIMEOUT_MS, _skipAuthRefresh: true });
       return data;
-    } catch {
+    } catch (refreshError) {
+      if (refreshError.response?.status !== 401) throw refreshError;
       clearTokens();
       return null;
     }

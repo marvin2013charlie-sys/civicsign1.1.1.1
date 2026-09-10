@@ -1,4 +1,5 @@
 import React, { Suspense, lazy } from "react";
+import { loadPage } from "@/lib/loadPage";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { getPostAuthDestination } from "@/lib/authPortal";
@@ -12,7 +13,7 @@ import { ScrollToTop } from "@/components/ScrollToTop";
 import { SeoManager } from "@/components/SeoManager";
 import { GoogleSiteTags } from "@/components/GoogleSiteTags";
 
-const lazyPage = (loader, name) => lazy(() => loader().then((m) => ({ default: m.default })).catch((err) => {
+const lazyPage = (loader, name) => lazy(() => loadPage(loader, name).then((m) => ({ default: m.default })).catch((err) => {
   console.error(`Failed to load chunk: ${name}`, err);
   throw err;
 }));
@@ -95,6 +96,15 @@ const FullLoader = () => (
   </div>
 );
 
+const SessionUnavailable = () => {
+  const { checkAuth } = useAuth();
+  return <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center" role="alert">
+    <h1 className="text-xl font-semibold">Unable to connect right now</h1>
+    <p>Your session could not be checked. Please try again.</p>
+    <button className="rounded-lg bg-[var(--c-ink-solid)] px-5 py-3 text-white" onClick={checkAuth}>Try again</button>
+  </div>;
+};
+
 const RouteLoader = () => (
   <div className="flex min-h-[40vh] items-center justify-center bg-[var(--c-paper)]">
     <Loader2 className="h-6 w-6 animate-spin text-[var(--c-primary)]" />
@@ -102,9 +112,10 @@ const RouteLoader = () => (
 );
 
 function Protected({ children }) {
-  const { user, authReady } = useAuth();
+  const { user, authReady, authError } = useAuth();
   const location = useLocation();
   if (!authReady) return <FullLoader />;
+  if (authError) return <SessionUnavailable />;
   if (!user) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?next=${next}`} replace />;
@@ -123,8 +134,9 @@ function PublicOnly({ children }) {
 }
 
 function AdminProtected({ children }) {
-  const { user, authReady } = useAuth();
+  const { user, authReady, authError } = useAuth();
   if (!authReady) return <FullLoader />;
+  if (authError) return <SessionUnavailable />;
   if (!user) return <Navigate to="/admin/login" replace />;
   if (user.role !== "admin" && user.role !== "staff") {
     return <Navigate to="/admin/login" replace state={{ reason: "internal_only" }} />;
