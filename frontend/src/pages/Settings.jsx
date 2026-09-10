@@ -1666,6 +1666,7 @@ function IntegrationsTab() {
   const [creating, setCreating] = useState(false);
   const [savingWh, setSavingWh] = useState(false);
   const [testingWh, setTestingWh] = useState(false);
+  const [savedWebhook, setSavedWebhook] = useState(null);
   const [newKey, setNewKey] = useState(null);
 
   const loadIntegrations = async () => {
@@ -1677,6 +1678,7 @@ function IntegrationsTab() {
     ]);
     setKeys(kRes.data || []);
     setWebhook(wRes.data || {});
+    setSavedWebhook(wRes.data || {});
     setDeliveries(dRes.data?.deliveries || []);
     setDocs(docRes.data || null);
   };
@@ -1733,11 +1735,11 @@ function IntegrationsTab() {
 
   const toggleEvent = (eventId) => {
     setWebhook((w) => {
-      const current = w.events?.length ? [...w.events] : WEBHOOK_EVENT_OPTIONS.map((e) => e.id);
+      const current = Array.isArray(w.events) ? [...w.events] : WEBHOOK_EVENT_OPTIONS.map((e) => e.id);
       const next = current.includes(eventId)
         ? current.filter((id) => id !== eventId)
         : [...current, eventId];
-      return { ...w, events: next.length ? next : [eventId] };
+      return { ...w, events: next };
     });
   };
 
@@ -1747,11 +1749,12 @@ function IntegrationsTab() {
       const { data } = await api.patch("/me/webhook", {
         url: webhook.url,
         enabled: webhook.enabled,
-        events: webhook.events?.length ? webhook.events : WEBHOOK_EVENT_OPTIONS.map((e) => e.id),
+        events: webhook.events ?? WEBHOOK_EVENT_OPTIONS.map((e) => e.id),
         regenerate_secret: regen,
       });
       setWebhook(data);
-      if (data.secret) toast.success("Webhook secret regenerated, copy it now");
+      setSavedWebhook(data);
+      if (data.secret) toast.success("Webhook signing secret ready, copy it now");
       else toast.success("Webhook settings saved");
     } catch (err) {
       toast.error(formatApiError(err));
@@ -1778,7 +1781,11 @@ function IntegrationsTab() {
     return <div className="flex h-48 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" /></div>;
   }
 
-  const selectedEvents = webhook.events?.length
+  const webhookDirty = !savedWebhook || webhook.url !== savedWebhook.url
+    || webhook.enabled !== savedWebhook.enabled
+    || JSON.stringify(webhook.events) !== JSON.stringify(savedWebhook.events);
+
+  const selectedEvents = Array.isArray(webhook.events)
     ? webhook.events
     : WEBHOOK_EVENT_OPTIONS.map((e) => e.id);
 
@@ -1877,10 +1884,10 @@ function IntegrationsTab() {
               <Button variant="outline" className="h-9 rounded-xl text-sm" onClick={() => saveWebhook(true)} disabled={savingWh}>
                 Regenerate secret
               </Button>
-              <Button variant="outline" className="h-9 rounded-xl text-sm" onClick={testWebhook} disabled={testingWh || !webhook.url}
+              <Button variant="outline" className="h-9 rounded-xl text-sm" onClick={testWebhook} disabled={testingWh || savingWh || !webhook.url || webhookDirty}
                 data-testid="webhook-test">
                 {testingWh ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
-                Send test event
+                {webhookDirty ? "Save changes before testing" : "Send test event"}
               </Button>
             </div>
           </div>
