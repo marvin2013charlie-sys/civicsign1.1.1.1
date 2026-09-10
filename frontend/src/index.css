@@ -1137,6 +1137,7 @@ html[data-theme="dark"] {
     isolation: isolate;
   }
   .cs-portal-main-panel {
+    --c-paper: var(--c-portal-bg);
     position: relative;
     background: var(--c-portal-bg);
     overflow-x: clip;
