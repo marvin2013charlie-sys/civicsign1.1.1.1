@@ -434,7 +434,7 @@ export default function PrepareStudio() {
               <div
                 className="mt-2 flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px]"
               >
-                {[["", "None"], ...(features.recipient_auth_sms ? [["sms", "SMS"]] : []), ["kba", "KBA"]].map(([v, l]) => {
+                {[["", "None"], ...(features.recipient_auth_sms ? [["sms", "SMS"]] : []), ["kba", "KBA"], ...(features.recipient_auth_identity ? [["identity", "Passport / driving licence"]] : [])].map(([v, l]) => {
                   const active = (recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method || "") === v;
                   return (
                     <button

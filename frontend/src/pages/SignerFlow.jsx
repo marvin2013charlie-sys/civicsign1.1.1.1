@@ -44,6 +44,8 @@ export default function SignerFlow() {
   const [authVerifying, setAuthVerifying] = useState(false);
   const [savedSig, setSavedSig] = useState(null);
   const fieldRefs = useRef({});
+  const identityFrame = useRef(null);
+  useEffect(() => () => identityFrame.current?.close(), []);
 
   const loadPdf = useCallback(async (cancelledRef) => {
     const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
@@ -175,13 +177,48 @@ export default function SignerFlow() {
     }
   };
 
+  const startIdentity = async () => {
+    setAuthVerifying(true);
+    try {
+      const { data: result } = await publicApi.post(`/sign/${token}/identity/start`, { consent: true });
+      if (result.url) {
+        const target = new URL(result.url);
+        if (target.protocol !== "https:" || target.username || target.password ||
+          !["veriff.com", "veriff.me"].some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))) {
+          throw new Error("Invalid verification address");
+        }
+        const { createVeriffFrame, MESSAGES } = await import("@veriff/incontext-sdk");
+        identityFrame.current?.close();
+        identityFrame.current = createVeriffFrame({
+          url: target.href,
+          onEvent: (event) => {
+            if (event === MESSAGES.FINISHED) {
+              toast.info("Documents submitted. Check the verification result when processing finishes.");
+            }
+          },
+        });
+      } else {
+        toast.info("Check your verification result below. If it is processing, try again shortly.");
+      }
+    } catch (err) { toast.error(formatApiError(err)); }
+    finally { setAuthVerifying(false); }
+  };
+
   const verifyAuth = async () => {
     setAuthVerifying(true);
     try {
       const payload = data.auth_method === "sms"
         ? { code: authCode }
         : { postcode: authPostcode };
-      await publicApi.post(`/sign/${token}/auth/verify`, payload);
+      if (data.auth_method === "identity") {
+        const { data: result } = await publicApi.post(`/sign/${token}/identity/status`);
+        if (!result.verified) {
+          toast.info(result.message || "Verification is not complete. Complete the ID check, then check again.");
+          return;
+        }
+      } else {
+        await publicApi.post(`/sign/${token}/auth/verify`, payload);
+      }
       setAuthVerified(true);
       toast.success("Identity verified, you can continue to sign");
       if (data?.signable && !blobUrl) {
@@ -312,9 +349,15 @@ export default function SignerFlow() {
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="signer-auth-gate">
             <h1 className="font-heading text-xl font-bold text-[var(--c-ink)]">Verify your <BrandAccent>identity</BrandAccent></h1>
             <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
-              {data.sender_name} requires {data.auth_method === "sms" ? "SMS" : "knowledge-based"} authentication before you can sign.
+              {data.sender_name} requires {data.auth_method === "identity" ? "photo ID and selfie verification" : data.auth_method === "sms" ? "SMS" : "knowledge-based"} authentication before you can sign.
             </p>
-            {data.auth_method === "sms" ? (
+            {data.auth_method === "identity" ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-[var(--c-muted-fg)]">Have your passport or photocard driving licence ready. Your full name must match the name on the signing request. Veriff will collect your ID and selfie securely in this page; CivicSign records the verification result, not your ID images.</p>
+                <p className="text-sm text-[var(--c-muted-fg)]">Review Veriff’s identity-verification terms and privacy information before submitting your documents. If you cannot complete the check, contact the sender for assistance.</p>
+                <Button onClick={startIdentity} disabled={authVerifying} data-testid="signer-start-identity">Start ID verification</Button>
+              </div>
+            ) : data.auth_method === "sms" ? (
               <div className="mt-4 space-y-3">
                 {data.auth_phone_hint && (
                   <p className="text-sm text-[var(--c-muted-fg)]">Code will be sent to {data.auth_phone_hint}</p>
@@ -341,7 +384,7 @@ export default function SignerFlow() {
             <Button className="mt-5 w-full" onClick={verifyAuth} disabled={authVerifying}
               data-testid="signer-verify-auth" style={{ background: primary || "var(--c-primary)", color: "#fff" }}>
               {authVerifying && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Verify & continue
+              {data.auth_method === "identity" ? "Check verification result" : "Verify & continue"}
             </Button>
           </div>
         </div>

@@ -41,7 +41,7 @@ class RecipientIn(BaseModel):
     email: EmailStr
     order: int = 1
     color: Optional[str] = None
-    auth_method: Optional[str] = None   # None | sms | kba (Business plan)
+    auth_method: Optional[str] = None   # None | sms | kba | identity (Business plan)
     auth_phone: Optional[str] = None      # required when auth_method=sms
     auth_kba_postcode: Optional[str] = None  # required when auth_method=kba
 
