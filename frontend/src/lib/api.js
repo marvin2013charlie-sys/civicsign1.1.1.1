@@ -51,10 +51,10 @@ function redirectToSignIn() {
   window.location.replace(`/login?reason=session_expired&next=${next}`);
 }
 
-async function refreshAccessToken() {
+async function refreshAccessToken(signal) {
   if (!refreshPromise) {
     refreshPromise = api
-      .post("/auth/refresh", {}, { _skipAuthRefresh: true, timeout: AUTH_TIMEOUT_MS })
+      .post("/auth/refresh", {}, { _skipAuthRefresh: true, timeout: AUTH_TIMEOUT_MS, ...(signal ? { signal } : {}) })
       .then((res) => {
         if (res.data?.access_token) setAccessToken(res.data.access_token);
         return res.data?.access_token || true;
@@ -104,16 +104,17 @@ api.interceptors.response.use(
   },
 );
 
-export async function restoreSession() {
+export async function restoreSession(signal) {
   getAccessToken();
+  const options = { timeout: AUTH_TIMEOUT_MS, _skipAuthRefresh: true, ...(signal ? { signal } : {}) };
   try {
-    const { data } = await api.get("/auth/me", { timeout: AUTH_TIMEOUT_MS, _skipAuthRefresh: true });
+    const { data } = await api.get("/auth/me", options);
     return data;
   } catch (err) {
     if (err.response?.status !== 401) throw err;
     try {
-      await refreshAccessToken();
-      const { data } = await api.get("/auth/me", { timeout: AUTH_TIMEOUT_MS, _skipAuthRefresh: true });
+      await refreshAccessToken(signal);
+      const { data } = await api.get("/auth/me", options);
       return data;
     } catch (refreshError) {
       if (refreshError.response?.status !== 401) throw refreshError;
