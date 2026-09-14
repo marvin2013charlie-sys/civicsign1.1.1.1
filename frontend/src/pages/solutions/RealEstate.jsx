@@ -1,3 +1,4 @@
+import { marketingImageProps } from "@/lib/marketingImages";
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -140,7 +141,10 @@ export default function RealEstate() {
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="relative">
             <div className={HERO_IMAGE_FRAME}>
               <img
-                src="https://images.unsplash.com/photo-1681505531034-8d67054e07f6"
+                {...marketingImageProps("https://images.unsplash.com/photo-1681505531034-8d67054e07f6")}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
                 alt="UK estate agent shaking hands over signed property paperwork"
                 className={HERO_IMAGE}
               />

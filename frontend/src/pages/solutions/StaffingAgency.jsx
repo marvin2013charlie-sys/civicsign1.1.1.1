@@ -1,3 +1,4 @@
+import { marketingImageProps } from "@/lib/marketingImages";
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -103,7 +104,10 @@ export default function StaffingAgency() {
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="relative">
             <div className={HERO_IMAGE_FRAME}>
               <img
-                src="https://images.unsplash.com/photo-1521791136064-7986c2920216?crop=entropy&cs=srgb&fm=jpg&q=85"
+                {...marketingImageProps("https://images.unsplash.com/photo-1521791136064-7986c2920216?crop=entropy&cs=srgb&fm=jpg&q=85")}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
                 alt="UK recruiter shaking hands with candidate after signing a contract"
                 className={HERO_IMAGE}
               />

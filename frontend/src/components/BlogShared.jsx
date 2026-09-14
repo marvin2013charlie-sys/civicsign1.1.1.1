@@ -1,3 +1,4 @@
+import { marketingImageProps } from "@/lib/marketingImages";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -256,9 +257,11 @@ export function BlogFeaturedCard({ post, testId = "blog-featured-card" }) {
       <div className="grid items-stretch lg:grid-cols-5">
         <div className="relative overflow-hidden lg:col-span-3">
           <img
-            src={post.image}
+            {...marketingImageProps(post.image)}
             alt=""
-            loading="lazy"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             className="h-56 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] lg:h-full lg:min-h-[320px]"
           />
           <span className="absolute left-4 top-4 rounded-full bg-[var(--card)]/95 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--badge-teal-fg)] shadow-sm backdrop-blur">
@@ -286,9 +289,10 @@ export function BlogPostCard({ post, testId = "blog-card" }) {
     <Link to={`/blog/${post.slug}`} className={`group flex h-full flex-col overflow-hidden ${BLOG_SURFACE_INTERACTIVE}`} data-testid={testId}>
       <div className="overflow-hidden">
         <img
-          src={post.image}
+          {...marketingImageProps(post.image, "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw")}
           alt=""
           loading="lazy"
+          decoding="async"
           className="aspect-[16/10] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
         />
       </div>

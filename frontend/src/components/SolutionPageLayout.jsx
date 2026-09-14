@@ -1,3 +1,4 @@
+import { marketingImageProps } from "@/lib/marketingImages";
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -120,7 +121,7 @@ export function SolutionPageLayout({
           </motion.div>
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
             <div className={HERO_IMAGE_FRAME}>
-              <img src={heroImage.src} alt={heroImage.alt} className={HERO_IMAGE} loading="lazy" />
+              <img {...marketingImageProps(heroImage.src)} alt={heroImage.alt} className={HERO_IMAGE} loading="eager" fetchPriority="high" decoding="async" />
             </div>
           </motion.div>
         </div>
