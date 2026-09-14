@@ -43,6 +43,7 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
     '/adobe-sign-alternative',
     '/eidas-compliant-esignature',
     '/electronic-signatures-uk',
+    '/e-signature-for-solicitors-uk',
   ]));
   expect(paths).not.toContain('/e-signature-software');
   const home = getSeoForPath('/');
@@ -56,4 +57,5 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
   expect(getSeoForPath('/adobe-sign-alternative').title.toLowerCase()).toContain('adobe');
   expect(getSeoForPath('/eidas-compliant-esignature').title.toLowerCase()).toContain('eidas');
   expect(getSeoForPath('/electronic-signatures-uk').title.toLowerCase()).toContain('electronic signatures');
+  expect(getSeoForPath('/e-signature-for-solicitors-uk').title.toLowerCase()).toContain('solicitors');
 });

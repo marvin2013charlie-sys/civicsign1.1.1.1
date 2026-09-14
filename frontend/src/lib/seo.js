@@ -252,6 +252,12 @@ const STATIC_ROUTES = {
       "eIDAS signature UK software from CivicSign: UK eIDAS SES/AES-aligned e-signatures, UK GDPR hosting, audit seal & free plan. Honest on QES limits.",
     path: "/eidas-compliant-esignature",
   },
+  "/e-signature-for-solicitors-uk": {
+    title: `E-Signature for Solicitors UK — Law Firms & Legal | ${SITE_NAME}`,
+    description:
+      "E-signature for solicitors UK: CivicSign — UK-hosted signing for engagement letters, NDAs & retainers. Free plan, clear GBP pricing. Start free.",
+    path: "/e-signature-for-solicitors-uk",
+  },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
     description:

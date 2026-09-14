@@ -62,6 +62,7 @@ export default function ElectronicSignaturesUk() {
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
         { to: "/eidas-compliant-esignature", label: "eIDAS e-signature" },
         { to: "/solutions", label: "Solutions" },
+        { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
       ]}
       ctaHeadline="Start electronic signatures today"
     />

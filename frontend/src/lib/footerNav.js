@@ -13,6 +13,7 @@ export const FOOTER_COLS = [
       { label: "DocuSign alternative", to: "/docusign-alternative" },
       { label: "Adobe Sign alternative", to: "/adobe-sign-alternative" },
       { label: "eIDAS e-signature", to: "/eidas-compliant-esignature" },
+      { label: "E-signature for solicitors", to: "/e-signature-for-solicitors-uk" },
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
       { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },

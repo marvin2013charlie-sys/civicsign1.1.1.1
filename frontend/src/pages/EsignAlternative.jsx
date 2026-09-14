@@ -201,6 +201,7 @@ export default function EsignAlternative() {
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
         { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
+        { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Try this eSign alternative free"

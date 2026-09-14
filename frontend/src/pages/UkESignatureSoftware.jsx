@@ -180,6 +180,7 @@ const RELATED = [
   { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
   { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
   { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
+  { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
   { to: "/product/manage-pdf", label: "Manage PDF" },
   { to: "/solutions", label: "Industry solutions" },
   { to: "/blog/are-e-signatures-legal-in-the-uk", label: "Are e-signatures legal?" },

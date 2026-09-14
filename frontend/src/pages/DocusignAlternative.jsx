@@ -55,6 +55,7 @@ export default function DocusignAlternative() {
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
         { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
+        { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/pricing", label: "Compare pricing" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/solutions", label: "Solutions" },
