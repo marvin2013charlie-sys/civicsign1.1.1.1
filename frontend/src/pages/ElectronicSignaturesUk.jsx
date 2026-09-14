@@ -49,7 +49,9 @@ export default function ElectronicSignaturesUk() {
       related={[
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
-        { to: "/blog", label: "Guides & blog" },
+        { to: "/pricing", label: "Pricing" },
+        { to: "/blog/are-e-signatures-legal-in-the-uk", label: "Legal guide" },
+        { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Start electronic signatures today"
     />

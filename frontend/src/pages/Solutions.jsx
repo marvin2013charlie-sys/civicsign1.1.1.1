@@ -123,7 +123,8 @@ export default function Solutions() {
               <Link to="/register" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE} data-testid="solutions-hub-cta-start">
                 Start free <ArrowRight className="h-4 w-4" style={{ color: "#2DD4BF" }} />
               </Link>
-              <Link to="/contact" className={SECONDARY_CTA}>Talk to us</Link>
+              <Link to="/uk-e-signature-software" className={SECONDARY_CTA}>UK e-signature software</Link>
+              <Link to="/pricing" className={SECONDARY_CTA}>Pricing</Link>
             </div>
             <div className="mt-7 flex flex-wrap justify-center gap-x-5 gap-y-2 text-[13px] font-medium text-[var(--c-muted-fg)]">
               {TRUST_BULLETS.map((t) => (

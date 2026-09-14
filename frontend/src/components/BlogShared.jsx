@@ -187,8 +187,10 @@ export function BlogArticleCta({
   body = "Send your first UK-ready document in minutes. Free plan available, UK GDPR by default.",
   primaryLabel = "Start free →",
   primaryTo = "/register",
-  secondaryLabel = "View pricing",
-  secondaryTo = "/pricing",
+  secondaryLabel = "UK e-signature software",
+  secondaryTo = "/uk-e-signature-software",
+  tertiaryLabel = "View pricing",
+  tertiaryTo = "/pricing",
 }) {
   return (
     <div
@@ -215,9 +217,20 @@ export function BlogArticleCta({
           to={secondaryTo}
           className="inline-flex items-center rounded-xl border px-6 py-3.5 text-[15px] font-bold text-white transition-colors hover:bg-white/10"
           style={{ background: "rgba(255,255,255,.09)", borderColor: "rgba(255,255,255,.15)" }}
+          data-testid="blogpost-cta-uk-esign"
         >
           {secondaryLabel}
         </Link>
+        {tertiaryLabel && tertiaryTo ? (
+          <Link
+            to={tertiaryTo}
+            className="inline-flex items-center rounded-xl border px-6 py-3.5 text-[15px] font-bold text-white transition-colors hover:bg-white/10"
+            style={{ background: "rgba(255,255,255,.09)", borderColor: "rgba(255,255,255,.15)" }}
+            data-testid="blogpost-cta-pricing"
+          >
+            {tertiaryLabel}
+          </Link>
+        ) : null}
       </div>
     </div>
   );

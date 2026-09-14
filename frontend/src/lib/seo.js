@@ -35,6 +35,16 @@ const NOINDEX_PREFIXES = [
   "/admin",
 ];
 
+const UK_ESIGN_FAQS = [
+  ["What is UK e-signature software?", "UK e-signature software lets you prepare, send and sign documents electronically under UK law. CivicSign captures signer intent, consent and a tamper-evident audit trail so completed agreements are suitable for everyday UK business use."],
+  ["Are CivicSign signatures legally binding?", "Yes. CivicSign is built for legally binding electronic signatures in England and Wales, aligned with the Electronic Communications Act 2000 and UK eIDAS requirements for simple and advanced electronic signatures where appropriate."],
+  ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process."],
+  ["Do recipients need an account?", "No. Signers open a secure link on any device — no downloads and no CivicSign account required."],
+  ["How does CivicSign compare to DocuSign, Signable or Legalesign?", "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; CivicSign is built for UK SMEs that want lawful signatures without US-cloud lock-in."],
+  ["What is on the free plan?", "Free includes 2 documents a month, no card required. Extra documents are 80p excl. VAT if you go over. Audit trail and Certificate of Completion are included on every plan."],
+  ["SES, AES or QES — what do I need?", "Most UK SME contracts only need a simple electronic signature (SES) with a clear audit trail. Advanced electronic signatures (AES) are available on Pro and default on Business. Qualified electronic signatures (QES) are on request for Business — we do not pretend QES is required for every envelope."],
+];
+
 const HOME_FAQS = [
   ["Are signatures from CivicSign legally binding?", "Yes. CivicSign is built around UK law, the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents, capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
   ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with strict access controls, encryption in transit, and a clear data-subject rights process you can exercise at any time."],
@@ -197,7 +207,7 @@ const STATIC_ROUTES = {
   "/uk-e-signature-software": {
     title: `UK e-signature software — Legally Binding & UK GDPR | ${SITE_NAME}`,
     description:
-      "CivicSign is UK e-signature software for contracts, NDAs and offer letters. Legally binding under UK law, UK GDPR compliant, with a court-ready audit trail. Compare plans and start free.",
+      "UK e-signature software from CivicSign: legally binding signatures, UK GDPR hosting, audit trail & Manage PDF. Free 2 docs/month. Pro ~£15/user. Start free.",
     path: "/uk-e-signature-software",
   },
   "/docusign-alternative": {
@@ -442,11 +452,15 @@ export function getSeoForPath(pathname) {
 
   if (STATIC_ROUTES[path]) {
     const route = STATIC_ROUTES[path];
+    let jsonLd = path === "/" ? [...buildHomeJsonLd(), ...buildPageJsonLd(route)] : buildPageJsonLd(route);
+    if (path === "/uk-e-signature-software") {
+      jsonLd = [...jsonLd, buildFaqJsonLd(UK_ESIGN_FAQS)];
+    }
     return {
       ...route,
       description: truncate(route.description),
       noindex,
-      jsonLd: path === "/" ? [...buildHomeJsonLd(), ...buildPageJsonLd(route)] : buildPageJsonLd(route),
+      jsonLd,
     };
   }
 

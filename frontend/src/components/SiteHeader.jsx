@@ -14,6 +14,7 @@ import { FooterLink } from "@/components/FooterLink";
 import { getMarketingHeaderCta } from "@/lib/authPortal";
 
 const PRODUCT_LINKS = [
+  { label: "UK e-signature software", to: "/uk-e-signature-software" },
   { label: "E-signatures", to: { pathname: "/", hash: "#features" } },
   { label: "Manage PDF", to: "/product/manage-pdf" },
   { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },
@@ -91,6 +92,7 @@ export const SiteHeader = () => {
 
   const solActive = location.pathname.startsWith("/solutions");
   const productActive =
+    location.pathname === "/uk-e-signature-software" ||
     location.pathname === "/product/manage-pdf" ||
     location.pathname === "/product/id-verification" ||
     (location.pathname === "/" &&

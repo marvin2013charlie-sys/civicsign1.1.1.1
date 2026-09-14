@@ -5,6 +5,7 @@ export const FOOTER_COLS = [
   {
     title: "Product",
     links: [
+      { label: "UK e-signature software", to: "/uk-e-signature-software" },
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
       { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },

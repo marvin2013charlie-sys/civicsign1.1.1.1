@@ -161,6 +161,20 @@ export default function Landing() {
                 </span>
               ))}
             </div>
+            <p className="mt-5 text-[14px] text-[var(--c-muted-fg)]">
+              Learn why teams choose CivicSign:{" "}
+              <Link
+                to="/uk-e-signature-software"
+                className="font-semibold text-[var(--c-primary)] hover:underline"
+                data-testid="home-uk-e-signature-software-link"
+              >
+                UK e-signature software
+              </Link>
+              {" · "}
+              <Link to="/pricing" className="font-semibold text-[var(--c-primary)] hover:underline">
+                Pricing
+              </Link>
+            </p>
           </div>
 
           {/* hero mock — badges in document flow above/below card (no absolute overlap) */}
@@ -576,6 +590,36 @@ export default function Landing() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= MONEY PAGE PATH ================= */}
+      <section className="border-y border-[var(--c-border)] bg-[var(--card)]" data-testid="home-uk-esign-band">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-12 sm:px-6 md:flex-row md:items-center lg:py-14">
+          <div className="max-w-2xl">
+            <div className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">Product</div>
+            <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-3xl" style={H_FONT}>
+              Looking for UK e-signature software?
+            </h2>
+            <p className="mt-2 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+              See how CivicSign compares on UK hosting, Manage PDF, signer experience and honest GBP pricing — then pick a plan.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              to="/uk-e-signature-software"
+              className="inline-flex items-center justify-center rounded-2xl px-6 py-3.5 text-sm font-semibold text-white"
+              style={{ background: INK, boxShadow: "0 10px 24px rgba(18,33,32,.18)" }}
+            >
+              UK e-signature software →
+            </Link>
+            <Link
+              to="/pricing"
+              className="inline-flex items-center justify-center rounded-2xl border border-[var(--c-border)] bg-[var(--c-paper)] px-6 py-3.5 text-sm font-semibold text-[var(--c-ink)]"
+            >
+              View pricing
+            </Link>
           </div>
         </div>
       </section>
