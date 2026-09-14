@@ -228,6 +228,12 @@ const STATIC_ROUTES = {
       "Signable alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer account. Start free.",
     path: "/signable-alternative",
   },
+  "/esign-alternative": {
+    title: `eSign Alternative UK — Clear Pricing & Manage PDF | ${SITE_NAME}`,
+    description:
+      "eSign alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer accounts. Start free.",
+    path: "/esign-alternative",
+  },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
     description:

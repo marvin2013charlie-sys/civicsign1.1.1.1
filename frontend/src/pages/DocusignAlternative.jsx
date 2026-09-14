@@ -50,6 +50,7 @@ export default function DocusignAlternative() {
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/signable-alternative", label: "Signable alternative" },
+        { to: "/esign-alternative", label: "eSign alternative" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/pricing", label: "Compare pricing" },
         { to: "/product/manage-pdf", label: "Manage PDF" },

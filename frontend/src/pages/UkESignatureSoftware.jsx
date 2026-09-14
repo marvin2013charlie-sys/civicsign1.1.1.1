@@ -175,6 +175,7 @@ const RELATED = [
   { to: "/docusign-alternative", label: "DocuSign alternative" },
   { to: "/legalesign-alternative", label: "Legalesign alternative" },
   { to: "/signable-alternative", label: "Signable alternative" },
+  { to: "/esign-alternative", label: "eSign alternative" },
   { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
   { to: "/product/manage-pdf", label: "Manage PDF" },
   { to: "/solutions", label: "Industry solutions" },
@@ -315,6 +316,10 @@ export default function UkESignatureSoftware() {
             <Link to="/signable-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               CivicSign as a Signable alternative
             </Link>
+            . Comparing eSign?{" "}
+            <Link to="/esign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              CivicSign as an eSign alternative
+            </Link>
             . Legal background:{" "}
             <Link to="/electronic-signatures-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
               electronic signatures in the UK
@@ -372,6 +377,35 @@ export default function UkESignatureSoftware() {
           <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link to="/signable-alternative" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
               Signable alternative <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link to="/pricing" className={SECONDARY_CTA}>
+              See CivicSign pricing
+            </Link>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section className="border-b border-[var(--c-border)] bg-[var(--card)]">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:py-16">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">
+            eSign alternative
+          </p>
+          <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] sm:text-4xl" style={H_FONT}>
+            Switching from eSign?
+          </h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+            eSign is a familiar UK e-signature name on many SME and public-sector shortlists. CivicSign competes on
+            the criteria UK buyers escalate to finance and compliance: UK hosting clarity, a real free tier plus
+            published Pro GBP plans, Manage PDF in the same product, and signers who never need an account. If you
+            are evaluating an eSign alternative for UK GDPR and UK eIDAS workflows, the dedicated comparison page
+            walks through hosting, pricing honesty and the 2-in-1 PDF path — without inventing competitor list
+            prices; always check eSign&apos;s site for current pricing.
+          </p>
+          <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link to="/esign-alternative" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
+              eSign alternative <ArrowRight className="h-4 w-4" />
             </Link>
             <Link to="/pricing" className={SECONDARY_CTA}>
               See CivicSign pricing

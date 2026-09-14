@@ -168,6 +168,10 @@ export default function LegalesignAlternative() {
               Signable alternative
             </Link>
             {" · "}
+            <Link to="/esign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              eSign alternative
+            </Link>
+            {" · "}
             <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               DocuSign alternative
             </Link>
@@ -180,6 +184,7 @@ export default function LegalesignAlternative() {
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/pricing", label: "Compare pricing" },
         { to: "/signable-alternative", label: "Signable alternative" },
+        { to: "/esign-alternative", label: "eSign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },

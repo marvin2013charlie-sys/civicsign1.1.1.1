@@ -8,6 +8,7 @@ export const FOOTER_COLS = [
       { label: "UK e-signature software", to: "/uk-e-signature-software" },
       { label: "Legalesign alternative", to: "/legalesign-alternative" },
       { label: "Signable alternative", to: "/signable-alternative" },
+      { label: "eSign alternative", to: "/esign-alternative" },
       { label: "DocuSign alternative", to: "/docusign-alternative" },
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
