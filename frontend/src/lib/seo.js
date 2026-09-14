@@ -40,7 +40,7 @@ const UK_ESIGN_FAQS = [
   ["Are CivicSign signatures legally binding?", "Yes. CivicSign is built for legally binding electronic signatures in England and Wales, aligned with the Electronic Communications Act 2000 and UK eIDAS requirements for simple and advanced electronic signatures where appropriate."],
   ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process."],
   ["Do recipients need an account?", "No. Signers open a secure link on any device — no downloads and no CivicSign account required."],
-  ["How does CivicSign compare to DocuSign, Signable or Legalesign?", "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; CivicSign is built for UK SMEs that want lawful signatures without US-cloud lock-in."],
+  ["How does CivicSign compare to DocuSign, Signable or Legalesign?", "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; Legalesign is a common UK/EU shortlist peer — CivicSign emphasises pricing honesty, Manage PDF 2-in-1 and zero signer accounts for UK SMEs."],
   ["What is on the free plan?", "Free includes 2 documents a month, no card required. Extra documents are 80p excl. VAT if you go over. Audit trail and Certificate of Completion are included on every plan."],
   ["SES, AES or QES — what do I need?", "Most UK SME contracts only need a simple electronic signature (SES) with a clear audit trail. Advanced electronic signatures (AES) are available on Pro and default on Business. Qualified electronic signatures (QES) are on request for Business — we do not pretend QES is required for every envelope."],
 ];
@@ -215,6 +215,12 @@ const STATIC_ROUTES = {
     description:
       "Looking for a DocuSign alternative in the UK? CivicSign is UK-built e-signature software with clear pricing, UK GDPR hosting and legally binding signatures. Start free — no US lock-in.",
     path: "/docusign-alternative",
+  },
+  "/legalesign-alternative": {
+    title: `Legalesign Alternative UK — Clear Pricing & Manage PDF | ${SITE_NAME}`,
+    description:
+      "Legalesign alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer accounts. Start free.",
+    path: "/legalesign-alternative",
   },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,

@@ -38,6 +38,7 @@ const ManagePdfProduct = lazyPage(() => import("@/pages/ManagePdfProduct"), "Man
 const IdVerificationProduct = lazyPage(() => import("@/pages/IdVerificationProduct"), "IdVerificationProduct");
 const UkESignatureSoftware = lazyPage(() => import("@/pages/UkESignatureSoftware"), "UkESignatureSoftware");
 const DocusignAlternative = lazyPage(() => import("@/pages/DocusignAlternative"), "DocusignAlternative");
+const LegalesignAlternative = lazyPage(() => import("@/pages/LegalesignAlternative"), "LegalesignAlternative");
 const ElectronicSignaturesUk = lazyPage(() => import("@/pages/ElectronicSignaturesUk"), "ElectronicSignaturesUk");
 const Pricing = lazyPage(() => import("@/pages/Pricing"), "Pricing");
 const Blog = lazyPage(() => import("@/pages/Blog"), "Blog");
@@ -184,6 +185,7 @@ function AppRoutes() {
           <Route path="/product/id-verification" element={<IdVerificationProduct />} />
           <Route path="/uk-e-signature-software" element={<UkESignatureSoftware />} />
           <Route path="/docusign-alternative" element={<DocusignAlternative />} />
+          <Route path="/legalesign-alternative" element={<LegalesignAlternative />} />
           <Route path="/electronic-signatures-uk" element={<ElectronicSignaturesUk />} />
           <Route path="/e-signature-software" element={<Navigate to="/uk-e-signature-software" replace />} />
           <Route path="/pricing" element={<Pricing />} />

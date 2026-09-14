@@ -35,6 +35,7 @@ export function MarketingMoneyPage({
   subhead,
   points = [],
   comparison = null,
+  table = null,
   faqs = [],
   related = [],
   ctaHeadline = "Start signing with CivicSign",
@@ -139,6 +140,45 @@ export function MarketingMoneyPage({
               ))}
             </ul>
           </div>
+        </section>
+      ) : null}
+
+      {table ? (
+        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:py-16">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">
+              {table.eyebrow || "Side-by-side"}
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] sm:text-4xl" style={H_FONT}>
+              {table.title}
+            </h2>
+            {table.subtitle ? (
+              <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">{table.subtitle}</p>
+            ) : null}
+          </div>
+          <div className="mt-10 overflow-x-auto rounded-[20px] border border-[var(--c-border)] bg-[var(--card)]">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--c-border)] text-[11px] uppercase tracking-[1px] text-[var(--c-muted-fg)]">
+                  <th className="px-5 py-3 font-semibold">{table.criterionLabel || "Criterion"}</th>
+                  <th className="px-5 py-3 font-semibold text-[var(--c-primary)]">{table.leftLabel || "CivicSign"}</th>
+                  <th className="px-5 py-3 font-semibold">{table.rightLabel || "Alternative"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(table.rows || []).map((row) => (
+                  <tr key={row.criterion} className="border-b border-[var(--c-border)] last:border-0">
+                    <td className="px-5 py-4 font-semibold text-[var(--c-ink)]">{row.criterion}</td>
+                    <td className="px-5 py-4 text-[var(--c-ink)]">{row.left}</td>
+                    <td className="px-5 py-4 text-[var(--c-muted-fg)]">{row.right}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {table.footnote ? (
+            <p className="mt-5 text-center text-sm text-[var(--c-muted-fg)]">{table.footnote}</p>
+          ) : null}
         </section>
       ) : null}
 

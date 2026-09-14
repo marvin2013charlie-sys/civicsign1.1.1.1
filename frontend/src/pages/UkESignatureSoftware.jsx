@@ -62,7 +62,7 @@ export const UK_ESIGN_PAGE_FAQS = [
   ],
   [
     "How does CivicSign compare to DocuSign, Signable or Legalesign?",
-    "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; CivicSign is built for UK SMEs that want lawful signatures without US-cloud lock-in.",
+    "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; Legalesign is a common UK/EU shortlist peer — CivicSign emphasises pricing honesty, Manage PDF 2-in-1 and zero signer accounts for UK SMEs.",
   ],
   [
     "What is on the free plan?",
@@ -101,22 +101,27 @@ const COMPARE_ROWS = [
   {
     criterion: "Hosting & ownership",
     civicsign: "UK-owned, UK-hosted",
-    others: "Often US/global cloud (DocuSign) or mixed UK/EU stacks (Signable, Legalesign)",
+    others: "DocuSign: often US/global cloud. Signable & Legalesign: UK/EU-oriented — confirm residency on contract",
   },
   {
     criterion: "PDF tools",
     civicsign: "2-in-1 Manage PDF on paid plans",
-    others: "Usually a separate PDF editor or add-on",
+    others: "Usually a separate PDF editor or add-on (including typical Legalesign setups)",
   },
   {
     criterion: "Pricing",
     civicsign: `Free ${formatFreePlanDocsAMonth()}; Pro ~${formatProMonthlyShort()}`,
-    others: "Enterprise quotes common; less transparent entry pricing",
+    others: "DocuSign often enterprise-quoted; Signable/Legalesign vary — CivicSign publishes GBP entry plans",
   },
   {
     criterion: "Signer accounts",
     civicsign: "Never required",
-    others: "Some workflows push recipient accounts or apps",
+    others: "Some workflows push recipient accounts or apps — check before you shortlist",
+  },
+  {
+    criterion: "UK GDPR / eIDAS",
+    civicsign: "Designed for UK GDPR & UK eIDAS SES/AES",
+    others: "All serious vendors claim compliance — verify DPA, hosting and signature level for your use case",
   },
 ];
 
@@ -168,6 +173,7 @@ const USE_CASES = [
 
 const RELATED = [
   { to: "/docusign-alternative", label: "DocuSign alternative" },
+  { to: "/legalesign-alternative", label: "Legalesign alternative" },
   { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
   { to: "/product/manage-pdf", label: "Manage PDF" },
   { to: "/solutions", label: "Industry solutions" },
@@ -300,12 +306,44 @@ export default function UkESignatureSoftware() {
             <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               CivicSign as a DocuSign alternative
             </Link>
+            . Comparing Legalesign specifically?{" "}
+            <Link to="/legalesign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              CivicSign as a Legalesign alternative
+            </Link>
             . Legal background:{" "}
             <Link to="/electronic-signatures-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
               electronic signatures in the UK
             </Link>
             .
           </p>
+        </div>
+      </section>
+
+      <section className="border-b border-[var(--c-border)] bg-[var(--card)]">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:py-16">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">
+            Legalesign alternative
+          </p>
+          <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] sm:text-4xl" style={H_FONT}>
+            Switching from Legalesign?
+          </h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+            Legalesign is a familiar UK/EU name on many shortlists. CivicSign competes on the criteria UK SMEs
+            actually escalate to finance and compliance: UK hosting clarity, published Free and Pro GBP plans,
+            Manage PDF in the same product, and signers who never need an account. If you are evaluating a
+            Legalesign alternative for UK GDPR and UK eIDAS workflows, the dedicated comparison page walks through
+            hosting, pricing honesty and the 2-in-1 PDF path without the enterprise maze.
+          </p>
+          <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link to="/legalesign-alternative" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
+              Legalesign alternative <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link to="/pricing" className={SECONDARY_CTA}>
+              See CivicSign pricing
+            </Link>
+          </div>
+        </div>
         </div>
       </section>
 
