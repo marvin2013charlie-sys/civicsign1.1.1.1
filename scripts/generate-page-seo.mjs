@@ -68,7 +68,10 @@ const notFoundHtml = `<!DOCTYPE html>
 fs.writeFileSync(path.join(build, '404.html'), notFoundHtml);
 
 // Explicit rewrites keep clean canonical URLs while serving route-specific HTML.
-const rewrites = paths.filter(route => route !== '/').map(route => `${route}/ ${route} 301\n${route} ${route}.html 200`).join('\n');
+// Cloudflare Pages already serves /pricing from pricing.html (pretty URLs) and
+// 308-redirects *.html -> extensionless. Emitting `${route} ${route}.html 200`
+// rewrites fights that and creates infinite 308 loops. Only canonicalize trailing slashes.
+const rewrites = paths.filter(route => route !== '/').map(route => `${route}/ ${route} 301`).join('\n');
 
 // SPA client routes that must keep working without a matching .html file.
 const spaExact = [
