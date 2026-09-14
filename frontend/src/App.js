@@ -48,6 +48,7 @@ const ElectronicSignaturesUk = lazyPage(() => import("@/pages/ElectronicSignatur
 const ESignatureForSolicitorsUk = lazyPage(() => import("@/pages/ESignatureForSolicitorsUk"), "ESignatureForSolicitorsUk");
 const ESignatureForEstateAgentsUk = lazyPage(() => import("@/pages/ESignatureForEstateAgentsUk"), "ESignatureForEstateAgentsUk");
 const ESignatureForAccountantsUk = lazyPage(() => import("@/pages/ESignatureForAccountantsUk"), "ESignatureForAccountantsUk");
+const ESignatureForHrUk = lazyPage(() => import("@/pages/ESignatureForHrUk"), "ESignatureForHrUk");
 const Pricing = lazyPage(() => import("@/pages/Pricing"), "Pricing");
 const Blog = lazyPage(() => import("@/pages/Blog"), "Blog");
 const BlogPost = lazyPage(() => import("@/pages/BlogPost"), "BlogPost");
@@ -203,6 +204,7 @@ function AppRoutes() {
           <Route path="/e-signature-for-solicitors-uk" element={<ESignatureForSolicitorsUk />} />
           <Route path="/e-signature-for-estate-agents-uk" element={<ESignatureForEstateAgentsUk />} />
           <Route path="/e-signature-for-accountants-uk" element={<ESignatureForAccountantsUk />} />
+          <Route path="/e-signature-for-hr-uk" element={<ESignatureForHrUk />} />
           <Route path="/e-signature-software" element={<Navigate to="/uk-e-signature-software" replace />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/blog" element={<Blog />} />

@@ -37,6 +37,7 @@ assert.ok(redirects.includes('/electronic-signatures-uk'), 'Money page rewrite m
 assert.ok(redirects.includes('/e-signature-for-solicitors-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-for-estate-agents-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-for-accountants-uk'), 'Money page rewrite missing');
+assert.ok(redirects.includes('/e-signature-for-hr-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-software /uk-e-signature-software 301'), 'Duplicate money URL redirect missing');
 assert.ok(redirects.includes('/dashboard /index.html 200'), 'SPA dashboard fallback missing');
 assert.ok(redirects.includes('/sign/* /index.html 200'), 'SPA sign fallback missing');

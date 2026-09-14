@@ -204,6 +204,7 @@ export default function SignableAlternative() {
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
         { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
+        { to: "/e-signature-for-hr-uk", label: "E-signature for HR" },
         { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Try this Signable alternative free"

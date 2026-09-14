@@ -175,6 +175,10 @@ export default function ESignatureForSolicitorsUk() {
               E-signature for accountants
             </Link>
             {" · "}
+            <Link to="/e-signature-for-hr-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
+              E-signature for HR
+            </Link>
+            {" · "}
             <Link to="/electronic-signatures-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
               Electronic signatures UK
             </Link>
@@ -191,6 +195,7 @@ export default function ESignatureForSolicitorsUk() {
         { to: "/solutions/legal", label: "Legal & solicitors solutions" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
         { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
+        { to: "/e-signature-for-hr-uk", label: "E-signature for HR" },
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/eidas-compliant-esignature", label: "eIDAS e-signature" },

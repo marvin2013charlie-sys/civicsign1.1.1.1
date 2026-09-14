@@ -166,6 +166,7 @@ export default function EidasCompliantEsignature() {
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
         { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
+        { to: "/e-signature-for-hr-uk", label: "E-signature for HR" },
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/pricing", label: "Compare pricing" },
         { to: "/register", label: "Start free" },

@@ -182,6 +182,10 @@ export default function ESignatureForAccountantsUk() {
             <Link to="/e-signature-for-estate-agents-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
               E-signature for estate agents
             </Link>
+            {" · "}
+            <Link to="/e-signature-for-hr-uk" className="font-semibold text-[var(--c-primary)] hover:underline">
+              E-signature for HR
+            </Link>
             . General information only — not legal or professional advice.
           </>
         ),
@@ -191,6 +195,7 @@ export default function ESignatureForAccountantsUk() {
         { to: "/solutions/financial-services", label: "Accountants & financial services" },
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
+        { to: "/e-signature-for-hr-uk", label: "E-signature for HR" },
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/eidas-compliant-esignature", label: "eIDAS e-signature" },

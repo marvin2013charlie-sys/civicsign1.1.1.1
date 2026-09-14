@@ -270,6 +270,12 @@ const STATIC_ROUTES = {
       "E-signature for accountants UK: CivicSign — UK-hosted signing for engagement letters & proposals. Free plan, clear GBP pricing. Start free.",
     path: "/e-signature-for-accountants-uk",
   },
+  "/e-signature-for-hr-uk": {
+    title: `E-Signature for HR UK — People Teams & Recruitment | ${SITE_NAME}`,
+    description:
+      "E-signature for HR UK: CivicSign — UK-hosted signing for offer letters, contracts & policies. Free plan, clear GBP pricing. Start free.",
+    path: "/e-signature-for-hr-uk",
+  },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
     description:
