@@ -28,6 +28,7 @@ assert.ok(redirects.includes('/* /404.html 404'), 'Catch-all must point at 404.h
 assert.ok(redirects.includes('/uk-e-signature-software'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/docusign-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/legalesign-alternative'), 'Money page rewrite missing');
+assert.ok(redirects.includes('/signable-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/electronic-signatures-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-software /uk-e-signature-software 301'), 'Duplicate money URL redirect missing');
 assert.ok(redirects.includes('/dashboard /index.html 200'), 'SPA dashboard fallback missing');

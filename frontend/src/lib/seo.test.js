@@ -37,6 +37,7 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
     '/uk-e-signature-software',
     '/docusign-alternative',
     '/legalesign-alternative',
+    '/signable-alternative',
     '/electronic-signatures-uk',
   ]));
   expect(paths).not.toContain('/e-signature-software');
@@ -45,5 +46,6 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
   expect(getSeoForPath('/uk-e-signature-software').title.toLowerCase()).toContain('uk e-signature software');
   expect(getSeoForPath('/docusign-alternative').title.toLowerCase()).toContain('docusign');
   expect(getSeoForPath('/legalesign-alternative').title.toLowerCase()).toContain('legalesign');
+  expect(getSeoForPath('/signable-alternative').title.toLowerCase()).toContain('signable');
   expect(getSeoForPath('/electronic-signatures-uk').title.toLowerCase()).toContain('electronic signatures');
 });

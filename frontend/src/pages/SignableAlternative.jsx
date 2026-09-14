@@ -19,7 +19,7 @@ const POINTS = [
   {
     icon: Globe2,
     title: "UK-hosted for UK buyers",
-    body: "CivicSign is UK-owned and UK-hosted e-signature software. If you are shortlisting a Legalesign alternative because data residency and UK GDPR posture matter, start here — not with a US-first stack dressed up for Europe.",
+    body: "CivicSign is UK-owned and UK-hosted e-signature software. If you are shortlisting a Signable alternative because data residency and UK GDPR posture matter, start here — with hosting and ownership you can explain to compliance without a US-first stack.",
   },
   {
     icon: BadgePoundSterling,
@@ -27,9 +27,9 @@ const POINTS = [
     body: (
       <>
         Published GBP plans: Free with {formatFreePlanDocsAMonth()}, Pro from about {formatProMonthlyShort()} per user.
-        No opaque enterprise quote just to send your first envelopes.{" "}
+        A real free tier to evaluate — not only a short trial. Signable typically sells by envelope volume with published plans of its own; check their site for current pricing, then compare honesty and fit for your volume.{" "}
         <Link to="/pricing" className="font-semibold text-[var(--c-primary)] hover:underline">
-          See pricing
+          See CivicSign pricing
         </Link>
         .
       </>
@@ -51,7 +51,7 @@ const POINTS = [
   },
   {
     icon: UserX,
-    title: "No signer accounts",
+    title: "No signer account",
     body: "Recipients open a secure link, review the document and sign on any device. No CivicSign account, no app store trip, no friction that kills completion rates.",
   },
   {
@@ -68,16 +68,16 @@ const POINTS = [
 
 const FAQS = [
   [
-    "Is CivicSign a Legalesign alternative?",
-    "Yes. CivicSign covers the core UK send-and-sign workflow teams use Legalesign for — with UK hosting, published GBP pricing, a real free tier, Manage PDF on paid plans, and no signer accounts.",
+    "Is CivicSign a Signable alternative?",
+    "Yes. CivicSign covers the core UK send-and-sign workflow teams use Signable for — with UK hosting, published GBP pricing, a real free tier, Manage PDF on paid plans, and no signer accounts.",
   ],
   [
-    "How does pricing compare to Legalesign?",
-    `${formatFreePlanSignupPitch()} Pro is about ${formatProMonthlyShort()} per user with Manage PDF included. We publish plans so UK buyers can shortlist without waiting on a sales call.`,
+    "How does pricing compare to Signable?",
+    `${formatFreePlanSignupPitch()} Pro is about ${formatProMonthlyShort()} per user with Manage PDF included. Signable often prices by envelope volume (and may offer a trial rather than an ongoing free plan) — check their site for current pricing before you buy, then shortlist on honesty and fit.`,
   ],
   [
     "Where is CivicSign data hosted?",
-    "CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018 — a clear fit for UK buyers comparing Legalesign and other UK/EU options.",
+    "CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018 — a clear fit for UK buyers comparing Signable and other UK e-signature options.",
   ],
   [
     "Do my signers need an account?",
@@ -93,12 +93,17 @@ const TABLE_ROWS = [
   {
     criterion: "Hosting & ownership",
     left: "UK-owned, UK-hosted",
-    right: "UK/EU-oriented vendor; confirm current hosting for your contract",
+    right: "UK e-signature vendor; confirm current UK hosting for your contract",
   },
   {
     criterion: "Published entry pricing",
     left: `Free ${formatFreePlanDocsAMonth()}; Pro ~${formatProMonthlyShort()}`,
-    right: "Often quote-led or plan pages that still need a sales conversation",
+    right: "Typically envelope-based plans / PAYG — check their site for current pricing",
+  },
+  {
+    criterion: "Free tier to evaluate",
+    left: "Ongoing free plan (no card to start)",
+    right: "Often trial-led rather than a permanent free tier — verify on their site",
   },
   {
     criterion: "PDF tools",
@@ -113,49 +118,49 @@ const TABLE_ROWS = [
   {
     criterion: "UK GDPR / eIDAS",
     left: "Designed for UK GDPR & UK eIDAS SES/AES",
-    right: "UK/EU compliance claims — verify DPA and residency terms",
+    right: "UK compliance claims — verify DPA and residency terms",
   },
   {
     criterion: "Best fit",
-    left: "UK freelancers, SMEs & teams wanting clear GBP plans",
-    right: "Teams already standardised on Legalesign workflows",
+    left: "UK freelancers, SMEs & teams wanting clear GBP seat plans + PDF tools",
+    right: "Teams who prefer envelope-volume pricing and already use Signable",
   },
 ];
 
-export default function LegalesignAlternative() {
+export default function SignableAlternative() {
   return (
     <MarketingMoneyPage
-      testId="legalesign-alternative-page"
-      eyebrow="Legalesign alternative UK"
+      testId="signable-alternative-page"
+      eyebrow="Signable alternative UK"
       headline={
         <>
-          A clearer Legalesign alternative for UK teams
+          A clearer Signable alternative for UK teams
           <span style={{ color: "var(--c-accent)" }}>.</span>
         </>
       }
-      subhead="Comparing Legalesign to CivicSign? CivicSign is UK e-signature software with UK hosting, honest GBP pricing, Manage PDF 2-in-1 on paid plans, a free tier to evaluate, and no signer accounts — built for UK GDPR and UK eIDAS without the enterprise maze."
+      subhead="Comparing Signable to CivicSign? CivicSign is UK e-signature software with UK hosting, honest GBP pricing, Manage PDF 2-in-1 on paid plans, a free tier to evaluate, and no signer account — built for UK GDPR and UK eIDAS without the enterprise maze."
       points={POINTS}
       comparison={{
-        eyebrow: "Why UK buyers switch",
-        title: "Same lawful signatures. Less opacity.",
+        eyebrow: "Why UK buyers shortlist CivicSign",
+        title: "Same lawful signatures. Clearer entry path.",
         subtitle:
-          "Keep legally binding e-signatures and audit evidence. Gain published pricing, UK hosting clarity and PDF tools in one product.",
+          "Keep legally binding e-signatures and audit evidence. Gain published Free/Pro GBP plans, UK hosting clarity and PDF tools in one product.",
         items: [
           "UK-hosted alternative with UK GDPR posture front and centre",
           `Real free tier (${formatFreePlanDocsAMonth()}) — no card to start`,
           `Pro from about ${formatProMonthlyShort()} with Manage PDF included`,
           "Signer links that never force recipient accounts",
           "Tamper-evident seal and Certificate of Completion on every finish",
-          "Internal links to pricing, UK product page and Signable/DocuSign alternatives",
+          "Internal links to pricing, UK product page and other competitor alternatives",
         ],
       }}
       table={{
-        eyebrow: "CivicSign vs Legalesign",
+        eyebrow: "CivicSign vs Signable",
         title: "UK buyer checklist",
         subtitle:
-          "Fair shortlist criteria — hosting, pricing honesty, PDF workflow, signer friction and UK law alignment. Confirm Legalesign details on their current site before you buy.",
+          "Fair shortlist criteria — hosting, pricing honesty, free-tier clarity, PDF workflow, signer friction and UK law alignment. Confirm Signable details on their current site before you buy.",
         leftLabel: "CivicSign",
-        rightLabel: "Legalesign (typical)",
+        rightLabel: "Signable (typical)",
         rows: TABLE_ROWS,
         footnote: (
           <>
@@ -163,15 +168,15 @@ export default function LegalesignAlternative() {
             <Link to="/uk-e-signature-software" className="font-semibold text-[var(--c-primary)] hover:underline">
               UK e-signature software
             </Link>
-            . Other UK shortlists:{" "}
-            <Link to="/signable-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
-              Signable alternative
+            . Also see:{" "}
+            <Link to="/legalesign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              Legalesign alternative
             </Link>
             {" · "}
             <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               DocuSign alternative
             </Link>
-            .
+            . Always check Signable&apos;s site for current pricing.
           </>
         ),
       }}
@@ -179,13 +184,14 @@ export default function LegalesignAlternative() {
       related={[
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/pricing", label: "Compare pricing" },
-        { to: "/signable-alternative", label: "Signable alternative" },
+        { to: "/register", label: "Start free" },
+        { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/solutions", label: "Solutions" },
       ]}
-      ctaHeadline="Try this Legalesign alternative free"
+      ctaHeadline="Try this Signable alternative free"
       ctaSubhead="UK-hosted e-signatures, published GBP plans, Manage PDF on paid tiers, and recipients who never need an account."
     />
   );
