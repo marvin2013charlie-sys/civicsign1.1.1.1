@@ -164,6 +164,7 @@ export default function EidasCompliantEsignature() {
       related={[
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
+        { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
         { to: "/uk-e-signature-software", label: "UK e-signature software" },
         { to: "/pricing", label: "Compare pricing" },
         { to: "/register", label: "Start free" },

@@ -198,6 +198,7 @@ export default function MysignAlternative() {
         { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
+        { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
         { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Try this MySign alternative free"

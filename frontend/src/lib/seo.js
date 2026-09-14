@@ -258,6 +258,12 @@ const STATIC_ROUTES = {
       "E-signature for solicitors UK: CivicSign — UK-hosted signing for engagement letters, NDAs & retainers. Free plan, clear GBP pricing. Start free.",
     path: "/e-signature-for-solicitors-uk",
   },
+  "/e-signature-for-estate-agents-uk": {
+    title: `E-Signature for Estate Agents UK — Lettings & Sales | ${SITE_NAME}`,
+    description:
+      "E-signature for estate agents UK: CivicSign — UK-hosted signing for ASTs, sales memos & TOB. Free plan, clear GBP pricing. Start free.",
+    path: "/e-signature-for-estate-agents-uk",
+  },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
     description:

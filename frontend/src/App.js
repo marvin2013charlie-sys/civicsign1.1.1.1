@@ -46,6 +46,7 @@ const AdobeSignAlternative = lazyPage(() => import("@/pages/AdobeSignAlternative
 const EidasCompliantEsignature = lazyPage(() => import("@/pages/EidasCompliantEsignature"), "EidasCompliantEsignature");
 const ElectronicSignaturesUk = lazyPage(() => import("@/pages/ElectronicSignaturesUk"), "ElectronicSignaturesUk");
 const ESignatureForSolicitorsUk = lazyPage(() => import("@/pages/ESignatureForSolicitorsUk"), "ESignatureForSolicitorsUk");
+const ESignatureForEstateAgentsUk = lazyPage(() => import("@/pages/ESignatureForEstateAgentsUk"), "ESignatureForEstateAgentsUk");
 const Pricing = lazyPage(() => import("@/pages/Pricing"), "Pricing");
 const Blog = lazyPage(() => import("@/pages/Blog"), "Blog");
 const BlogPost = lazyPage(() => import("@/pages/BlogPost"), "BlogPost");
@@ -199,6 +200,7 @@ function AppRoutes() {
           <Route path="/eidas-compliant-esignature" element={<EidasCompliantEsignature />} />
           <Route path="/electronic-signatures-uk" element={<ElectronicSignaturesUk />} />
           <Route path="/e-signature-for-solicitors-uk" element={<ESignatureForSolicitorsUk />} />
+          <Route path="/e-signature-for-estate-agents-uk" element={<ESignatureForEstateAgentsUk />} />
           <Route path="/e-signature-software" element={<Navigate to="/uk-e-signature-software" replace />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/blog" element={<Blog />} />
