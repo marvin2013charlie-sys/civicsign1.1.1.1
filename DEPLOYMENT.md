@@ -132,3 +132,47 @@ Manual: register → verify email → upload PDF → send → sign → download 
 - Free tier gives 512MB RAM; the pruned image fits comfortably.
 - Backend runtime deps are pinned minimally in `backend/requirements.txt`
   (18 packages — the ~113 unused Emergent-era packages were removed).
+
+## Apex → www (Cloudflare Redirect Rule)
+
+Canonical public site URL is **https://www.civicsign.co.uk**.
+
+Cloudflare Pages `_redirects` does **not** support host-based (apex ↔ www) redirects.
+Configure a **Single Redirect** (or Bulk Redirect) in the Cloudflare dashboard for the
+`civicsign.co.uk` zone:
+
+1. Cloudflare Dashboard → **Rules** → **Redirect Rules** → **Create rule**
+2. Rule name: `Apex to www`
+3. When incoming requests match:
+   - **Hostname** equals `civicsign.co.uk`
+4. Then:
+   - **Dynamic** redirect  
+   - Expression: `concat("https://www.civicsign.co.uk", http.request.uri.path)`  
+   - Status code: **301**  
+   - Preserve query string: **On**
+5. Place this rule **above** any catch-alls; deploy.
+
+Also ensure:
+
+- Pages custom domains include both `civicsign.co.uk` and `www.civicsign.co.uk` (or
+  apex is DNS-only and only www is attached to Pages — either works if the Redirect
+  Rule fires first).
+- Render `FRONTEND_URL` and `PUBLIC_SITE_URL` are `https://www.civicsign.co.uk`
+  (see `render.yaml`) so emails and checkout return URLs use www.
+- Soft 404s: postbuild writes `404.html` and replaces `/* /index.html 200` with
+  explicit public rewrites + SPA prefix fallbacks + `/* /404.html 404`. After
+  deploy, unknown paths should return **HTTP 404** (Cloudflare Pages serves
+  `404.html` when present and the SPA catch-all is gone; the `404` status in
+  `_redirects` is Netlify-compatible and may be ignored by Pages — the file
+  presence is what matters on CF).
+
+### Google Search Console next steps
+
+1. Redeploy Cloudflare Pages after merging this branch.
+2. Confirm `https://civicsign.co.uk/` → 301 → `https://www.civicsign.co.uk/`.
+3. Confirm a nonsense path (e.g. `/this-page-does-not-exist-xyz`) returns **404**.
+4. Confirm money pages return unique titles:
+   `/uk-e-signature-software`, `/docusign-alternative`, `/electronic-signatures-uk`.
+5. In GSC (www property): submit updated `sitemap.xml`, use URL Inspection on the
+   three money pages + homepage, request indexing, and monitor Soft 404 / Duplicate
+   without user-selected canonical reports.
