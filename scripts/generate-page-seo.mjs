@@ -21,6 +21,16 @@ for (const route of paths) {
     html = html.replace(pattern, `<meta ${key.startsWith('og:') ? 'property' : 'name'}="${key}" content="${escape(value)}" />`);
   }
   html = html.replace(/<link\s+rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escape(url)}" />`);
+  // Escape markup delimiters so article text cannot close the JSON-LD script.
+  const payloads = Array.isArray(meta.jsonLd) ? meta.jsonLd : meta.jsonLd ? [meta.jsonLd] : [];
+  html = html.replace(/<script[^>]*id="cs-jsonld(?:-[^"]*)?"[^>]*>[\s\S]*?<\/script>/gi, '');
+  const schema = payloads.map((payload, index) => `<script type="application/ld+json" id="cs-jsonld-${index}">${JSON.stringify(payload).replace(/</g, '\\u003c')}</script>`).join('');
+  const verification = (process.env.REACT_APP_GOOGLE_SITE_VERIFICATION || '').trim();
+  if (verification) {
+    html = html.replace(/<meta\s+name="google-site-verification"[^>]*>/gi, '');
+    html = html.replace('</head>', `<meta name="google-site-verification" content="${escape(verification)}" /></head>`);
+  }
+  html = html.replace('</head>', `${schema}</head>`);
   const destination = route === '/' ? path.join(build, 'index.html') : path.join(build, `${route}.html`);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, html);

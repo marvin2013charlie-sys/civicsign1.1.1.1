@@ -18,3 +18,15 @@ test('private and unknown pages remain excluded', () => {
     expect(getPublicSitemapPaths()).not.toContain(path);
   }
 });
+test.each(getPublicSitemapPaths())('%s has structured data and a concise description', path => {
+  const meta = getSeoForPath(path);
+  expect(meta.description.length).toBeLessThanOrEqual(160);
+  expect(meta.jsonLd.length).toBeGreaterThan(0);
+  const page = meta.jsonLd.find(item => ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage'].includes(item['@type']));
+  expect(page.url).toBe(`https://www.civicsign.co.uk${path}`);
+  if (path.startsWith('/blog/')) {
+    const article = meta.jsonLd.find(item => item['@type'] === 'BlogPosting');
+    expect(article.datePublished).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(article.mainEntityOfPage).toBe(page.url);
+  }
+});

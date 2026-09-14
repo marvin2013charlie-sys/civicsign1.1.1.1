@@ -325,6 +325,31 @@ function buildFaqJsonLd(faqs) {
   };
 }
 
+function buildPageJsonLd(meta) {
+  const url = absoluteUrl(meta.path);
+  const type = meta.path === "/about" ? "AboutPage" : meta.path === "/contact" ? "ContactPage"
+    : ["/blog", "/resources", "/solutions", "/careers"].includes(meta.path) ? "CollectionPage" : "WebPage";
+  const page = {
+    "@context": "https://schema.org", "@type": type, "@id": `${url}#webpage`,
+    url, name: meta.title, description: truncate(meta.description), inLanguage: "en-GB",
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_URL}/` },
+  };
+  if (meta.path === "/") return [page];
+  return [page, {
+    "@context": "https://schema.org", "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+      { "@type": "ListItem", position: 2, name: meta.title.replace(TITLE_SUFFIX, ""), item: url },
+    ],
+  }];
+}
+
+function schemaDate(value) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+}
+
 function buildHomeJsonLd() {
   return [
     buildOrganizationJsonLd(),
@@ -343,18 +368,18 @@ export function buildBlogPostSeo(post) {
     path,
     image: post.image,
     type: "article",
-    jsonLd: {
+    jsonLd: [...buildPageJsonLd({ path, title: post.title, description: post.excerpt }), {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       headline: post.title,
       description: post.excerpt,
       image: post.image,
-      datePublished: post.date,
+      datePublished: schemaDate(post.date),
       author: { "@type": "Organization", name: post.author || SITE_NAME },
       publisher: { "@type": "Organization", name: SITE_NAME, logo: { "@type": "ImageObject", url: DEFAULT_OG_IMAGE } },
       mainEntityOfPage: absoluteUrl(path),
       inLanguage: "en-GB",
-    },
+    }],
   };
 }
 
@@ -401,8 +426,9 @@ export function getSeoForPath(pathname) {
     const route = STATIC_ROUTES[path];
     return {
       ...route,
+      description: truncate(route.description),
       noindex,
-      jsonLd: path === "/" ? buildHomeJsonLd() : undefined,
+      jsonLd: path === "/" ? [...buildHomeJsonLd(), ...buildPageJsonLd(route)] : buildPageJsonLd(route),
     };
   }
 
