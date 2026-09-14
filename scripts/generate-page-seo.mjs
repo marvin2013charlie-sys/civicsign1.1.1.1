@@ -35,7 +35,72 @@ for (const route of paths) {
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, html);
 }
+
+// Dedicated 404 page — Cloudflare Pages serves /404.html with HTTP 404 when present
+// and the SPA catch-all is removed. Also emit an explicit /* /404.html 404 rule
+// (Netlify-compatible; CF Pages may ignore the status code but still benefits from 404.html).
+const notFoundHtml = `<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Page not found | CivicSign</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="This page could not be found on CivicSign." />
+  <link rel="canonical" href="${SITE_URL}/404" />
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f7f6f2;color:#122120;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;text-align:center}
+    a{color:#0f766e;font-weight:600;text-decoration:none}
+    h1{font-size:1.75rem;margin:8px 0 12px}
+    p{color:#5b6b69;max-width:28rem;margin:0 auto 20px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <main>
+    <p style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5b6b69">404</p>
+    <h1>Page not found</h1>
+    <p>The link may be broken or the page may have moved. Check the URL or head back home.</p>
+    <p><a href="/">Home</a> · <a href="/pricing">Pricing</a> · <a href="/contact">Contact</a></p>
+  </main>
+</body>
+</html>
+`;
+fs.writeFileSync(path.join(build, '404.html'), notFoundHtml);
+
 // Explicit rewrites keep clean canonical URLs while serving route-specific HTML.
 const rewrites = paths.filter(route => route !== '/').map(route => `${route}/ ${route} 301\n${route} ${route}.html 200`).join('\n');
-fs.writeFileSync(path.join(build, '_redirects'), `/privacy /legal/privacy 301\n/terms /legal/terms 301\n/cookies /legal/cookies 301\n/refunds /legal/refunds 301\n/robot.txt /robots.txt 301\n${rewrites}\n/* /index.html 200\n`);
-console.log(`Generated titles, descriptions, robots and canonicals for ${paths.length} public pages`);
+
+// SPA client routes that must keep working without a matching .html file.
+const spaExact = [
+  '/dashboard', '/new', '/documents', '/templates', '/contacts', '/manage-pdf',
+  '/reports', '/usage', '/organisation', '/settings',
+  '/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/accept-invite',
+  '/admin', '/admin/login',
+];
+const spaPrefixes = [
+  '/dashboard', '/documents', '/templates', '/contacts', '/manage-pdf',
+  '/reports', '/usage', '/organisation', '/settings',
+  '/prepare', '/send', '/envelope', '/sign', '/form', '/admin',
+];
+const spaRules = [
+  ...spaExact.map(route => `${route} /index.html 200`),
+  ...spaPrefixes.map(prefix => `${prefix}/* /index.html 200`),
+].join('\n');
+
+const redirects = [
+  '/privacy /legal/privacy 301',
+  '/terms /legal/terms 301',
+  '/cookies /legal/cookies 301',
+  '/refunds /legal/refunds 301',
+  '/robot.txt /robots.txt 301',
+  // Canonical money page for primary keyword (duplicate live URL → preferred path)
+  '/e-signature-software /uk-e-signature-software 301',
+  rewrites,
+  spaRules,
+  // Unknown paths: real 404 (prefer dedicated 404.html). CF Pages serves 404.html
+  // automatically when present and there is no /* /index.html 200 catch-all.
+  '/* /404.html 404',
+].filter(Boolean).join('\n') + '\n';
+
+fs.writeFileSync(path.join(build, '_redirects'), redirects);
+console.log(`Generated titles, descriptions, robots and canonicals for ${paths.length} public pages (+ 404.html, soft-404 redirects)`);

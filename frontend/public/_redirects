@@ -3,4 +3,7 @@
 /cookies /legal/cookies 301
 /refunds /legal/refunds 301
 /robot.txt /robots.txt 301
-/* /index.html 200
+/e-signature-software /uk-e-signature-software 301
+# Public SEO HTML rewrites and SPA fallbacks are generated in postbuild
+# (scripts/generate-page-seo.mjs). Unknown paths use /* /404.html 404.
+# Do not restore /* /index.html 200 — that causes soft 404s in Google.

@@ -3,7 +3,7 @@ import { CIVICSIGN_CONTACT_EMAIL } from "./contactEmail.js";
 import { formatFreePlanSeoDescription } from "./pricing.js";
 
 export const SITE_NAME = "CivicSign";
-export const SITE_TAGLINE = "UK e-signature platform";
+export const SITE_TAGLINE = "UK e-signature software";
 export const SITE_URL = (process.env.REACT_APP_SITE_URL || "https://www.civicsign.co.uk").replace(/\/$/, "");
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/logo512.png`;
 export const DEFAULT_TWITTER_HANDLE = "@CivicSignUK";
@@ -45,9 +45,9 @@ const HOME_FAQS = [
 
 const STATIC_ROUTES = {
   "/": {
-    title: `${SITE_NAME} | UK E-Signature Platform — Legally Binding & UK GDPR Compliant`,
+    title: `UK e-signature software — Legally Binding & UK GDPR Compliant | ${SITE_NAME}`,
     description:
-      "CivicSign is the UK's homegrown e-signature platform. Send contracts, NDAs and offer letters for legally binding electronic signatures with a tamper-evident audit trail. UK-built, UK-hosted, UK eIDAS aligned. Start free.",
+      "CivicSign is UK e-signature software built for British teams. Send contracts, NDAs and offer letters for legally binding electronic signatures with a tamper-evident audit trail. UK GDPR compliant, UK-hosted. Start free.",
     path: "/",
   },
   "/about": {
@@ -193,6 +193,24 @@ const STATIC_ROUTES = {
     description:
       "Send SOWs, MSAs, IP assignments and payment terms clients sign in minutes. Free tier for sole traders — UK GDPR compliant from CivicSign.",
     path: "/solutions/freelancers",
+  },
+  "/uk-e-signature-software": {
+    title: `UK e-signature software — Legally Binding & UK GDPR | ${SITE_NAME}`,
+    description:
+      "CivicSign is UK e-signature software for contracts, NDAs and offer letters. Legally binding under UK law, UK GDPR compliant, with a court-ready audit trail. Compare plans and start free.",
+    path: "/uk-e-signature-software",
+  },
+  "/docusign-alternative": {
+    title: `DocuSign Alternative UK — Simple E-Signatures | ${SITE_NAME}`,
+    description:
+      "Looking for a DocuSign alternative in the UK? CivicSign is UK-built e-signature software with clear pricing, UK GDPR hosting and legally binding signatures. Start free — no US lock-in.",
+    path: "/docusign-alternative",
+  },
+  "/electronic-signatures-uk": {
+    title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
+    description:
+      "Electronic signatures in the UK explained and delivered. CivicSign helps teams sign under the Electronic Communications Act 2000 and UK eIDAS, with UK GDPR compliance built in.",
+    path: "/electronic-signatures-uk",
   },
 };
 

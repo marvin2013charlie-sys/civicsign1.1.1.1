@@ -127,7 +127,7 @@ export default function Landing() {
               Trusted by UK teams
             </div>
             <h1 className="mt-6 text-[2.35rem] font-bold leading-[1.08] tracking-[-0.03em] text-[var(--c-ink)] sm:text-5xl sm:leading-[1.05] lg:text-[64px]" style={H_FONT}>
-              The friendly way to get documents{" "}
+              UK e-signature software that gets documents{" "}
               <span className="relative sm:whitespace-nowrap" style={{ color: "var(--c-primary-hover)" }}>
                 signed
                 <svg viewBox="0 0 200 16" className="absolute -bottom-2.5 left-0 w-full" fill="none" aria-hidden="true">
@@ -136,7 +136,7 @@ export default function Landing() {
               </span>
             </h1>
             <p className="mt-7 max-w-md text-lg leading-relaxed text-[var(--c-muted-fg)]">
-              One 2-in-1 platform: e-signatures and Manage PDF together. Upload, prepare, send — signers click a link with no accounts or apps. Legally binding under UK law.
+              One 2-in-1 platform: legally binding e-signatures and Manage PDF together. Upload, prepare, send — signers click a link with no accounts or apps. UK GDPR compliant and built for UK law.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link

@@ -21,7 +21,7 @@ services:
       - key: CORS_ORIGINS
         value: https://civicsign.co.uk,https://www.civicsign.co.uk
       - key: FRONTEND_URL
-        value: https://civicsign.co.uk
+        value: https://www.civicsign.co.uk
       - key: DEV_MODE
         value: "false"
       - key: COOKIE_SECURE
@@ -29,7 +29,7 @@ services:
       - key: TRUST_PROXY
         value: "true"
       - key: PUBLIC_SITE_URL
-        value: https://civicsign.co.uk
+        value: https://www.civicsign.co.uk
       - key: SENDER_EMAIL
         value: noreply@civicsign.co.uk
       - key: SENDER_NAME

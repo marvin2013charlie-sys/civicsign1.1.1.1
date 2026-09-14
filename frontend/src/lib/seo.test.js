@@ -30,3 +30,18 @@ test.each(getPublicSitemapPaths())('%s has structured data and a concise descrip
     expect(article.mainEntityOfPage).toBe(page.url);
   }
 });
+
+test('money pages target commercial keywords and stay in the sitemap', () => {
+  const paths = getPublicSitemapPaths();
+  expect(paths).toEqual(expect.arrayContaining([
+    '/uk-e-signature-software',
+    '/docusign-alternative',
+    '/electronic-signatures-uk',
+  ]));
+  expect(paths).not.toContain('/e-signature-software');
+  const home = getSeoForPath('/');
+  expect(home.title.toLowerCase()).toContain('uk e-signature software');
+  expect(getSeoForPath('/uk-e-signature-software').title.toLowerCase()).toContain('uk e-signature software');
+  expect(getSeoForPath('/docusign-alternative').title.toLowerCase()).toContain('docusign');
+  expect(getSeoForPath('/electronic-signatures-uk').title.toLowerCase()).toContain('electronic signatures');
+});
