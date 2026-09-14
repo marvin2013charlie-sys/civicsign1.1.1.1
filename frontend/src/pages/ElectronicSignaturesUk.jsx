@@ -24,6 +24,10 @@ const FAQS = [
   ["Are electronic signatures legal in the UK?", "Yes. Electronic signatures are widely recognised in England and Wales. CivicSign is designed around the Electronic Communications Act 2000, UK eIDAS and Law Commission guidance on electronic execution."],
   ["What makes a UK electronic signature trustworthy?", "Strong process: identify the signer, show the document, capture consent and intent, and keep a tamper-evident audit trail. CivicSign seals completed PDFs so later changes are detectable."],
   ["Who is CivicSign for?", "UK freelancers, SMEs, HR, legal and operations teams that need electronic signatures without enterprise procurement theatre."],
+  [
+    "What is an eIDAS-compliant e-signature in the UK?",
+    "UK eIDAS recognises SES, AES and QES. Most UK business documents are valid with clear intent plus strong audit evidence. CivicSign provides SES/AES-aligned sealing and Certificates of Completion — see our eIDAS page for an honest SES vs AES vs QES breakdown.",
+  ],
 ];
 
 export default function ElectronicSignaturesUk() {
@@ -54,6 +58,8 @@ export default function ElectronicSignaturesUk() {
         { to: "/esign-alternative", label: "eSign alternative" },
         { to: "/pricing", label: "Pricing" },
         { to: "/blog/are-e-signatures-legal-in-the-uk", label: "Legal guide" },
+        { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
+        { to: "/eidas-compliant-esignature", label: "eIDAS e-signature" },
         { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Start electronic signatures today"

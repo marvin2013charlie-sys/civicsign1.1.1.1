@@ -10,6 +10,8 @@ export const FOOTER_COLS = [
       { label: "Signable alternative", to: "/signable-alternative" },
       { label: "eSign alternative", to: "/esign-alternative" },
       { label: "DocuSign alternative", to: "/docusign-alternative" },
+      { label: "Adobe Sign alternative", to: "/adobe-sign-alternative" },
+      { label: "eIDAS e-signature", to: "/eidas-compliant-esignature" },
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
       { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },

@@ -39,6 +39,8 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
     '/legalesign-alternative',
     '/signable-alternative',
     '/esign-alternative',
+    '/adobe-sign-alternative',
+    '/eidas-compliant-esignature',
     '/electronic-signatures-uk',
   ]));
   expect(paths).not.toContain('/e-signature-software');
@@ -49,5 +51,7 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
   expect(getSeoForPath('/legalesign-alternative').title.toLowerCase()).toContain('legalesign');
   expect(getSeoForPath('/signable-alternative').title.toLowerCase()).toContain('signable');
   expect(getSeoForPath('/esign-alternative').title.toLowerCase()).toContain('esign');
+  expect(getSeoForPath('/adobe-sign-alternative').title.toLowerCase()).toContain('adobe');
+  expect(getSeoForPath('/eidas-compliant-esignature').title.toLowerCase()).toContain('eidas');
   expect(getSeoForPath('/electronic-signatures-uk').title.toLowerCase()).toContain('electronic signatures');
 });

@@ -187,6 +187,8 @@ export default function LegalesignAlternative() {
         { to: "/esign-alternative", label: "eSign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
+        { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
+        { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/solutions", label: "Solutions" },
       ]}

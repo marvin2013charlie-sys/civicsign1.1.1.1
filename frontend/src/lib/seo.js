@@ -207,13 +207,13 @@ const STATIC_ROUTES = {
   "/uk-e-signature-software": {
     title: `UK e-signature software — Legally Binding & UK GDPR | ${SITE_NAME}`,
     description:
-      "UK e-signature software from CivicSign: legally binding signatures, UK GDPR hosting, audit trail & Manage PDF. Free 2 docs/month. Pro ~£15/user. Start free.",
+      "UK e-signature & e-sign software: legally binding signatures, UK GDPR hosting, PDF tools & audit trail. Free 2 docs/month. Pro ~£15/user. Start free.",
     path: "/uk-e-signature-software",
   },
   "/docusign-alternative": {
     title: `DocuSign Alternative UK — Simple E-Signatures | ${SITE_NAME}`,
     description:
-      "Looking for a DocuSign alternative in the UK? CivicSign is UK-built e-signature software with clear pricing, UK GDPR hosting and legally binding signatures. Start free — no US lock-in.",
+      "DocuSign alternative UK: CivicSign UK e-signature software with clear GBP pricing, UK GDPR hosting & legally binding signatures. Start free — no US lock-in.",
     path: "/docusign-alternative",
   },
   "/legalesign-alternative": {
@@ -234,10 +234,22 @@ const STATIC_ROUTES = {
       "eSign alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer accounts. Start free.",
     path: "/esign-alternative",
   },
+  "/adobe-sign-alternative": {
+    title: `Adobe Sign Alternative UK — Acrobat Sign Alternative | ${SITE_NAME}`,
+    description:
+      "Adobe Sign / Acrobat Sign alternative UK: CivicSign — UK-hosted e-signatures, clear GBP plans, free tier, Manage PDF, no signer accounts. Start free.",
+    path: "/adobe-sign-alternative",
+  },
+  "/eidas-compliant-esignature": {
+    title: `eIDAS Compliant E-Signature UK — SES/AES Aligned | ${SITE_NAME}`,
+    description:
+      "eIDAS signature UK software from CivicSign: UK eIDAS SES/AES-aligned e-signatures, UK GDPR hosting, audit seal & free plan. Honest on QES limits.",
+    path: "/eidas-compliant-esignature",
+  },
   "/electronic-signatures-uk": {
     title: `Electronic Signatures UK — Lawful & UK GDPR Ready | ${SITE_NAME}`,
     description:
-      "Electronic signatures in the UK explained and delivered. CivicSign helps teams sign under the Electronic Communications Act 2000 and UK eIDAS, with UK GDPR compliance built in.",
+      "Electronic signatures UK: lawful under ECA 2000 & UK eIDAS. CivicSign adds UK GDPR hosting, PDF signing & audit seals. Free plan to try.",
     path: "/electronic-signatures-uk",
   },
 };

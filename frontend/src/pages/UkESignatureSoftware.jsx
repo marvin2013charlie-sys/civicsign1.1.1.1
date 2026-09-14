@@ -176,6 +176,8 @@ const RELATED = [
   { to: "/legalesign-alternative", label: "Legalesign alternative" },
   { to: "/signable-alternative", label: "Signable alternative" },
   { to: "/esign-alternative", label: "eSign alternative" },
+  { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
+  { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },
   { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
   { to: "/product/manage-pdf", label: "Manage PDF" },
   { to: "/solutions", label: "Industry solutions" },
