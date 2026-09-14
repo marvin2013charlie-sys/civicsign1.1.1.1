@@ -30,6 +30,7 @@ assert.ok(redirects.includes('/docusign-alternative'), 'Money page rewrite missi
 assert.ok(redirects.includes('/legalesign-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/signable-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/esign-alternative'), 'Money page rewrite missing');
+assert.ok(redirects.includes('/mysign-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/adobe-sign-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/eidas-compliant-esignature'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/electronic-signatures-uk'), 'Money page rewrite missing');

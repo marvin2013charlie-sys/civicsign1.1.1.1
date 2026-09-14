@@ -41,6 +41,7 @@ const DocusignAlternative = lazyPage(() => import("@/pages/DocusignAlternative")
 const LegalesignAlternative = lazyPage(() => import("@/pages/LegalesignAlternative"), "LegalesignAlternative");
 const SignableAlternative = lazyPage(() => import("@/pages/SignableAlternative"), "SignableAlternative");
 const EsignAlternative = lazyPage(() => import("@/pages/EsignAlternative"), "EsignAlternative");
+const MysignAlternative = lazyPage(() => import("@/pages/MysignAlternative"), "MysignAlternative");
 const AdobeSignAlternative = lazyPage(() => import("@/pages/AdobeSignAlternative"), "AdobeSignAlternative");
 const EidasCompliantEsignature = lazyPage(() => import("@/pages/EidasCompliantEsignature"), "EidasCompliantEsignature");
 const ElectronicSignaturesUk = lazyPage(() => import("@/pages/ElectronicSignaturesUk"), "ElectronicSignaturesUk");
@@ -192,6 +193,7 @@ function AppRoutes() {
           <Route path="/legalesign-alternative" element={<LegalesignAlternative />} />
           <Route path="/signable-alternative" element={<SignableAlternative />} />
           <Route path="/esign-alternative" element={<EsignAlternative />} />
+          <Route path="/mysign-alternative" element={<MysignAlternative />} />
           <Route path="/adobe-sign-alternative" element={<AdobeSignAlternative />} />
           <Route path="/eidas-compliant-esignature" element={<EidasCompliantEsignature />} />
           <Route path="/electronic-signatures-uk" element={<ElectronicSignaturesUk />} />

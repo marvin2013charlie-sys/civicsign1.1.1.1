@@ -169,6 +169,7 @@ export default function EidasCompliantEsignature() {
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/esign-alternative", label: "eSign alternative" },
+        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
       ]}

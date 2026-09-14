@@ -9,6 +9,7 @@ export const FOOTER_COLS = [
       { label: "Legalesign alternative", to: "/legalesign-alternative" },
       { label: "Signable alternative", to: "/signable-alternative" },
       { label: "eSign alternative", to: "/esign-alternative" },
+      { label: "MySign alternative", to: "/mysign-alternative" },
       { label: "DocuSign alternative", to: "/docusign-alternative" },
       { label: "Adobe Sign alternative", to: "/adobe-sign-alternative" },
       { label: "eIDAS e-signature", to: "/eidas-compliant-esignature" },

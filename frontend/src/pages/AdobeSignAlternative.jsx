@@ -176,6 +176,10 @@ export default function AdobeSignAlternative() {
               eSign alternative
             </Link>
             {" · "}
+            <Link to="/mysign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              MySign alternative
+            </Link>
+            {" · "}
             <Link to="/eidas-compliant-esignature" className="font-semibold text-[var(--c-primary)] hover:underline">
               eIDAS compliant e-signature
             </Link>
@@ -190,6 +194,7 @@ export default function AdobeSignAlternative() {
         { to: "/register", label: "Start free" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/esign-alternative", label: "eSign alternative" },
+        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/signable-alternative", label: "Signable alternative" },
         { to: "/eidas-compliant-esignature", label: "eIDAS compliant e-signature" },

@@ -19,7 +19,7 @@ const POINTS = [
   {
     icon: Globe2,
     title: "UK-hosted for UK buyers",
-    body: "CivicSign is UK-owned and UK-hosted e-signature software. If you are shortlisting a Signable alternative because data residency and UK GDPR posture matter, start here — with hosting and ownership you can explain to compliance without a US-first stack.",
+    body: "CivicSign is UK-owned and UK-hosted e-signature software. If you are shortlisting a MySign alternative because data residency and UK GDPR posture matter, start here — with hosting and ownership you can explain to compliance alongside other UK vendors.",
   },
   {
     icon: BadgePoundSterling,
@@ -27,7 +27,7 @@ const POINTS = [
     body: (
       <>
         Published GBP plans: Free with {formatFreePlanDocsAMonth()}, Pro from about {formatProMonthlyShort()} per user.
-        A real free tier to evaluate — not only a short trial. Signable typically sells by envelope volume with published plans of its own; check their site for current pricing, then compare honesty and fit for your volume.{" "}
+        A real free tier to evaluate — not only a short trial. MySign typically markets flat (not per-seat) GBP plans; check their site for current pricing, then compare honesty and fit for your team size.{" "}
         <Link to="/pricing" className="font-semibold text-[var(--c-primary)] hover:underline">
           See CivicSign pricing
         </Link>
@@ -51,7 +51,7 @@ const POINTS = [
   },
   {
     icon: UserX,
-    title: "No signer account",
+    title: "No signer accounts",
     body: "Recipients open a secure link, review the document and sign on any device. No CivicSign account, no app store trip, no friction that kills completion rates.",
   },
   {
@@ -68,16 +68,16 @@ const POINTS = [
 
 const FAQS = [
   [
-    "Is CivicSign a Signable alternative?",
-    "Yes. CivicSign covers the core UK send-and-sign workflow teams use Signable for — with UK hosting, published GBP pricing, a real free tier, Manage PDF on paid plans, and no signer accounts.",
+    "Is CivicSign a MySign alternative?",
+    "Yes. CivicSign covers the core UK send-and-sign workflow teams use MySign for — with UK hosting, published GBP pricing, a real free tier, Manage PDF on paid plans, and no signer accounts.",
   ],
   [
-    "How does pricing compare to Signable?",
-    `${formatFreePlanSignupPitch()} Pro is about ${formatProMonthlyShort()} per user with Manage PDF included. Signable often prices by envelope volume (and may offer a trial rather than an ongoing free plan) — check their site for current pricing before you buy, then shortlist on honesty and fit.`,
+    "How does pricing compare to MySign?",
+    `${formatFreePlanSignupPitch()} Pro is about ${formatProMonthlyShort()} per user with Manage PDF included. MySign typically publishes flat (not per-seat) GBP plans and may lead with a trial rather than an ongoing free plan — check their site for current pricing before you buy, then shortlist on honesty and fit.`,
   ],
   [
     "Where is CivicSign data hosted?",
-    "CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018 — a clear fit for UK buyers comparing Signable and other UK e-signature options.",
+    "CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018 — a clear fit for UK buyers comparing MySign and other UK e-signature options.",
   ],
   [
     "Do my signers need an account?",
@@ -93,12 +93,12 @@ const TABLE_ROWS = [
   {
     criterion: "Hosting & ownership",
     left: "UK-owned, UK-hosted",
-    right: "UK e-signature vendor; confirm current UK hosting for your contract",
+    right: "UK e-signature vendor with UK data residency claims — confirm current hosting for your contract",
   },
   {
     criterion: "Published entry pricing",
     left: `Free ${formatFreePlanDocsAMonth()}; Pro ~${formatProMonthlyShort()}`,
-    right: "Typically envelope-based plans / PAYG — check their site for current pricing",
+    right: "Typically flat (not per-seat) GBP plans — check their site for current pricing",
   },
   {
     criterion: "Free tier to evaluate",
@@ -123,22 +123,22 @@ const TABLE_ROWS = [
   {
     criterion: "Best fit",
     left: "UK freelancers, SMEs & teams wanting clear GBP seat plans + PDF tools",
-    right: "Teams who prefer envelope-volume pricing and already use Signable",
+    right: "Teams who prefer flat team pricing and already use MySign",
   },
 ];
 
-export default function SignableAlternative() {
+export default function MysignAlternative() {
   return (
     <MarketingMoneyPage
-      testId="signable-alternative-page"
-      eyebrow="Signable alternative UK"
+      testId="mysign-alternative-page"
+      eyebrow="MySign alternative UK"
       headline={
         <>
-          A clearer Signable alternative for UK teams
+          A clearer MySign alternative for UK teams
           <span style={{ color: "var(--c-accent)" }}>.</span>
         </>
       }
-      subhead="Comparing Signable to CivicSign? CivicSign is UK e-signature software with UK hosting, honest GBP pricing, Manage PDF 2-in-1 on paid plans, a free tier to evaluate, and no signer account — built for UK GDPR and UK eIDAS without the enterprise maze."
+      subhead="Comparing MySign to CivicSign? CivicSign is UK e-signature software with UK hosting, honest GBP pricing, Manage PDF 2-in-1 on paid plans, a free tier to evaluate, and no signer accounts — built for UK GDPR and UK eIDAS without the enterprise maze."
       points={POINTS}
       comparison={{
         eyebrow: "Why UK buyers shortlist CivicSign",
@@ -155,12 +155,12 @@ export default function SignableAlternative() {
         ],
       }}
       table={{
-        eyebrow: "CivicSign vs Signable",
+        eyebrow: "CivicSign vs MySign",
         title: "UK buyer checklist",
         subtitle:
-          "Fair shortlist criteria — hosting, pricing honesty, free-tier clarity, PDF workflow, signer friction and UK law alignment. Confirm Signable details on their current site before you buy.",
+          "Fair shortlist criteria — hosting, pricing honesty, free-tier clarity, PDF workflow, signer friction and UK law alignment. Confirm MySign details on their current site before you buy.",
         leftLabel: "CivicSign",
-        rightLabel: "Signable (typical)",
+        rightLabel: "MySign (typical)",
         rows: TABLE_ROWS,
         footnote: (
           <>
@@ -173,18 +173,14 @@ export default function SignableAlternative() {
               Legalesign alternative
             </Link>
             {" · "}
+            <Link to="/signable-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              Signable alternative
+            </Link>
+            {" · "}
             <Link to="/esign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               eSign alternative
             </Link>
-            {" · "}
-            <Link to="/mysign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
-              MySign alternative
-            </Link>
-            {" · "}
-            <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
-              DocuSign alternative
-            </Link>
-            . Always check Signable&apos;s site for current pricing.
+            . Always check MySign&apos;s site for current pricing.
           </>
         ),
       }}
@@ -194,8 +190,8 @@ export default function SignableAlternative() {
         { to: "/pricing", label: "Compare pricing" },
         { to: "/register", label: "Start free" },
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
+        { to: "/signable-alternative", label: "Signable alternative" },
         { to: "/esign-alternative", label: "eSign alternative" },
-        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
@@ -203,7 +199,7 @@ export default function SignableAlternative() {
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/solutions", label: "Solutions" },
       ]}
-      ctaHeadline="Try this Signable alternative free"
+      ctaHeadline="Try this MySign alternative free"
       ctaSubhead="UK-hosted e-signatures, published GBP plans, Manage PDF on paid tiers, and recipients who never need an account."
     />
   );

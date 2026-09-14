@@ -172,6 +172,10 @@ export default function LegalesignAlternative() {
               eSign alternative
             </Link>
             {" · "}
+            <Link to="/mysign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              MySign alternative
+            </Link>
+            {" · "}
             <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               DocuSign alternative
             </Link>
@@ -185,6 +189,7 @@ export default function LegalesignAlternative() {
         { to: "/pricing", label: "Compare pricing" },
         { to: "/signable-alternative", label: "Signable alternative" },
         { to: "/esign-alternative", label: "eSign alternative" },
+        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },

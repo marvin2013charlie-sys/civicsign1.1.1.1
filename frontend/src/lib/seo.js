@@ -234,6 +234,12 @@ const STATIC_ROUTES = {
       "eSign alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer accounts. Start free.",
     path: "/esign-alternative",
   },
+  "/mysign-alternative": {
+    title: `MySign Alternative UK — Clear Pricing & Manage PDF | ${SITE_NAME}`,
+    description:
+      "MySign alternative UK: CivicSign — UK-hosted e-signatures, published GBP pricing, free tier, Manage PDF 2-in-1, no signer accounts. Start free.",
+    path: "/mysign-alternative",
+  },
   "/adobe-sign-alternative": {
     title: `Adobe Sign Alternative UK — Acrobat Sign Alternative | ${SITE_NAME}`,
     description:

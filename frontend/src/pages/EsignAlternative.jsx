@@ -180,6 +180,10 @@ export default function EsignAlternative() {
             <Link to="/docusign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
               DocuSign alternative
             </Link>
+            {" · "}
+            <Link to="/mysign-alternative" className="font-semibold text-[var(--c-primary)] hover:underline">
+              MySign alternative
+            </Link>
             . Always check eSign&apos;s site for current pricing.
           </>
         ),
@@ -191,6 +195,7 @@ export default function EsignAlternative() {
         { to: "/register", label: "Start free" },
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/signable-alternative", label: "Signable alternative" },
+        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/docusign-alternative", label: "DocuSign alternative" },
         { to: "/product/manage-pdf", label: "Manage PDF" },
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },

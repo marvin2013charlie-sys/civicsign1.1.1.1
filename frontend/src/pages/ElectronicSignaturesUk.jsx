@@ -56,6 +56,7 @@ export default function ElectronicSignaturesUk() {
         { to: "/legalesign-alternative", label: "Legalesign alternative" },
         { to: "/signable-alternative", label: "Signable alternative" },
         { to: "/esign-alternative", label: "eSign alternative" },
+        { to: "/mysign-alternative", label: "MySign alternative" },
         { to: "/pricing", label: "Pricing" },
         { to: "/blog/are-e-signatures-legal-in-the-uk", label: "Legal guide" },
         { to: "/adobe-sign-alternative", label: "Adobe Sign alternative" },
