@@ -202,6 +202,7 @@ export default function AdobeSignAlternative() {
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
+        { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
       ]}
       ctaHeadline="Try this Adobe Sign alternative free"
       ctaSubhead="UK-hosted e-signatures, published GBP plans, Manage PDF on paid tiers, and recipients who never need an account."

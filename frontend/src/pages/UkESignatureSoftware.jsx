@@ -182,6 +182,7 @@ const RELATED = [
   { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
   { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
   { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
+  { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
   { to: "/product/manage-pdf", label: "Manage PDF" },
   { to: "/solutions", label: "Industry solutions" },
   { to: "/blog/are-e-signatures-legal-in-the-uk", label: "Are e-signatures legal?" },

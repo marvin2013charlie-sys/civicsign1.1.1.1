@@ -15,6 +15,7 @@ export const FOOTER_COLS = [
       { label: "eIDAS e-signature", to: "/eidas-compliant-esignature" },
       { label: "E-signature for solicitors", to: "/e-signature-for-solicitors-uk" },
       { label: "E-signature for estate agents", to: "/e-signature-for-estate-agents-uk" },
+      { label: "E-signature for accountants", to: "/e-signature-for-accountants-uk" },
       { label: "Features", to: { pathname: "/", hash: "#features" } },
       { label: "Manage PDF", to: "/product/manage-pdf" },
       { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },

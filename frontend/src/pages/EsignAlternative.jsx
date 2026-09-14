@@ -203,6 +203,7 @@ export default function EsignAlternative() {
         { to: "/electronic-signatures-uk", label: "Electronic signatures UK" },
         { to: "/e-signature-for-solicitors-uk", label: "E-signature for solicitors" },
         { to: "/e-signature-for-estate-agents-uk", label: "E-signature for estate agents" },
+        { to: "/e-signature-for-accountants-uk", label: "E-signature for accountants" },
         { to: "/solutions", label: "Solutions" },
       ]}
       ctaHeadline="Try this eSign alternative free"
