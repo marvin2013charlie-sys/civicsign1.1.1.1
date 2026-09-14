@@ -1,6 +1,6 @@
-import { POSTS } from "@/lib/blogPosts";
-import { CIVICSIGN_CONTACT_EMAIL } from "@/lib/contactEmail";
-import { formatFreePlanSeoDescription } from "@/lib/pricing";
+import { POSTS } from "./blogPostData.js";
+import { CIVICSIGN_CONTACT_EMAIL } from "./contactEmail.js";
+import { formatFreePlanSeoDescription } from "./pricing.js";
 
 export const SITE_NAME = "CivicSign";
 export const SITE_TAGLINE = "UK e-signature platform";
@@ -248,7 +248,7 @@ function truncate(text, max = 160) {
 }
 
 function absoluteUrl(path = "/") {
-  if (!path || path === "/") return SITE_URL;
+  if (!path || path === "/") return `${SITE_URL}/`;
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
@@ -392,8 +392,10 @@ export function buildJobSeo(job) {
 }
 
 export function getSeoForPath(pathname) {
-  const path = pathname.split("?")[0].split("#")[0] || "/";
+  const path = pathname.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
   const noindex = shouldNoindex(path);
+  const post = POSTS.find((entry) => path === `/blog/${entry.slug}`);
+  if (post) return { ...buildBlogPostSeo(post), noindex: false };
 
   if (STATIC_ROUTES[path]) {
     const route = STATIC_ROUTES[path];

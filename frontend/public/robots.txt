@@ -6,6 +6,7 @@ User-agent: *
 Allow: /
 
 # Authenticated product UI
+Disallow: /api/
 Disallow: /dashboard
 Disallow: /new
 Disallow: /documents
