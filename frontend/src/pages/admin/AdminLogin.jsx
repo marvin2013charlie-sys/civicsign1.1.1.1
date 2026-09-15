@@ -1,17 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { AuthPasswordInput } from "@/components/auth/AuthFormPrimitives";
+import { AuthPasswordInput, AuthTextInput, AuthField } from "@/components/auth/AuthFormPrimitives";
 import { Logo } from "@/components/Logo";
 import { Loader2, ArrowLeft, ShieldCheck, Lock } from "lucide-react";
-
-/* Admin login — dark console card for internal staff (admin / staff roles). */
-
-const darkInput =
-  "w-full rounded-xl border bg-white/[0.06] px-4 py-3.5 text-[14.5px] text-[#F8F7F2] outline-none transition-all placeholder:text-white/30 focus:border-[#2DD4BF] focus:shadow-[0_0_0_3px_rgba(45,212,191,0.15)]";
 
 export default function AdminLogin() {
   const { user, login, logout } = useAuth();
@@ -63,157 +57,37 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[var(--c-paper)]">
-      <div className="cs-auth-form-glow cs-auth-form-glow-a" aria-hidden />
-      <div className="cs-auth-form-glow cs-auth-form-glow-b" aria-hidden />
-
-      {/* top bar — matches customer auth pages */}
-      <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-[max(1rem,env(safe-area-inset-top))] sm:gap-3 sm:px-8 lg:px-10">
+    <div className="flex min-h-dvh flex-col bg-[var(--c-paper)] text-[var(--c-ink)]">
+      <header className="flex items-center justify-between gap-4 px-5 py-5 sm:px-8">
         <Logo to="/" />
-        <div className="flex items-center gap-2">
-          <span className="cs-auth-topbar-chip hidden sm:inline-flex">
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--c-primary)" }} />
-            Internal team only
-          </span>
-          <Link
-            to="/"
-            className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-[var(--c-border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--c-muted-fg)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-ink)]"
-            data-testid="auth-back-link"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">Back to civicsign.com</span>
-            <span className="sm:hidden">Back</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* console card */}
-      <div className="relative z-[1] flex flex-1 items-start justify-center px-4 pb-14 pt-6 sm:items-center sm:pt-0">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/[0.06]"
-          style={{ background: "var(--c-ink-solid)", boxShadow: "0 34px 80px rgba(18,33,32,.35), 0 0 0 1px rgba(255,255,255,.04) inset" }}
-          data-testid="admin-login-card"
-        >
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(560px 340px at 85% -10%, rgba(45,212,191,.16), transparent), radial-gradient(460px 300px at 0% 110%, rgba(255,122,92,.12), transparent)",
-            }}
-          />
-
-          {/* console title bar */}
-          <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-4 sm:px-7">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px]"
-                style={{ background: "rgba(45,212,191,.14)" }}
-              >
-                <ShieldCheck className="h-4 w-4" style={{ color: "#2DD4BF" }} />
-              </span>
-              <div>
-                <div className="font-heading text-sm font-semibold text-[#F8F7F2]">
-                  CivicSign Admin Console
-                </div>
-                <div className="font-mono text-[10.5px] text-white/45">internal team access</div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10.5px] font-semibold tracking-[.5px]"
-                style={{
-                  background: "rgba(255,122,92,.14)",
-                  borderColor: "rgba(255,122,92,.3)",
-                  color: "#FF9B84",
-                }}
-              >
-                RESTRICTED
-              </span>
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10.5px] font-semibold"
-                style={{
-                  background: "rgba(45,212,191,.1)",
-                  borderColor: "rgba(45,212,191,.25)",
-                  color: "#2DD4BF",
-                }}
-              >
-                <span className="h-[7px] w-[7px] animate-pulse rounded-full" style={{ background: "#16A34A" }} />
-                MONITORED
-              </span>
-            </div>
+        <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-[var(--c-muted-fg)] hover:text-[var(--c-ink)]" data-testid="auth-back-link">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Back to home
+        </Link>
+      </header>
+      <main className="flex flex-1 items-center justify-center px-4 pb-12 pt-6 sm:pb-24">
+        <section className="w-full max-w-[440px] rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6 shadow-sm sm:p-8" data-testid="admin-login-card" aria-labelledby="admin-login-title">
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--c-paper)] text-[var(--c-primary)]">
+            <ShieldCheck className="h-6 w-6" aria-hidden />
           </div>
-
-          <div className="relative px-6 py-8 sm:px-10">
-            <h1 className="font-heading text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-[#F8F7F2] sm:text-[30px]">
-              Staff sign in
-              <span style={{ color: "#FF7A5C" }}>.</span>
-            </h1>
-            <p className="mt-2 text-[14px] leading-relaxed text-white/50">
-              Sign in with your CivicBot staff credentials. Customer accounts use the{" "}
-              <Link to="/login" className="font-medium text-[#2DD4BF] underline-offset-2 hover:underline">
-                main sign-in page
-              </Link>
-              .
-            </p>
-
-            <form onSubmit={submit} className="mt-7 flex flex-col gap-4">
-              <div>
-                <label htmlFor="admin-email" className="mb-1.5 block text-[12.5px] font-semibold text-white/75">
-                  Staff email
-                </label>
-                <input
-                  id="admin-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@civicbot.co.uk"
-                  autoComplete="username"
-                  className={darkInput}
-                  style={{ borderColor: "rgba(248,247,242,.16)" }}
-                  data-testid="admin-login-email"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="admin-password" className="mb-1.5 block text-[12.5px] font-semibold text-white/75">
-                  Password
-                </label>
-                <AuthPasswordInput
-                  id="admin-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  show={showPwd}
-                  onToggle={() => setShowPwd((s) => !s)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  testId="admin-login-password"
-                  toggleTestId="admin-login-toggle-password"
-                  className={`${darkInput} cs-admin-dark-input`}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-1 flex min-h-[48px] items-center justify-center rounded-[13px] text-[15px] font-semibold transition-all hover:-translate-y-px hover:brightness-105 active:translate-y-0 disabled:opacity-60 disabled:hover:translate-y-0"
-                style={{ background: "#2DD4BF", color: "#122120", boxShadow: "0 10px 26px rgba(45,212,191,.3)" }}
-                data-testid="admin-login-submit"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in to console →"}
-              </button>
-            </form>
-
-            <div className="mt-6 flex items-center gap-2 text-[11px] text-white/40">
-              <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Access restricted · Monitored · Audit-logged
-            </div>
-          </div>
-        </motion.div>
-      </div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--c-muted-fg)]">CivicSign Admin</p>
+          <h1 id="admin-login-title" className="font-heading text-3xl font-bold tracking-tight">Staff sign in</h1>
+          <p className="mt-3 text-sm leading-6 text-[var(--c-muted-fg)]">Use your staff account to access the admin console.</p>
+          <form onSubmit={submit} className="mt-7 flex flex-col gap-5">
+            <AuthField id="admin-email" label="Staff email">
+              <AuthTextInput id="admin-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@civicbot.co.uk" autoComplete="username" data-testid="admin-login-email" />
+            </AuthField>
+            <AuthField id="admin-password" label="Password">
+              <AuthPasswordInput id="admin-password" value={password} onChange={(e) => setPassword(e.target.value)} show={showPwd} onToggle={() => setShowPwd((s) => !s)} placeholder="Enter your password" autoComplete="current-password" testId="admin-login-password" toggleTestId="admin-login-toggle-password" />
+            </AuthField>
+            <button type="submit" disabled={loading} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--c-primary)] px-4 text-sm font-semibold text-[#122120] transition-colors hover:brightness-95 disabled:opacity-60" data-testid="admin-login-submit">
+              {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {loading ? "Signing in…" : "Sign in to console"}
+            </button>
+          </form>
+          <p className="mt-6 border-t border-[var(--c-border)] pt-5 text-center text-sm text-[var(--c-muted-fg)]">Customer account? <Link to="/login" className="font-semibold text-[var(--c-primary)] underline underline-offset-4">Sign in here</Link></p>
+          <p className="mt-5 flex items-center justify-center gap-2 text-xs text-[var(--c-muted-fg)]"><Lock className="h-3.5 w-3.5" aria-hidden /> Staff access only</p>
+        </section>
+      </main>
     </div>
   );
 }
