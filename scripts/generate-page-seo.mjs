@@ -36,9 +36,7 @@ for (const route of paths) {
   fs.writeFileSync(destination, html);
 }
 
-// Dedicated 404 page — Cloudflare Pages serves /404.html with HTTP 404 when present
-// and the SPA catch-all is removed. Also emit an explicit /* /404.html 404 rule
-// (Netlify-compatible; CF Pages may ignore the status code but still benefits from 404.html).
+// Cloudflare serves this automatically for unknown routes. _redirects does not support 404 rewrites.
 const notFoundHtml = `<!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -85,9 +83,16 @@ const spaPrefixes = [
   '/reports', '/usage', '/organisation', '/settings',
   '/prepare', '/send', '/envelope', '/sign', '/form', '/admin',
 ];
+// Proxy to the extensionless URL: /index.html triggers Cloudflare's canonical
+// redirect to /, losing the requested login/admin/signing route.
+const appShell = template
+  .replace(/<meta\s+name="robots"[^>]*>/i, '<meta name="robots" content="noindex, nofollow" />')
+  .replace(/<link\s+rel="canonical"[^>]*>/i, '')
+  .replace(/<script[^>]*id="cs-jsonld(?:-[^"]*)?"[^>]*>[\s\S]*?<\/script>/gi, '');
+fs.writeFileSync(path.join(build, 'app-shell.html'), appShell);
 const spaRules = [
-  ...spaExact.map(route => `${route} /index.html 200`),
-  ...spaPrefixes.map(prefix => `${prefix}/* /index.html 200`),
+  ...spaExact.map(route => `${route} /app-shell 200`),
+  ...spaPrefixes.map(prefix => `${prefix}/* /app-shell 200`),
 ].join('\n');
 
 const redirects = [
@@ -100,9 +105,7 @@ const redirects = [
   '/e-signature-software /uk-e-signature-software 301',
   rewrites,
   spaRules,
-  // Unknown paths: real 404 (prefer dedicated 404.html). CF Pages serves 404.html
-  // automatically when present and there is no /* /index.html 200 catch-all.
-  '/* /404.html 404',
+  // Unknown paths use Cloudflare's native 404.html handling.
 ].filter(Boolean).join('\n') + '\n';
 
 fs.writeFileSync(path.join(build, '_redirects'), redirects);

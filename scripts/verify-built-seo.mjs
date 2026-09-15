@@ -24,7 +24,11 @@ assert.ok(notFound.includes('Page not found'), '404.html must include page-not-f
 
 const redirects = fs.readFileSync(path.join(root, '_redirects'), 'utf8');
 assert.ok(!redirects.split(/\r?\n/).some((line) => line.trim() === '/* /index.html 200'), 'SPA catch-all soft-404 must be removed');
-assert.ok(redirects.includes('/* /404.html 404'), 'Catch-all must point at 404.html');
+assert.ok(!/^.* 404$/m.test(redirects), 'Cloudflare does not support 404 rewrites');
+assert.ok(!/ \/index\.html 200/m.test(redirects), 'Index rewrites redirect app routes to the homepage');
+const appShell = fs.readFileSync(path.join(root, 'app-shell.html'), 'utf8');
+assert.ok(appShell.includes('noindex, nofollow'), 'Private app shell must be noindex');
+assert.ok(appShell.includes('static/js/'), 'App shell must load the application');
 assert.ok(redirects.includes('/uk-e-signature-software'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/docusign-alternative'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/legalesign-alternative'), 'Money page rewrite missing');
@@ -39,10 +43,14 @@ assert.ok(redirects.includes('/e-signature-for-estate-agents-uk'), 'Money page r
 assert.ok(redirects.includes('/e-signature-for-accountants-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-for-hr-uk'), 'Money page rewrite missing');
 assert.ok(redirects.includes('/e-signature-software /uk-e-signature-software 301'), 'Duplicate money URL redirect missing');
-assert.ok(redirects.includes('/dashboard /index.html 200'), 'SPA dashboard fallback missing');
-assert.ok(redirects.includes('/sign/* /index.html 200'), 'SPA sign fallback missing');
+assert.ok(redirects.includes('/dashboard /app-shell 200'), 'SPA dashboard fallback missing');
+assert.ok(redirects.includes('/sign/* /app-shell 200'), 'SPA sign fallback missing');
 
 const home = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert.ok(/UK e-signature software/i.test(home), 'Homepage HTML must target primary keyword');
 
 console.log(`Verified descriptions and parseable JSON-LD on ${descriptions.size} built pages (+ soft-404 redirects)`);
+
+for (const route of ['/login', '/register', '/admin', '/admin/login', '/admin/*', '/settings']) {
+  assert.ok(redirects.includes(`${route} /app-shell 200`), `Missing app route: ${route}`);
+}
