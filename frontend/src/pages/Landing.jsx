@@ -523,7 +523,7 @@ export default function Landing() {
       </section>
 
       {/* ================= SECURITY ================= */}
-      <section className="border-y border-[var(--c-border)] bg-[var(--card)]">
+      <section id="security" className="border-y border-[var(--c-border)] bg-[var(--card)]">
         <div className="mx-auto grid max-w-6xl items-center gap-16 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-24">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">Security</div>

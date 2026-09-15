@@ -32,11 +32,12 @@ export function useIdleLogout({ idleMs = 10 * 60 * 1000, warnMs = 60 * 1000 } = 
     const doLogout = async () => {
       clearTimers();
       toast.dismiss("idle-warning");
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
       try {
         await logout();
       } finally {
-        const next = encodeURIComponent(window.location.pathname + window.location.search);
-        navigate(`/login?reason=idle&next=${next}`, { replace: true });
+        const loginPath = user.role === "admin" || user.role === "staff" ? "/admin/login" : "/login";
+        navigate(`${loginPath}?reason=idle&next=${next}`, { replace: true });
       }
     };
 

@@ -1,4 +1,5 @@
 import {
+  getAdminReturnPath,
   getAppHomePath,
   getMarketingHeaderCta,
   getPostAuthDestination,
@@ -61,5 +62,13 @@ describe("authPortal", () => {
     it("honours safe in-app next paths", () => {
       expect(getPostAuthDestination("/usage")).toBe("/usage");
     });
+  });
+});
+describe("admin return routes", () => {
+  it("preserves console pages and filters", () => {
+    expect(getAdminReturnPath("/admin/users?search=example")).toBe("/admin/users?search=example");
+  });
+  it.each([null, "https://evil.com", "//evil.com/admin", "/admin/login", "/admin/login/", "/admin/../login", "/dashboard", "/admin/../../evil", "/admin\\evil"])("rejects unsafe or looping destination %s", (path) => {
+    expect(getAdminReturnPath(path)).toBe("/admin");
   });
 });

@@ -147,10 +147,11 @@ function PublicOnly({ children }) {
 }
 
 function AdminProtected({ children }) {
+  const location = useLocation();
   const { user, authReady, authError } = useAuth();
   if (!authReady) return <FullLoader />;
   if (authError) return <SessionUnavailable />;
-  if (!user) return <Navigate to="/admin/login" replace />;
+  if (!user) return <Navigate to={`/admin/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   if (user.role !== "admin" && user.role !== "staff") {
     return <Navigate to="/admin/login" replace state={{ reason: "internal_only" }} />;
   }

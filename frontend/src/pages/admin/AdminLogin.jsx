@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { getAdminReturnPath } from "@/lib/authPortal";
 import { formatApiError } from "@/lib/api";
 import { AuthPasswordInput, AuthTextInput, AuthField } from "@/components/auth/AuthFormPrimitives";
 import { Logo } from "@/components/Logo";
@@ -10,6 +11,8 @@ import { Loader2, ArrowLeft, ShieldCheck, Lock } from "lucide-react";
 export default function AdminLogin() {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const destination = getAdminReturnPath(params.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -19,9 +22,9 @@ export default function AdminLogin() {
   useEffect(() => {
     if (user === null || signingInRef.current) return;
     if (user.role === "admin" || user.role === "staff") {
-      navigate("/admin", { replace: true });
+      navigate(destination, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, destination]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -42,7 +45,7 @@ export default function AdminLogin() {
             ? "Welcome to the admin console"
             : "Welcome to the internal portal",
         );
-        window.location.replace("/admin");
+        window.location.replace(destination);
         return;
       }
 

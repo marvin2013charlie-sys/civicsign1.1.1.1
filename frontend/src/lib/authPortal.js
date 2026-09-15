@@ -95,3 +95,14 @@ export function setRememberedEmail(email, remember) {
     /* ignore quota / private mode */
   }
 }
+/** Keep admin return paths within the console and avoid login loops. */
+export function getAdminReturnPath(next) {
+  if (typeof next !== "string" || /[\\\x00-\x20]/.test(next)) return "/admin";
+  try {
+    const url = new URL(next, "https://civicsign.invalid");
+    if (!next.startsWith("/") || url.origin !== "https://civicsign.invalid") return "/admin";
+    if (url.pathname !== "/admin" && !url.pathname.startsWith("/admin/")) return "/admin";
+    if (url.pathname.replace(/\/+$/, "") === "/admin/login") return "/admin";
+    return url.pathname + url.search + url.hash;
+  } catch { return "/admin"; }
+}
