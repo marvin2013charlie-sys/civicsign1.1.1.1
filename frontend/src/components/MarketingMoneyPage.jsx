@@ -19,6 +19,7 @@ import {
   CTA_SUBTEXT_CLASS,
   H_FONT,
   MARKETING_CARD,
+  PAPER_TEXT,
   PRIMARY_CTA,
   PRIMARY_CTA_STYLE,
   SECONDARY_CTA,
@@ -215,12 +216,12 @@ export function MarketingMoneyPage({
           <h2 className={CTA_HEADLINE_CLASS} style={H_FONT}>
             {ctaHeadline}
           </h2>
-          <p className={CTA_SUBTEXT_CLASS}>{ctaSubhead}</p>
+          <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>{ctaSubhead}</p>
           <div className={CTA_ACTIONS_CLASS}>
             <Link to="/register" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>
               Create free account <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/contact" className={CTA_SECONDARY_BTN}>
+            <Link to="/contact" className={CTA_SECONDARY_BTN} style={{ borderColor: "rgba(248,247,242,.28)", color: PAPER_TEXT }}>
               Talk to us
             </Link>
           </div>

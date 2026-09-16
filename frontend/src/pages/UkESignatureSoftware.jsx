@@ -36,6 +36,7 @@ import {
   CTA_SUBTEXT_CLASS,
   H_FONT,
   MARKETING_CARD,
+  PAPER_TEXT,
   PRIMARY_CTA,
   PRIMARY_CTA_STYLE,
   SECONDARY_CTA,
@@ -577,14 +578,14 @@ export default function UkESignatureSoftware() {
           <h2 className={CTA_HEADLINE_CLASS} style={H_FONT}>
             Try UK e-signature software free
           </h2>
-          <p className={CTA_SUBTEXT_CLASS}>
+          <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>
             {formatFreePlanSignupPitch()}. UK GDPR hosting, legally binding signatures, and a court-ready audit trail.
           </p>
           <div className={CTA_ACTIONS_CLASS}>
             <Link to="/register" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>
               Create free account <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/pricing" className={CTA_SECONDARY_BTN}>
+            <Link to="/pricing" className={CTA_SECONDARY_BTN} style={{ borderColor: "rgba(248,247,242,.28)", color: PAPER_TEXT }}>
               View pricing
             </Link>
           </div>

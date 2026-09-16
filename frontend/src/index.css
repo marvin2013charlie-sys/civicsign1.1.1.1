@@ -597,20 +597,6 @@ html[data-theme="dark"] {
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
     outline: none;
   }
-  /* Admin console (Auth v3): inputs on the dark card. */
-  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input {
-    background: rgba(248, 247, 242, 0.06);
-    border-color: rgba(248, 247, 242, 0.16);
-    color: #f8f7f2;
-  }
-  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input:focus,
-  .cs-admin-dark-input.cs-admin-dark-input.cs-admin-dark-input:focus-visible {
-    border-color: #2dd4bf;
-    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
-  }
-  .cs-admin-dark-input::placeholder {
-    color: rgba(248, 247, 242, 0.3);
-  }
   .cs-auth-card-logo {
     position: relative;
     z-index: 1;
