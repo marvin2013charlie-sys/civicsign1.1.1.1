@@ -13,21 +13,21 @@ export const SIGNATURE_LEVELS = {
     short: "Simple Electronic Signature (SES)",
     badge: "SES",
     description:
-      "UK eIDAS Art. 3(11). Typed, drawn or click-to-sign with full audit trail. Default for Pro.",
+      "Typed or drawn electronic signature with consent and an audit trail.",
   },
   aes: {
     id: "aes",
     short: "Advanced Electronic Signature (AES)",
     badge: "AES",
     description:
-      "UK eIDAS Art. 26. Uniquely linked to the signer, identifies them, under their sole control, with tamper detection. Default for Business.",
+      "Unavailable. Advanced signature assurance has not been implemented.",
   },
   qes: {
     id: "qes",
     short: "Qualified Electronic Signature (QES)",
     badge: "QES",
     description:
-      "UK eIDAS Art. 3(12). AES backed by a qualified certificate from a Qualified Trust Service Provider. Available on request for Business.",
+      "Unavailable. Qualified trust service integration has not been implemented.",
     contactRequired: true,
   },
 };
@@ -35,13 +35,10 @@ export const SIGNATURE_LEVELS = {
 export function allowedSignatureLevels(features) {
   const levels = ["basic"];
   if (features?.ses_signatures) levels.push("ses");
-  if (features?.aes_signatures) levels.push("aes");
-  if (features?.qes_available) levels.push("qes");
   return levels;
 }
 
 export function defaultSignatureLevel(features) {
-  if (features?.aes_signatures && features?.plan === "business") return "aes";
   if (features?.ses_signatures) return "ses";
   return "basic";
 }

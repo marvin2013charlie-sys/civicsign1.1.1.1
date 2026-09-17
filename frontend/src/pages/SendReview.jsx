@@ -56,7 +56,7 @@ export default function SendReview() {
         const data = envelopeRes.data;
         setEnv(data);
         setMessage(data.message || "");
-        setSignatureLevel(data.signature_level || defaultSignatureLevel(features));
+        setSignatureLevel(["basic", "ses"].includes(data.signature_level) ? data.signature_level : defaultSignatureLevel(features));
         if (data.status !== "draft") {
           const links = (data.recipients || []).map((r) => ({
             name: r.name, email: r.email, token: r.access_token,
@@ -281,23 +281,7 @@ export default function SendReview() {
                 <p className="mt-2 text-[10px] leading-relaxed text-[var(--c-muted-fg)]">
                   {sigOptions.find((o) => o.id === signatureLevel)?.description}
                 </p>
-                {features.plan === "business" && !features.qes_available && (
-                  <p className="mt-2 text-[10px] text-[var(--c-muted-fg)]">
-                    Need a Qualified Electronic Signature (QES)?{" "}
-                    {orgStaff ? (
-                      <>
-                        Ask your{" "}
-                        <Link to="/organisation" className="font-medium text-[var(--c-primary)] hover:underline">organisation admin</Link>{" "}
-                        to request QTSP-backed QES for high-assurance transactions.
-                      </>
-                    ) : (
-                      <>
-                        <Link to="/contact" className="font-medium text-[var(--c-primary)] hover:underline">Contact us</Link>{" "}
-                        to enable QTSP-backed QES for high-assurance transactions.
-                      </>
-                    )}
-                  </p>
-                )}
+                <p className="mt-2 text-xs text-[var(--c-muted-fg)]">Advanced (AES) and qualified (QES) signatures are not currently available.</p>
               </div>
             )}
             <div className="mt-4">

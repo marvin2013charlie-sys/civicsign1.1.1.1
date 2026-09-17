@@ -33,7 +33,7 @@ _PRO_FLAGS = {
     "max_recipients": None,
     "manage_pdf": True,
     "ses_signatures": True,
-    "aes_signatures": True,
+    "aes_signatures": False,
     "qes_available": False,
     "team_templates": True,
     "comments": True,

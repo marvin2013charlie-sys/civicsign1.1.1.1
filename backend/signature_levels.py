@@ -1,12 +1,4 @@
-"""
-UK eIDAS signature tier resolution and evidence for CivicSign.
-
-Tiers (lowest → highest assurance):
-  basic — consent, attribution, audit trail, SHA-256 seal (Free plan)
-  ses   — Simple Electronic Signature, UK eIDAS Art. 3(11) (Pro+)
-  aes   — Advanced Electronic Signature, UK eIDAS Art. 26 (Pro selectable, Business default)
-  qes   — Qualified Electronic Signature, UK eIDAS Art. 3(12) (Business via QTSP partner — roadmap)
-"""
+"""Electronic signature evidence. AES/QES are disabled until independently supported."""
 from __future__ import annotations
 
 from fastapi import HTTPException
@@ -22,13 +14,13 @@ CONSENT_TEXT = (
 LEVEL_LABELS = {
     "basic": "Electronic signature",
     "ses": "Simple Electronic Signature (SES)",
-    "aes": "Advanced Electronic Signature (AES)",
-    "qes": "Qualified Electronic Signature (QES)",
+    "aes": "Electronic signature (legacy AES label, assurance unverified)",
+    "qes": "Electronic signature (legacy QES label, assurance unverified)",
 }
 
 LEVEL_LEGAL_BASIS = {
     "basic": "UK Electronic Communications Act 2000 — electronic signature with audit trail",
-    "ses": "UK eIDAS Article 3(11) — Simple Electronic Signature",
+    "ses": "UK eIDAS Article 3(10) — electronic signature",
     "aes": "UK eIDAS Article 26 — Advanced Electronic Signature",
     "qes": "UK eIDAS Article 3(12) — Qualified Electronic Signature",
 }
@@ -41,21 +33,12 @@ CERTIFICATE_FOOTERS = {
         "Any modification to the document after completion will invalidate the hash above."
     ),
     "ses": (
-        "This certificate records a Simple Electronic Signature (SES) under UK eIDAS Article 3(11), "
+        "This certificate records a Simple Electronic Signature (SES) under UK eIDAS Article 3(10), "
         "with signer consent, attribution (email, timestamp, IP address), and a SHA-256 document seal. "
         "Any modification to the document after completion will invalidate the hash above."
     ),
-    "aes": (
-        "This certificate records an Advanced Electronic Signature (AES) under UK eIDAS Article 26. "
-        "The signature is uniquely linked to the signatory, capable of identifying them, created under "
-        "their sole control, and linked to the document such that any subsequent change is detectable "
-        "via the SHA-256 hash above."
-    ),
-    "qes": (
-        "This certificate records a Qualified Electronic Signature (QES) under UK eIDAS Article 3(12), "
-        "backed by a qualified certificate from a Qualified Trust Service Provider. "
-        "Any modification to the document after completion will invalidate the hash above."
-    ),
+    "aes": "Legacy AES label: advanced signature requirements were not verified. This record does not establish AES compliance.",
+    "qes": "Legacy QES label: no qualified certificate or qualified signature creation device was verified. This record does not establish QES compliance.",
 }
 
 
@@ -70,18 +53,12 @@ def allowed_levels_for_user(user: dict) -> list[str]:
     levels: list[str] = ["basic"]
     if has_feature(user, "ses_signatures"):
         levels.append("ses")
-    if has_feature(user, "aes_signatures"):
-        levels.append("aes")
-    if has_feature(user, "qes_available"):
-        levels.append("qes")
     return levels
 
 
 def default_level_for_user(user: dict) -> str:
     from plan_features import has_feature
 
-    if has_feature(user, "aes_signatures") and _effective_plan(user) == "business":
-        return "aes"
     if has_feature(user, "ses_signatures"):
         return "ses"
     return "basic"
@@ -89,6 +66,8 @@ def default_level_for_user(user: dict) -> str:
 
 def resolve_send_signature_level(user: dict, requested: str | None = None) -> str:
     """Pick the envelope signature level at send time, validating plan access."""
+    if requested and requested.lower().strip() in {"aes", "qes"}:
+        raise HTTPException(400, "AES and QES are unavailable: their assurance requirements are not implemented. Choose an electronic signature instead.")
     allowed = allowed_levels_for_user(user)
     default = default_level_for_user(user)
     if not requested:
@@ -119,6 +98,8 @@ def resolve_send_signature_level(user: dict, requested: str | None = None) -> st
 
 def resolve_signer_view_level(env: dict, owner: dict | None) -> str:
     """Level shown to the signer — fall back from envelope or owner plan."""
+    if env.get("signature_level") in {"aes", "qes"}:
+        return "ses"
     if env.get("signature_level") in VALID_LEVELS:
         return env["signature_level"]
     if owner:
@@ -132,11 +113,7 @@ def level_audit_label(level: str) -> str:
 
 def consent_audit_detail(level: str) -> str:
     if level == "ses":
-        return "Simple Electronic Signature (SES) — UK eIDAS Art. 3(11)"
-    if level == "aes":
-        return "Advanced Electronic Signature (AES) — UK eIDAS Art. 26"
-    if level == "qes":
-        return "Qualified Electronic Signature (QES) — UK eIDAS Art. 3(12)"
+        return "Simple Electronic Signature (SES) — UK eIDAS Art. 3(10)"
     return "Electronic signature consent accepted"
 
 
@@ -157,6 +134,8 @@ def build_signer_evidence(
     auth_verified: bool = False,
 ) -> dict | None:
     """Per-recipient evidence stored on the envelope at sign time."""
+    if level in {"aes", "qes"}:
+        level = "ses"
     if level == "basic":
         return {
             "signature_level": "basic",
@@ -178,38 +157,6 @@ def build_signer_evidence(
             "signer_email": signer_email,
             "signer_name": signer_name,
             "consent_text": CONSENT_TEXT,
-        }
-    if level == "aes":
-        evidence = {
-            "signature_level": "AES",
-            "legal_basis": LEVEL_LEGAL_BASIS["aes"],
-            "ip": ip,
-            "user_agent": user_agent[:200],
-            "signed_at": signed_at,
-            "signer_email": signer_email,
-            "signer_name": signer_name,
-            "consent_text": CONSENT_TEXT,
-            "criteria": {
-                "uniquely_linked": True,
-                "identifies_signatory": True,
-                "sole_control": True,
-                "tamper_detection": True,
-            },
-        }
-        if auth_method and auth_verified:
-            evidence["recipient_authentication"] = auth_method
-        return evidence
-    if level == "qes":
-        return {
-            "signature_level": "QES",
-            "legal_basis": LEVEL_LEGAL_BASIS["qes"],
-            "ip": ip,
-            "user_agent": user_agent[:200],
-            "signed_at": signed_at,
-            "signer_email": signer_email,
-            "signer_name": signer_name,
-            "consent_text": CONSENT_TEXT,
-            "qtsp": "Qualified Trust Service Provider (partner integration)",
         }
     return None
 

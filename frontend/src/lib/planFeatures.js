@@ -48,7 +48,7 @@ const BUSINESS_FEATURES = {
   max_recipients: null,
   manage_pdf: true,
   ses_signatures: true,
-  aes_signatures: true,
+  aes_signatures: false,
   qes_available: false,
   team_templates: true,
   comments: true,
