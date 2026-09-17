@@ -4,7 +4,7 @@ import { Document } from "react-pdf";
 import { PdfPageLayer } from "@/components/PdfPageLayer";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
-import api, { formatApiError, fetchPdfBlobUrl } from "@/lib/api";
+import api, { formatApiError, fetchPdfData } from "@/lib/api";
 import { FIELD_TYPES, FIELD_ORDER, hexToRgba } from "@/lib/fields";
 
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,7 @@ export default function PrepareStudio() {
   const navigate = useNavigate();
   const { features } = usePlan();
   const [env, setEnv] = useState(null);
-  const [blobUrl, setBlobUrl] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
   const [recipients, setRecipients] = useState([]);
   const [fields, setFields] = useState([]);
   const [signingOrder, setSigningOrder] = useState("sequential");
@@ -166,9 +166,9 @@ export default function PrepareStudio() {
         setFields(data.fields || []);
         setSigningOrder(data.signing_order || "sequential");
         setActiveRecipient(data.recipients?.[0]?.recipient_id || null);
-        const url = await fetchPdfBlobUrl(`/envelopes/${id}/file`);
-        if (cancelled) { URL.revokeObjectURL(url); return; }
-        setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+        const dataFile = await fetchPdfData(`/envelopes/${id}/file`);
+        if (cancelled) return;
+        setPdfFile(dataFile);
       } catch (err) {
         if (cancelled) return;
         toast.error(formatApiError(err));
@@ -179,7 +179,6 @@ export default function PrepareStudio() {
     })();
     return () => { cancelled = true; };
   }, [id, navigate]);
-  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
   const fetchContactSuggestions = async (q) => {
     try {
@@ -674,8 +673,8 @@ export default function PrepareStudio() {
             </div>
           )}
           <div className="mx-auto flex w-full max-w-full flex-col items-center px-3 py-6 sm:px-4" onClick={() => setSelected(null)}>
-            {blobUrl && (
-              <Document file={blobUrl} options={PDF_OPTIONS} loading={<Loader2 className="mt-10 h-8 w-8 animate-spin text-[var(--c-primary)]" />} error={<div className="mt-10 text-sm text-red-600">Failed to load document.</div>}>
+            {pdfFile && (
+              <Document file={pdfFile} options={PDF_OPTIONS} loading={<Loader2 className="mt-10 h-8 w-8 animate-spin text-[var(--c-primary)]" />} error={<div className="mt-10 text-sm text-red-600">Failed to load document.</div>}>
                 {pages.map((_, i) => (
                   <PdfPageLayer
                     key={`page-${i + 1}`}
