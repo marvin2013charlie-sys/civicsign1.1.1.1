@@ -37,6 +37,8 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
       setTyped(defaultName);
       setUploaded(null);
       setHasDrawn(false);
+      const canvas = canvasRef.current;
+      if (canvas) canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     }
   }, [open, defaultName]);
 
@@ -92,7 +94,9 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     ctx.font = `96px ${font.css}`;
-    ctx.fillText(typed || "", cvs.width / 2, cvs.height / 2);
+    const size = Math.min(96, 96 * (cvs.width - 40) / Math.max(1, ctx.measureText(typed.trim()).width));
+    ctx.font = `${size}px ${font.css}`;
+    ctx.fillText(typed.trim(), cvs.width / 2, cvs.height / 2);
     return cvs.toDataURL("image/png");
   };
 
@@ -109,7 +113,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
       dataUrl = uploaded;
     }
     if (dataUrl) {
-      onApply(dataUrl, remember);
+      onApply(dataUrl, remember, { draw: "drawn", type: "typed", upload: "upload" }[tab]);
       onOpenChange(false);
     }
   };
@@ -127,7 +131,11 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
     if (f.size > 5 * 1024 * 1024) { toast.error("Image must be under 5 MB"); return; }
     if (!f.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
     const reader = new FileReader();
-    reader.onload = () => setUploaded(reader.result);
+    reader.onload = () => {
+      if (String(reader.result).length > 2_000_000) { toast.error("Choose a smaller image (under 1.5 MB)"); return; }
+      setUploaded(reader.result);
+    };
+    reader.onerror = () => toast.error("Could not read this image. Please try another file.");
     reader.readAsDataURL(f);
   };
 
@@ -151,7 +159,7 @@ export const SignatureModal = ({ open, onOpenChange, onApply, defaultName = "", 
             <TabsTrigger value="upload" data-testid="signature-tab-upload">Upload</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="draw" className="mt-4">
+          <TabsContent value="draw" forceMount className="mt-4 data-[state=inactive]:hidden">
             <div className="rounded-xl border border-[var(--c-border)] bg-white">
               <canvas
                 ref={initCanvas}

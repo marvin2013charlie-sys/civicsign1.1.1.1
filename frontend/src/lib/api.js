@@ -170,8 +170,8 @@ async function blobToObjectUrl(res) {
 }
 
 /** Give PDF.js bytes directly; blob URL XHR headers can be empty in WebKit. */
-export async function fetchPdfData(path) {
-  const response = await api.get(path, { responseType: "blob" });
+export async function fetchPdfData(path, client = api) {
+  const response = await client.get(path, { responseType: "blob" });
   const error = await blobLooksLikeApiError(response.data);
   if (error) throw new Error(error);
   return { data: new Uint8Array(await response.data.arrayBuffer()) };

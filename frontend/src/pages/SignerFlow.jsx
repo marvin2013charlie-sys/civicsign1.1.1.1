@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
-import { publicApi, formatApiError, fetchPublicPdfBlobUrl, API_ORIGIN } from "@/lib/api";
+import { publicApi, formatApiError, fetchPublicPdfBlobUrl, fetchPdfData, API_ORIGIN } from "@/lib/api";
 import { FIELD_TYPES, hexToRgba } from "@/lib/fields";
 import { Logo } from "@/components/Logo";
 import { BrandAccent } from "@/components/BrandText";
@@ -46,12 +46,11 @@ export default function SignerFlow() {
   const fieldRefs = useRef({});
 
   const loadPdf = useCallback(async (cancelledRef) => {
-    const url = await fetchPublicPdfBlobUrl(`/sign/${token}/file`);
+    const file = await fetchPdfData(`/sign/${token}/file`, publicApi);
     if (cancelledRef.current) {
-      URL.revokeObjectURL(url);
       return;
     }
-    setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+    setBlobUrl(file);
   }, [token]);
 
   useEffect(() => {
@@ -93,7 +92,6 @@ export default function SignerFlow() {
       cancelledRef.current = true;
     };
   }, [token, loadPdf]);
-  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
   useEffect(() => {
     const onResize = () => setPageWidth(Math.max(300, Math.min(760, window.innerWidth - 32)));
@@ -129,16 +127,16 @@ export default function SignerFlow() {
     }
   };
 
-  const applySignature = async (dataUrl, saveForReuse = false) => {
+  const applySignature = async (dataUrl, saveForReuse = false, signatureType = "drawn") => {
     setValues((p) => ({ ...p, [sigModal.fieldId]: dataUrl }));
     setSigModal({ open: false, fieldId: null });
     if (saveForReuse && dataUrl) {
       try {
         await publicApi.put(`/sign/${token}/saved-signature`, {
           signature_data: dataUrl,
-          signature_type: "drawn",
+          signature_type: signatureType,
         });
-        setSavedSig({ signature_data: dataUrl, signature_type: "drawn" });
+        setSavedSig({ signature_data: dataUrl, signature_type: signatureType });
       } catch { /* non-fatal */ }
     }
   };

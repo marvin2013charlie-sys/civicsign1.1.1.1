@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Document, Page } from "react-pdf";
 import { toast } from "sonner";
 import { PDF_OPTIONS } from "@/lib/pdf";
-import api, { formatApiError, fetchPdfBlobUrl, downloadFile } from "@/lib/api";
+import api, { formatApiError, fetchPdfData, downloadFile } from "@/lib/api";
 
 import { copyToClipboard } from "@/lib/clipboard";
 import { getAppOrigin } from "@/lib/appOrigin";
@@ -159,9 +159,9 @@ export default function EnvelopeDetail() {
       if (isStale()) return;
       setEnv(data);
       const path = data.completed_file_id ? `/envelopes/${id}/completed` : `/envelopes/${id}/file`;
-      const url = await fetchPdfBlobUrl(path);
-      if (isStale()) { URL.revokeObjectURL(url); return; }
-      setBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+      const file = await fetchPdfData(path);
+      if (isStale()) return;
+      setBlobUrl(file);
     } catch (err) {
       if (isStale()) return;
       toast.error(formatApiError(err));
@@ -176,7 +176,6 @@ export default function EnvelopeDetail() {
     load(() => cancelled);
     return () => { cancelled = true; };
   }, [load]);
-  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
   useEffect(() => {
     const onResize = () => setPageWidth(Math.max(300, Math.min(680, window.innerWidth - 80)));
     onResize(); window.addEventListener("resize", onResize);
