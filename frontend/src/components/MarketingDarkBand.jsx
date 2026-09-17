@@ -19,7 +19,7 @@ export function MarketingDarkSection({ children, className = "", id, as: Tag = "
 /** Bottom CTA card on ink background — does not flip the sticky header (sits on light page). */
 export function MarketingCtaBanner({ children, className = "" }) {
   return (
-    <div className={[CTA_BANNER, className].filter(Boolean).join(" ")} style={{ background: INK }}>
+    <div className={[CTA_BANNER, className].filter(Boolean).join(" ")} style={{ background: INK, color: PAPER_TEXT }}>
       {children}
     </div>
   );
