@@ -2,24 +2,24 @@
 # Full pre-prune snapshot kept at requirements.full.txt.bak.
 
 # Web framework + server
-fastapi==0.110.1
+fastapi==0.141.1
 uvicorn==0.25.0
-starlette==0.37.2
+starlette==1.6.0
 pydantic==2.13.4
 pydantic-core==2.46.4
 email-validator==2.3.0      # required by pydantic EmailStr
-python-multipart==0.0.29
+python-multipart==0.0.32
 
 # MongoDB (Atlas SRV needs dnspython)
-motor==3.3.1
-pymongo==4.5.0
+motor==3.7.1
+pymongo==4.18.1
 dnspython==2.8.0
 
 # Auth / security
 PyJWT==2.13.0
 bcrypt==4.1.3
 passlib==1.7.4
-cryptography==44.0.2        # document encryption (AES-GCM via document_crypto.py)
+cryptography==50.0.1        # document encryption (AES-GCM via document_crypto.py)
 
 # HTTP client (outbound webhooks in integrations.py)
 httpx==0.28.1
@@ -36,4 +36,4 @@ resend==2.30.1
 # PDF processing
 PyMuPDF==1.27.2.3
 pdf2docx==0.5.13
-Pillow==11.3.0
+Pillow==12.3.0
