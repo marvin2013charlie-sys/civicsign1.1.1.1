@@ -48,6 +48,27 @@ assert.ok(redirects.includes('/sign/* /app-shell 200'), 'SPA sign fallback missi
 
 const home = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert.ok(/UK e-signature software/i.test(home), 'Homepage HTML must target primary keyword');
+assert.ok(home.includes('href="/uk-e-signature-software"'), 'Homepage HTML must link to the primary money page');
+
+// Primary money page: content must be in the served HTML, not only client-rendered.
+const money = fs.readFileSync(path.join(root, 'uk-e-signature-software.html'), 'utf8');
+assert.ok(/<title>UK e-signature software[^<]*<\/title>/.test(money), 'Money page title must lead with UK e-signature software');
+assert.ok(money.includes(`<link rel="canonical" href="${SITE_URL}/uk-e-signature-software" />`), 'Money page canonical missing');
+assert.ok(/<h1>UK e-signature software<\/h1>/.test(money), 'Money page pre-rendered H1 missing');
+assert.ok(money.includes('id="uk-e-signature-comparison"') && money.includes('<table>'), 'Money page comparison table missing');
+assert.ok(/Last updated <time datetime="\d{4}-\d{2}-\d{2}">/.test(money), 'Money page last-updated date missing');
+const moneySchema = [...money.matchAll(/<script type="application\/ld\+json" id="cs-jsonld-[^"]+">([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1]));
+const faqPage = moneySchema.find(item => item['@type'] === 'FAQPage');
+assert.ok(faqPage && faqPage.mainEntity.length >= 8, 'Money page FAQPage schema missing');
+for (const q of faqPage.mainEntity) assert.ok(money.includes(`<h3>${q.name.replace(/&/g, '&amp;')}</h3>`), `FAQ not visible in HTML: ${q.name}`);
+
+// Supporting pages carry a crawlable contextual link to the money page.
+for (const route of ['/docusign-alternative', '/legalesign-alternative', '/signable-alternative', '/esign-alternative', '/mysign-alternative',
+  '/adobe-sign-alternative', '/eidas-compliant-esignature', '/electronic-signatures-uk', '/e-signature-for-solicitors-uk',
+  '/e-signature-for-estate-agents-uk', '/e-signature-for-accountants-uk', '/e-signature-for-hr-uk']) {
+  const html = fs.readFileSync(path.join(root, `${route}.html`), 'utf8');
+  assert.ok(html.includes('<a href="/uk-e-signature-software">'), `Missing money page link in served HTML: ${route}`);
+}
 
 console.log(`Verified descriptions and parseable JSON-LD on ${descriptions.size} built pages (+ soft-404 redirects)`);
 

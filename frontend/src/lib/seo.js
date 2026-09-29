@@ -1,6 +1,7 @@
 import { POSTS } from "./blogPostData.js";
 import { CIVICSIGN_CONTACT_EMAIL } from "./contactEmail.js";
-import { formatFreePlanSeoDescription } from "./pricing.js";
+import { BUSINESS_MONTHLY_GBP, PRO_MONTHLY_GBP, formatFreePlanSeoDescription } from "./pricing.js";
+import { UK_ESIGN_FAQS, UK_ESIGN_LAST_UPDATED } from "./ukEsignSoftwareContent.js";
 
 export const SITE_NAME = "CivicSign";
 export const SITE_TAGLINE = "UK e-signature software";
@@ -35,15 +36,6 @@ const NOINDEX_PREFIXES = [
   "/admin",
 ];
 
-const UK_ESIGN_FAQS = [
-  ["What is UK e-signature software?", "UK e-signature software lets you prepare, send and sign documents electronically under UK law. CivicSign captures signer intent, consent and a tamper-evident audit trail so completed agreements are suitable for everyday UK business use."],
-  ["Are CivicSign signatures legally binding?", "Yes. CivicSign is built for legally binding electronic signatures in England and Wales, aligned with the Electronic Communications Act 2000 and UK eIDAS requirements for simple and advanced electronic signatures where appropriate."],
-  ["Is CivicSign UK GDPR compliant?", "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process."],
-  ["Do recipients need an account?", "No. Signers open a secure link on any device — no downloads and no CivicSign account required."],
-  ["How does CivicSign compare to DocuSign, Signable or Legalesign?", "CivicSign is UK-owned e-signature software with UK hosting, published GBP pricing (Free plus Pro from about £15/user/month), Manage PDF on paid plans, and no signer accounts. Global suites often price for enterprise; Legalesign is a common UK/EU shortlist peer — CivicSign emphasises pricing honesty, Manage PDF 2-in-1 and zero signer accounts for UK SMEs."],
-  ["What is on the free plan?", "Free includes 2 documents a month, no card required. Extra documents are 80p excl. VAT if you go over. Audit trail and Certificate of Completion are included on every plan."],
-  ["SES, AES or QES — what do I need?", "Most UK SME contracts only need a simple electronic signature (SES) with a clear audit trail. Advanced electronic signatures (AES) are available on Pro and default on Business. Qualified electronic signatures (QES) are on request for Business — we do not pretend QES is required for every envelope."],
-];
 
 const HOME_FAQS = [
   ["Are signatures from CivicSign legally binding?", "Yes. CivicSign is built around UK law, the Electronic Communications Act 2000, the UK eIDAS Regulation, and the Law Commission's 2019 report on the electronic execution of documents, capturing intent, consent, attribution, and a tamper-evident audit trail on every completed document."],
@@ -205,9 +197,9 @@ const STATIC_ROUTES = {
     path: "/solutions/freelancers",
   },
   "/uk-e-signature-software": {
-    title: `UK e-signature software — Legally Binding & UK GDPR | ${SITE_NAME}`,
+    title: `UK e-signature software: 2026 comparison & free plan | ${SITE_NAME}`,
     description:
-      "UK e-signature & e-sign software: legally binding signatures, UK GDPR hosting, PDF tools & audit trail. Free 2 docs/month. Pro ~£15/user. Start free.",
+      "Compare UK e-signature software for 2026: CivicSign vs Legalesign, Signable, MySign, eSign & DocuSign on GBP pricing, SES/AES/QES and UK law. Free plan.",
     path: "/uk-e-signature-software",
   },
   "/docusign-alternative": {
@@ -398,6 +390,44 @@ function buildSoftwareApplicationJsonLd() {
   };
 }
 
+/** Product schema for the primary money page — offers mirror pricing.js (excl. VAT). No ratings: none are published. */
+function buildUkEsignSoftwareJsonLd() {
+  const url = absoluteUrl("/uk-e-signature-software");
+  const offer = (name, price, description) => ({
+    "@type": "Offer",
+    name,
+    price: String(price),
+    priceCurrency: "GBP",
+    description,
+    url: absoluteUrl("/pricing"),
+  });
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": `${url}#software`,
+    name: `${SITE_NAME} UK e-signature software`,
+    applicationCategory: "BusinessApplication",
+    applicationSubCategory: "Electronic signature software",
+    operatingSystem: "Web",
+    url,
+    areaServed: "GB",
+    inLanguage: "en-GB",
+    publisher: { "@type": "Organization", name: SITE_NAME, legalName: "CivicBot LTD" },
+    offers: [
+      offer("Free", 0, formatFreePlanSeoDescription()),
+      offer("Pro", PRO_MONTHLY_GBP, "Per user per month, excl. VAT. Includes Manage PDF."),
+      offer("Business", BUSINESS_MONTHLY_GBP, "Per user per month, excl. VAT. Includes bulk send, API and webhooks."),
+    ],
+    featureList: [
+      "Legally binding simple electronic signatures (SES) under UK law",
+      "SHA-256 sealed PDF with Certificate of Completion",
+      "No signer accounts required",
+      "Sequential and parallel signer routing",
+      "Manage PDF on paid plans",
+    ],
+  };
+}
+
 function buildFaqJsonLd(faqs) {
   return {
     "@context": "https://schema.org",
@@ -514,7 +544,8 @@ export function getSeoForPath(pathname) {
     const route = STATIC_ROUTES[path];
     let jsonLd = path === "/" ? [...buildHomeJsonLd(), ...buildPageJsonLd(route)] : buildPageJsonLd(route);
     if (path === "/uk-e-signature-software") {
-      jsonLd = [...jsonLd, buildFaqJsonLd(UK_ESIGN_FAQS)];
+      jsonLd = jsonLd.map((item) => (item["@type"] === "WebPage" ? { ...item, dateModified: UK_ESIGN_LAST_UPDATED } : item));
+      jsonLd = [...jsonLd, buildUkEsignSoftwareJsonLd(), buildFaqJsonLd(UK_ESIGN_FAQS)];
     }
     return {
       ...route,

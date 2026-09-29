@@ -65,3 +65,19 @@ test('money pages target commercial keywords and stay in the sitemap', () => {
   expect(getSeoForPath('/e-signature-for-accountants-uk').title.toLowerCase()).toContain('accountants');
   expect(getSeoForPath('/e-signature-for-hr-uk').title.toLowerCase()).toContain('hr');
 });
+
+test('UK e-signature software page ships FAQ, software offers and a last-modified date', () => {
+  const meta = getSeoForPath('/uk-e-signature-software');
+  const types = meta.jsonLd.map(item => item['@type']);
+  expect(types).toEqual(expect.arrayContaining(['WebPage', 'BreadcrumbList', 'SoftwareApplication', 'FAQPage']));
+  const page = meta.jsonLd.find(item => item['@type'] === 'WebPage');
+  expect(page.dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const faq = meta.jsonLd.find(item => item['@type'] === 'FAQPage');
+  expect(faq.mainEntity.length).toBeGreaterThanOrEqual(8);
+  const software = meta.jsonLd.find(item => item['@type'] === 'SoftwareApplication');
+  expect(software.offers.map(offer => offer.priceCurrency)).toEqual(['GBP', 'GBP', 'GBP']);
+  expect(software.aggregateRating).toBeUndefined();
+  // AES/QES are not implemented (see signatureLevels.js) — the page must not claim them.
+  const text = JSON.stringify(meta.jsonLd);
+  expect(text).not.toMatch(/AES\) (are|is) available|default on Business|QES\) (are|is) on request/);
+});

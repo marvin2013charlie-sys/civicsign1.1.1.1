@@ -2,8 +2,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadSeo } from './load-seo.mjs';
+import { loadSeo, loadPageContent } from './load-seo.mjs';
+import { renderUkEsignBody, renderContextLinkBody } from './prerender-body.mjs';
 const { getSeoForPath, getPublicSitemapPaths, SITE_URL, DEFAULT_OG_IMAGE } = await loadSeo();
+const { ukEsign, contextLinks } = await loadPageContent();
+const ROOT_DIV = '<div id="root"></div>';
 const frontend = fileURLToPath(new URL('../frontend/', import.meta.url));
 const build = path.resolve(frontend, process.env.BUILD_PATH || 'build');
 const template = fs.readFileSync(path.join(build, 'index.html'), 'utf8');
@@ -31,6 +34,14 @@ for (const route of paths) {
     html = html.replace('</head>', `<meta name="google-site-verification" content="${escape(verification)}" /></head>`);
   }
   html = html.replace('</head>', `${schema}</head>`);
+  // Crawlable body copy for the primary money page and its supporting pages.
+  let body = '';
+  if (route === '/uk-e-signature-software') body = renderUkEsignBody(ukEsign);
+  else if (contextLinks[route]) body = renderContextLinkBody(route, meta.description, contextLinks[route]);
+  if (body) {
+    if (!html.includes(ROOT_DIV)) throw new Error(`Template missing ${ROOT_DIV}`);
+    html = html.replace(ROOT_DIV, `<div id="root">${body}</div>`);
+  }
   const destination = route === '/' ? path.join(build, 'index.html') : path.join(build, `${route}.html`);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, html);
