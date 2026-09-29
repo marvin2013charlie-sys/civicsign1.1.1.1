@@ -9,6 +9,7 @@ import {
   UserX,
 } from "lucide-react";
 import { MarketingMoneyPage } from "@/components/MarketingMoneyPage";
+import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
 import {
   formatFreePlanDocsAMonth,
   formatFreePlanSignupPitch,
@@ -130,6 +131,7 @@ const TABLE_ROWS = [
 export default function SignableAlternative() {
   return (
     <MarketingMoneyPage
+      categoryLink={UK_ESIGN_CONTEXT_LINKS["/signable-alternative"]}
       testId="signable-alternative-page"
       eyebrow="Signable alternative UK"
       headline={

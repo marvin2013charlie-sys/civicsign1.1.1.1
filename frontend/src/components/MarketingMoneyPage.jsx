@@ -39,6 +39,7 @@ export function MarketingMoneyPage({
   table = null,
   faqs = [],
   related = [],
+  categoryLink = null,
   ctaHeadline = "Start signing with CivicSign",
   ctaSubhead = "UK e-signature software with legally binding signatures, UK GDPR hosting, and a free plan to try.",
 }) {
@@ -112,6 +113,18 @@ export function MarketingMoneyPage({
               );
             })}
           </div>
+        </section>
+      ) : null}
+
+      {categoryLink ? (
+        <section className="mx-auto max-w-4xl px-4 pb-4 sm:px-6" data-testid={`${testId}-category-link`}>
+          <p className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] px-5 py-4 text-[15px] leading-relaxed text-[var(--c-ink)]">
+            {categoryLink.before}
+            <Link to="/uk-e-signature-software" className="font-semibold text-[var(--c-primary)] hover:underline">
+              {categoryLink.anchor}
+            </Link>
+            {categoryLink.after}
+          </p>
         </section>
       ) : null}
 

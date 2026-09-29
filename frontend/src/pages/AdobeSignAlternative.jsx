@@ -9,6 +9,7 @@ import {
   UserX,
 } from "lucide-react";
 import { MarketingMoneyPage } from "@/components/MarketingMoneyPage";
+import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
 import {
   formatFreePlanDocsAMonth,
   formatFreePlanSignupPitch,
@@ -129,6 +130,7 @@ const TABLE_ROWS = [
 export default function AdobeSignAlternative() {
   return (
     <MarketingMoneyPage
+      categoryLink={UK_ESIGN_CONTEXT_LINKS["/adobe-sign-alternative"]}
       testId="adobe-sign-alternative-page"
       eyebrow="Adobe Sign alternative UK"
       headline={

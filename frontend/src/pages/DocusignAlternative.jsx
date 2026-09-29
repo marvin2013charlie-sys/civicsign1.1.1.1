@@ -1,6 +1,7 @@
 import React from "react";
 import { BadgePoundSterling, Globe2, Sparkles } from "lucide-react";
 import { MarketingMoneyPage } from "@/components/MarketingMoneyPage";
+import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
 
 const POINTS = [
   {
@@ -29,6 +30,7 @@ const FAQS = [
 export default function DocusignAlternative() {
   return (
     <MarketingMoneyPage
+      categoryLink={UK_ESIGN_CONTEXT_LINKS["/docusign-alternative"]}
       testId="docusign-alternative-page"
       eyebrow="DocuSign alternative UK"
       headline={<>A simpler DocuSign alternative for the UK<span style={{ color: "var(--c-accent)" }}>.</span></>}

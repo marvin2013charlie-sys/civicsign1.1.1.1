@@ -6,6 +6,7 @@ import { MarketingCtaBanner, MarketingDarkSection, MarketingInkSurface } from "@
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
+import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
 import { formatQuotaResetFaqAnswer } from "@/lib/pricing";
 import { MarketingFaqSection } from "@/components/MarketingFaqSection";
 import { loadDecorativeFonts } from "@/lib/signatureFonts";
@@ -600,10 +601,18 @@ export default function Landing() {
           <div className="max-w-2xl">
             <div className="text-xs font-semibold uppercase tracking-[2px] text-[var(--badge-teal-fg)]">Product</div>
             <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-3xl" style={H_FONT}>
-              Looking for UK e-signature software?
+              Comparing UK e-signature software?
             </h2>
             <p className="mt-2 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
-              See how CivicSign compares on UK hosting, Manage PDF, signer experience and honest GBP pricing — then pick a plan.
+              {UK_ESIGN_CONTEXT_LINKS["/"].before}
+              <Link
+                to="/uk-e-signature-software"
+                className="font-semibold text-[var(--c-primary)] hover:underline"
+                data-testid="home-uk-esign-band-context-link"
+              >
+                {UK_ESIGN_CONTEXT_LINKS["/"].anchor}
+              </Link>
+              {UK_ESIGN_CONTEXT_LINKS["/"].after}
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -612,7 +621,7 @@ export default function Landing() {
               className="inline-flex items-center justify-center rounded-2xl px-6 py-3.5 text-sm font-semibold text-white"
               style={{ background: INK, boxShadow: "0 10px 24px rgba(18,33,32,.18)" }}
             >
-              UK e-signature software →
+              Compare UK e-signature software →
             </Link>
             <Link
               to="/pricing"

@@ -1,6 +1,7 @@
 import React from "react";
 import { FileCheck2, Gavel, Lock } from "lucide-react";
 import { MarketingMoneyPage } from "@/components/MarketingMoneyPage";
+import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
 
 const POINTS = [
   {
@@ -33,6 +34,7 @@ const FAQS = [
 export default function ElectronicSignaturesUk() {
   return (
     <MarketingMoneyPage
+      categoryLink={UK_ESIGN_CONTEXT_LINKS["/electronic-signatures-uk"]}
       testId="electronic-signatures-uk-page"
       eyebrow="Electronic signatures UK"
       headline={<>Electronic signatures for UK teams<span style={{ color: "var(--c-accent)" }}>.</span></>}
