@@ -25,7 +25,7 @@ const POINTS = [
   {
     icon: ShieldCheck,
     title: "UK GDPR & UK eIDAS aligned",
-    body: "CivicSign is UK-owned and UK-hosted. Signing evidence is designed around the Electronic Communications Act 2000 and UK eIDAS SES/AES for everyday commercial and practice documents — with a tamper-evident Certificate of Completion on every seal.",
+    body: "CivicSign is UK-owned and UK-hosted. Signing evidence is designed around the Electronic Communications Act 2000 and UK eIDAS simple electronic signatures (SES) for everyday commercial and practice documents — with a tamper-evident Certificate of Completion on every seal.",
   },
   {
     icon: Gavel,
@@ -105,12 +105,12 @@ const TABLE_ROWS = [
   },
   {
     criterion: "Legal framing",
-    left: "ECA 2000 + UK eIDAS SES/AES-aligned product design",
+    left: "ECA 2000 + UK eIDAS simple electronic signatures (SES)",
     right: "Marketing claims vary — verify SES/AES/QES honestly",
   },
   {
     criterion: "QES / QTSP",
-    left: "Honest: not positioned as a UK QTSP QES issuer",
+    left: "Not offered: CivicSign provides SES only (no AES or QES)",
     right: "Some vendors partner for QES — confirm before regulated use",
   },
   {
@@ -150,12 +150,12 @@ export default function ESignatureForSolicitorsUk() {
         subtitle:
           "Keep lawful electronic signatures and matter evidence. Gain UK hosting clarity, published Free/Pro plans and signer links clients actually complete.",
         items: [
-          "UK-hosted e-signatures aligned with ECA 2000 and UK eIDAS SES/AES",
+          "UK-hosted simple electronic signatures (SES) aligned with ECA 2000 and UK eIDAS",
           "Engagement letters, NDAs, retainers and sequential multi-party flows",
           "Tamper-evident Certificate of Completion on every finish",
           `Real free tier (${formatFreePlanDocsAMonth()}) — no card to start`,
           "Clients and counsel never need a CivicSign account",
-          "Honest limits on QES / QTSP — take advice for deeds and HMLR edge cases",
+          "SES only (no AES or QES) — take advice for deeds and HMLR edge cases",
         ],
       }}
       table={{

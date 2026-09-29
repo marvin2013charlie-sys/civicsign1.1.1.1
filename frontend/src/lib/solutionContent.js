@@ -290,7 +290,7 @@ const CONTENT = {
     faqs: [
       ["Are electronic signatures valid on B2B sales contracts?", "Yes. Under the Electronic Communications Act 2000 and UK eIDAS, electronic signatures are admissible and enforceable for most commercial agreements when intent and attribution are evidenced. CivicSign's audit trail is designed for that standard."],
       ["Can we send NDAs before a product demo?", "Absolutely. Mutual and one-way NDAs are among the most common sales envelopes. Recipients sign via a secure link — no account required."],
-      ["Do enterprise buyers accept electronic order forms?", "Most procurement teams accept e-signatures when presented with a Certificate of Completion showing consent, email verification and timestamps. Offer AES on Business-tier workflows if they need stronger identity binding."],
+      ["Do enterprise buyers accept electronic order forms?", "Most procurement teams accept e-signatures when presented with a Certificate of Completion showing consent, email verification and timestamps. If they need stronger identity binding, add recipient authentication on the Business plan."],
       ["Can we reuse quote templates?", "Yes. Save your MSA, order form and proposal as templates with fields pre-placed. Duplicate per deal and swap client name, value and dates in seconds."],
     ],
   },

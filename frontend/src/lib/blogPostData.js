@@ -16,14 +16,14 @@ export const POSTS = [
       { type: "h2", content: "The three tiers under UK eIDAS" },
       { type: "ul", content: [
         "Simple Electronic Signature (SES): any data attached to or logically associated with the document that the signer uses to sign. A typed name, drawn signature or click-to-agree all count. UK eIDAS Article 3(11).",
-        "Advanced Electronic Signature (AES): uniquely linked to the signer, capable of identifying them, created under their sole control, and detects subsequent changes to the document. UK eIDAS Article 26. On CivicSign, AES is available on Pro (selectable when sending) and is the default on Business, especially when combined with knowledge-based (postcode) recipient authentication.",
-        "Qualified Electronic Signature (QES): an AES backed by a qualified certificate from a Qualified Trust Service Provider (QTSP). UK eIDAS Article 3(12). Required only for a narrow set of high-value transactions (e.g. some EU cross-border deeds). CivicSign offers QES on request for Business customers via a QTSP partner, contact us to enable it.",
+        "Advanced Electronic Signature (AES): uniquely linked to the signer, capable of identifying them, created under their sole control, and detects subsequent changes to the document. UK eIDAS Article 26. CivicSign does not currently offer AES.",
+        "Qualified Electronic Signature (QES): an AES backed by a qualified certificate from a Qualified Trust Service Provider (QTSP). UK eIDAS Article 3(12). Required only for a narrow set of high-value transactions (e.g. some EU cross-border deeds). CivicSign does not offer QES.",
       ]},
       { type: "h3", content: "How CivicSign maps tiers to plans" },
       { type: "ul", content: [
         "Free: electronic signatures with consent, attribution, audit trail and SHA-256 seal (aligned with the Electronic Communications Act 2000).",
-        "Pro: SES by default; AES selectable on Review & Send when you need stronger Art. 26 evidence.",
-        "Business: AES by default, strengthened with optional knowledge-based (postcode) recipient authentication; QES available on request.",
+        "Pro: typed or drawn Simple Electronic Signatures (SES) with consent and a full audit trail.",
+        "Business: SES plus optional knowledge-based (postcode) recipient authentication. AES and QES are not currently available on any plan.",
       ]},
       { type: "h2", content: "What the Law Commission said in 2019" },
       { type: "p", content: "The Law Commission's 2019 report on Electronic Execution of Documents was the watershed moment. It confirmed that electronic signatures are valid for documents that are required to be 'in writing' or 'signed' under English law, including most commercial contracts. The Commission also confirmed that deeds can be signed electronically provided the witnessing requirement is satisfied, the witness must see the signatory apply their electronic signature. For property deeds lodged with HM Land Registry, Practice Guide 82 requires the witness to be physically present at the moment of signing, not watching over a video call." },
@@ -373,7 +373,7 @@ export const POSTS = [
       { type: "ul", content: [
         "Best for: employment contracts, settlement agreements, high-value B2B contracts, regulated-industry paperwork, and any agreement where you expect a serious dispute.",
         "Extra assurance: stronger signer attribution, platform-level tamper detection, and optional knowledge-based (postcode) authentication on Business plans.",
-        "CivicSign: Pro users can select AES on Review & Send; Business defaults to AES with optional recipient authentication.",
+        "CivicSign: AES is not currently offered. Business adds optional recipient authentication to strengthen SES evidence; if you need AES, use a provider that offers it.",
       ]},
       { type: "callout", content: "Choosing AES is not an admission that SES is weak. It is a risk decision. If the cost of a dispute exceeds the cost of stronger evidence, AES is the sensible default, not because a judge demanded it upfront, but because your file needs to speak for itself." },
       { type: "h2", content: "Qualified Electronic Signature (QES)" },
@@ -381,7 +381,7 @@ export const POSTS = [
       { type: "ul", content: [
         "Consider QES for: specific EU cross-border transactions, some public-sector tenders, and niche regulated workflows where a QTSP-backed certificate is contractually required.",
         "Usually unnecessary for: standard UK employment, lettings, NDAs, SaaS agreements, and SME supplier contracts.",
-        "CivicSign: QES is available on request for Business customers via a QTSP partner, contact us if your counterparty or regulator mandates it.",
+        "CivicSign: QES is not offered. If your counterparty or regulator mandates it, use a provider backed by a QTSP.",
       ]},
       { type: "h2", content: "A decision table you can actually use" },
       { type: "ul", content: [
@@ -501,7 +501,7 @@ export const POSTS = [
         "Store the completed PDF in your project folder with the envelope ID in the filename.",
       ]},
       { type: "h2", content: "When clients push back" },
-      { type: "p", content: "Some enterprise procurement teams still ask for wet ink out of habit. Point them to the Law Commission's 2019 report and your platform's Certificate of Completion. Offer AES on Business-tier workflows if they want stronger identity binding. In practice, most pushback collapses once legal reviews the audit trail sample, not the signature graphic." },
+      { type: "p", content: "Some enterprise procurement teams still ask for wet ink out of habit. Point them to the Law Commission's 2019 report and your platform's Certificate of Completion. If they want stronger identity binding, add recipient authentication (CivicSign Business) or use an AES provider. In practice, most pushback collapses once legal reviews the audit trail sample, not the signature graphic." },
     ],
   },
   {
@@ -564,7 +564,7 @@ export const POSTS = [
         "Employer counter-signs last, payment trigger often tied to this event.",
       ]},
       { type: "h2", content: "AES vs SES for settlements" },
-      { type: "p", content: "Many employers use AES (or AES with SMS authentication) for settlement agreements because the evidential bar is higher if the employee later claims duress or lack of advice. CivicSign Pro allows AES selection on send; Business adds optional recipient authentication. The adviser certificate should still be a wet or electronic signature from a regulated individual, not an automated stamp." },
+      { type: "p", content: "Many employers use AES (or AES with SMS authentication) for settlement agreements because the evidential bar is higher if the employee later claims duress or lack of advice. CivicSign provides SES only; Business adds optional recipient authentication. The adviser certificate should still be a wet or electronic signature from a regulated individual, not an automated stamp." },
       { type: "h2", content: "Records to retain" },
       { type: "ul", content: [
         "Final signed PDF with Certificate of Completion.",

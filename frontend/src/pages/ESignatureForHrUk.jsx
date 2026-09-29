@@ -154,12 +154,12 @@ export default function ESignatureForHrUk() {
         subtitle:
           "Keep lawful electronic signatures and people-file evidence. Gain UK hosting clarity, published Free/Pro plans and signer links candidates actually complete.",
         items: [
-          "UK-hosted e-signatures aligned with ECA 2000 and UK eIDAS SES/AES",
+          "UK-hosted simple electronic signatures (SES) aligned with ECA 2000 and UK eIDAS",
           "Offer letters, employment contracts, handbook acknowledgements and multi-party leaver flows",
           "Tamper-evident Certificate of Completion on every finish",
           `Real free tier (${formatFreePlanDocsAMonth()}) — no card to start`,
           "Candidates and employees never need a CivicSign account",
-          "Honest limits on QES / QTSP and formal settlement advice — take counsel where needed",
+          "SES only (no AES or QES) — take counsel on settlement agreements and formal advice",
         ],
       }}
       table={{

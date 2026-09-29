@@ -42,7 +42,7 @@ export function buildPricingPlans(billingInterval = "monthly", trialDays = SUBSC
         ...(trialFeature ? [trialFeature] : []),
         formatPlanDocumentLimit("Pro", billingInterval),
         "2-in-1: Manage PDF — edit, compress, watermark, protect, merge & split",
-        "SES & AES signatures (UK eIDAS)",
+        "Simple Electronic Signatures (SES, UK eIDAS)",
         "Shared team templates",
         "Custom branding (logo & colours)",
       ],
@@ -57,7 +57,7 @@ export function buildPricingPlans(billingInterval = "monthly", trialDays = SUBSC
         "Everything in Pro, plus:",
         ...(trialFeature ? [trialFeature] : []),
         formatPlanDocumentLimit("Business", billingInterval),
-        "AES default + KBA recipient authentication",
+        "KBA recipient authentication",
         "Bulk send",
         "API & webhooks",
         "Priority support",
@@ -68,7 +68,7 @@ export function buildPricingPlans(billingInterval = "monthly", trialDays = SUBSC
 
 export const PRICING_COMPARISON_ROWS = [
   { label: "Manage PDF (2-in-1)", free: false, pro: true, business: true },
-  { label: "UK eIDAS signatures", free: "Basic", pro: "SES & AES", business: "AES + KBA" },
+  { label: "UK eIDAS signatures", free: "Basic", pro: "SES", business: "SES + KBA" },
   { label: "Shared templates", free: false, pro: true, business: true },
   { label: "Custom branding", free: false, pro: true, business: true },
   { label: "Bulk send", free: false, pro: false, business: true },

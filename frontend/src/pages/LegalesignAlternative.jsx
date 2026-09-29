@@ -58,7 +58,7 @@ const POINTS = [
   {
     icon: ShieldCheck,
     title: "UK GDPR & UK eIDAS aligned",
-    body: "Built for legally binding electronic signatures in England and Wales — Electronic Communications Act 2000, UK eIDAS SES/AES where appropriate, tamper-evident Certificate of Completion on every seal.",
+    body: "Built for legally binding electronic signatures in England and Wales — Electronic Communications Act 2000, UK eIDAS simple electronic signatures (SES), tamper-evident Certificate of Completion on every seal.",
   },
   {
     icon: Sparkles,
@@ -113,7 +113,7 @@ const TABLE_ROWS = [
   },
   {
     criterion: "UK GDPR / eIDAS",
-    left: "Designed for UK GDPR & UK eIDAS SES/AES",
+    left: "Designed for UK GDPR; UK eIDAS simple electronic signatures (SES only, no AES/QES)",
     right: "UK/EU compliance claims — verify DPA and residency terms",
   },
   {

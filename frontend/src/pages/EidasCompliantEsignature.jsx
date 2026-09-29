@@ -24,8 +24,8 @@ const POINTS = [
   },
   {
     icon: ShieldCheck,
-    title: "SES / AES-aligned workflows",
-    body: "CivicSign is designed for legally binding electronic signatures under the Electronic Communications Act 2000 and UK eIDAS SES/AES where appropriate, with tamper-evident sealing and a Certificate of Completion on every finish.",
+    title: "Simple electronic signatures (SES)",
+    body: "CivicSign is designed for legally binding electronic signatures under the Electronic Communications Act 2000 and UK eIDAS simple electronic signatures (SES), with tamper-evident sealing and a Certificate of Completion on every finish.",
   },
   {
     icon: Globe2,
@@ -52,15 +52,15 @@ const POINTS = [
   },
   {
     icon: Sparkles,
-    title: "Honest about QES limits",
-    body: "Qualified Electronic Signatures (QES) require a qualified certificate from a qualified trust service provider. CivicSign positions SES/AES-aligned signing for everyday UK business documents — take counsel for deeds, HMLR and QES-mandated cases.",
+    title: "Honest about AES and QES",
+    body: "Qualified Electronic Signatures (QES) require a qualified certificate from a qualified trust service provider. CivicSign provides simple electronic signatures (SES) for everyday UK business documents and does not offer AES or QES — take counsel for deeds, HMLR and AES/QES-mandated cases.",
   },
 ];
 
 const FAQS = [
   [
     "Is CivicSign eIDAS compliant?",
-    "CivicSign is designed to support legally binding electronic signatures under UK eIDAS and the Electronic Communications Act 2000 for typical UK business documents, with SES/AES-aligned evidence (identity signals, intent, tamper-evident seal and Certificate of Completion). We do not claim to be a UK QTSP issuing QES certificates.",
+    "CivicSign is designed to support legally binding electronic signatures under UK eIDAS and the Electronic Communications Act 2000 for typical UK business documents, with simple electronic signature (SES) evidence: intent, consent, a tamper-evident seal and a Certificate of Completion. CivicSign does not offer advanced (AES) or qualified (QES) signatures.",
   ],
   [
     "What is the difference between SES, AES and QES?",
@@ -83,12 +83,12 @@ const FAQS = [
 const TABLE_ROWS = [
   {
     criterion: "Legal framework",
-    left: "ECA 2000 + UK eIDAS SES/AES-aligned product design",
+    left: "ECA 2000 + UK eIDAS simple electronic signatures (SES)",
     right: "Vendors vary — confirm SES/AES/QES claims and QTSP status",
   },
   {
     criterion: "QES / QTSP",
-    left: "Honest: not positioned as a UK QTSP QES issuer",
+    left: "Not offered: CivicSign provides SES only (no AES or QES)",
     right: "Some UK/EU vendors offer partner QES — verify before regulated use",
   },
   {
@@ -120,7 +120,7 @@ export default function EidasCompliantEsignature() {
           <span style={{ color: "var(--c-accent)" }}>.</span>
         </>
       }
-      subhead="Looking for eIDAS signature UK software you can explain to compliance? CivicSign delivers UK-hosted, UK GDPR-ready electronic signatures with SES/AES-aligned evidence — honest about when QES is (and is not) required."
+      subhead="Looking for eIDAS signature UK software you can explain to compliance? CivicSign delivers UK-hosted, UK GDPR-ready simple electronic signatures (SES) with strong evidence — honest that we do not offer AES or QES, and about when they are (and are not) required."
       points={POINTS}
       comparison={{
         eyebrow: "What buyers actually need",

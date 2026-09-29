@@ -339,7 +339,7 @@ const FAQS = [
   ],
   [
     "How does this relate to SES / AES / QES?",
-    "CivicSign already supports signature levels under UK eIDAS language (SES/AES; QES via future QTSP). ID verification strengthens attribution evidence for high-assurance sends. It is not automatically a Qualified Electronic Signature without a QTSP.",
+    "CivicSign currently provides simple electronic signatures (SES) under UK eIDAS; advanced (AES) and qualified (QES) signatures are not offered. ID verification is intended to strengthen attribution evidence for high-assurance sends. It does not turn a signature into a Qualified Electronic Signature.",
   ],
   [
     "What documents will be supported?",

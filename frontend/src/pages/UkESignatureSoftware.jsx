@@ -227,7 +227,7 @@ export default function UkESignatureSoftware() {
             What serious UK e-signature software must prove
           </h2>
           <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
-            Buyers care whether the signed file holds up, where the data is handled, and whether finance can explain
+            Buyers care whether the signed file holds up, where the data lives, and whether finance can explain
             the bill.
           </p>
         </div>
@@ -531,8 +531,8 @@ export default function UkESignatureSoftware() {
             Try UK e-signature software free
           </h2>
           <p className={CTA_SUBTEXT_CLASS} style={{ color: "rgba(248,247,242,.68)" }}>
-            {formatFreePlanSignupPitch()}. Legally binding signatures, UK GDPR and a sealed audit trail on every
-            document.
+            {formatFreePlanSignupPitch()}. UK-hosted under UK GDPR, legally binding signatures and a sealed audit
+            trail on every document.
           </p>
           <div className={CTA_ACTIONS_CLASS}>
             <Link to="/register" className={CTA_PRIMARY_BTN} style={CTA_PRIMARY_BTN_STYLE}>

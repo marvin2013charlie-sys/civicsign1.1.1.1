@@ -154,12 +154,12 @@ export default function ESignatureForAccountantsUk() {
         subtitle:
           "Keep lawful electronic signatures and client-file evidence. Gain UK hosting clarity, published Free/Pro plans and signer links clients actually complete.",
         items: [
-          "UK-hosted e-signatures aligned with ECA 2000 and UK eIDAS SES/AES",
+          "UK-hosted simple electronic signatures (SES) aligned with ECA 2000 and UK eIDAS",
           "Engagement letters, fee proposals, terms of business and multi-party packs",
           "Tamper-evident Certificate of Completion on every finish",
           `Real free tier (${formatFreePlanDocsAMonth()}) — no card to start`,
           "Clients never need a CivicSign account",
-          "Honest limits on QES / QTSP and regulated filings — take advice where needed",
+          "SES only (no AES or QES) — take advice on regulated filings",
         ],
       }}
       table={{

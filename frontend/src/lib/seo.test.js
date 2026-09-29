@@ -81,3 +81,9 @@ test('UK e-signature software page ships FAQ, software offers and a last-modifie
   const text = JSON.stringify(meta.jsonLd);
   expect(text).not.toMatch(/AES\) (are|is) available|default on Business|QES\) (are|is) on request/);
 });
+
+test('eIDAS page metadata does not claim AES or QES support', () => {
+  const meta = getSeoForPath('/eidas-compliant-esignature');
+  expect(meta.title).not.toMatch(/AES|QES/);
+  expect(meta.description).not.toMatch(/SES\/AES|AES-aligned/);
+});

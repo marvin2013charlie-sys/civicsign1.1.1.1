@@ -27,7 +27,7 @@ const FAQS = [
   ["Who is CivicSign for?", "UK freelancers, SMEs, HR, legal and operations teams that need electronic signatures without enterprise procurement theatre."],
   [
     "What is an eIDAS-compliant e-signature in the UK?",
-    "UK eIDAS recognises SES, AES and QES. Most UK business documents are valid with clear intent plus strong audit evidence. CivicSign provides SES/AES-aligned sealing and Certificates of Completion — see our eIDAS page for an honest SES vs AES vs QES breakdown.",
+    "UK eIDAS recognises SES, AES and QES. Most UK business documents are valid with clear intent plus strong audit evidence. CivicSign provides simple electronic signatures (SES) with sealing and Certificates of Completion; it does not offer AES or QES — see our eIDAS page for an honest SES vs AES vs QES breakdown.",
   ],
 ];
 

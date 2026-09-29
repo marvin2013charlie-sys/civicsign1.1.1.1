@@ -239,9 +239,9 @@ const STATIC_ROUTES = {
     path: "/adobe-sign-alternative",
   },
   "/eidas-compliant-esignature": {
-    title: `eIDAS Compliant E-Signature UK — SES/AES Aligned | ${SITE_NAME}`,
+    title: `eIDAS Compliant E-Signature UK — SES & Audit Seal | ${SITE_NAME}`,
     description:
-      "eIDAS signature UK software from CivicSign: UK eIDAS SES/AES-aligned e-signatures, UK GDPR hosting, audit seal & free plan. Honest on QES limits.",
+      "eIDAS signature UK software from CivicSign: UK eIDAS simple electronic signatures (SES), UK GDPR hosting, audit seal & free plan. Honest on AES/QES.",
     path: "/eidas-compliant-esignature",
   },
   "/e-signature-for-solicitors-uk": {
@@ -424,6 +424,7 @@ function buildUkEsignSoftwareJsonLd() {
       "No signer accounts required",
       "Sequential and parallel signer routing",
       "Manage PDF on paid plans",
+      "UK-hosted, UK GDPR compliant",
     ],
   };
 }

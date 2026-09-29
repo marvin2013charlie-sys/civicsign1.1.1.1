@@ -66,10 +66,9 @@ PRODUCT_SYSTEM_FACTS = (
     "Yearly billing: pay 10 months, get 12 (2 months free). "
     f"Support: {CONTACT_EMAIL} or Contact page. Always quote prices in pounds (£), never dollars. "
     "SIGNATURE TIERS BY PLAN: Free — electronic signatures with audit trail and SHA-256 seal (basic tier, ECA 2000). "
-    "Pro — Simple Electronic Signatures (SES, UK eIDAS Art. 3(11)) by default, with Advanced Electronic Signatures "
-    "(AES, Art. 26) selectable when sending. Business — AES by default, strengthened with optional postcode (KBA) recipient "
-    "authentication; Qualified Electronic Signatures (QES, Art. 3(12)) available on request via a QTSP partner. "
-    "Senders choose the level on Review & Send when their plan allows it."
+    "Pro — Simple Electronic Signatures (SES, UK eIDAS Art. 3(11)). Business — SES with optional postcode (KBA) recipient "
+    "authentication. CivicSign does NOT offer Advanced (AES) or Qualified (QES) electronic signatures on any plan; "
+    "never say otherwise."
 )
 
 
@@ -88,7 +87,7 @@ def _pricing_reply() -> str:
         f"• **Pro** — **£{int(PRO_MONTHLY_GBP)}/month excl. VAT** "
         f"(**£{pro_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT**), "
         f"**{PLAN_MONTHLY_QUOTA['pro']} documents/month** (annual: **1,200/year**), "
-        "Manage PDF, SES + AES signatures, templates, branding, public signing links, auto-reminders\n"
+        "Manage PDF, SES signatures, templates, branding, public signing links, auto-reminders\n"
         f"• **Business** — **£{int(BUSINESS_MONTHLY_GBP)}/month excl. VAT** "
         f"(**£{biz_tax['amount_inc_vat']:.2f} incl. {UK_VAT_PERCENT}% VAT**), "
         f"**{PLAN_MONTHLY_QUOTA['business']} documents/month** (annual: **{PLAN_MONTHLY_QUOTA['business'] * 12:,}/year**), "
@@ -199,8 +198,9 @@ def _uk_law_reply() -> str:
         "Law Commission 2019 report on electronic execution.\n\n"
         "**Tiers (UK eIDAS):**\n"
         "• **SES** — simple e-sign (draw/type) — fine for most contracts\n"
-        "• **AES** — advanced; uniquely linked to signatory, tamper-evident (Pro+)\n"
-        "• **QES** — highest assurance; available on request for Business\n\n"
+        "• **AES** — advanced; uniquely linked to the signatory and tamper-evident\n"
+        "• **QES** — qualified; backed by a certificate from a qualified trust service provider\n\n"
+        "CivicSign provides **SES** only; AES and QES are not currently offered.\n\n"
         "Some documents (e.g. certain deeds, wills) have special formalities — consult a solicitor for high-risk matters. "
         "CivicSign provides audit trails and certificates of completion to support enforceability."
     )
@@ -210,10 +210,9 @@ def _signature_tiers_reply() -> str:
     return (
         "Signature tiers on CivicSign:\n"
         "• **Free** — electronic signature + SHA-256 seal + audit trail (ECA 2000 basic tier)\n"
-        "• **Pro** — **SES** by default; optionally choose **AES** on Review & Send\n"
-        "• **Business** — **AES** by default; optional **postcode (KBA)** recipient authentication\n"
-        "• **QES** (qualified) — on request via QTSP partner for regulated use cases\n\n"
-        "Pick the tier when sending if your plan allows it. Higher tiers add stronger identity evidence."
+        "• **Pro** — **SES** (typed or drawn) with audit trail\n"
+        "• **Business** — **SES** plus optional **postcode (KBA)** recipient authentication\n\n"
+        "Advanced (AES) and qualified (QES) signatures are not currently available on any plan."
     )
 
 

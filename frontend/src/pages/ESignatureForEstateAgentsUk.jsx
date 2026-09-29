@@ -154,7 +154,7 @@ export default function ESignatureForEstateAgentsUk() {
         subtitle:
           "Keep lawful electronic signatures and branch evidence. Gain UK hosting clarity, published Free/Pro plans and signer links tenants actually complete.",
         items: [
-          "UK-hosted e-signatures aligned with ECA 2000 and UK eIDAS SES/AES",
+          "UK-hosted simple electronic signatures (SES) aligned with ECA 2000 and UK eIDAS",
           "ASTs, memorandums of sale, terms of business and sequential multi-party flows",
           "Tamper-evident Certificate of Completion on every finish",
           `Real free tier (${formatFreePlanDocsAMonth()}) — no card to start`,

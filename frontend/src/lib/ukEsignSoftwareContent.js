@@ -35,7 +35,7 @@ export const UK_ESIGN_HERO = {
   eyebrow: "UK e-signature software · 2026 buyer's guide",
   h1: "UK e-signature software",
   intro:
-    `Send contracts, NDAs, offer letters and engagement letters for legally binding electronic signatures under UK law. CivicSign is e-signature software from a UK company for freelancers, SMEs and teams: published GBP pricing, a free plan with ${FREE_MONTHLY_DOCS} documents a month, no signer accounts, a sealed audit trail, and Manage PDF on paid plans.`,
+    `Send contracts, NDAs, offer letters and engagement letters for legally binding electronic signatures under UK law. CivicSign is UK-owned, UK-hosted e-signature software for freelancers, SMEs and teams: published GBP pricing, a free plan with ${FREE_MONTHLY_DOCS} documents a month, no signer accounts, a sealed audit trail, and Manage PDF on paid plans.`,
   guideNote:
     "Below you will also find an honest comparison of the UK e-signature tools buyers shortlist most — Legalesign, Signable, MySign, eSign, DocuSign and Adobe Acrobat Sign — plus a buyer's checklist and the UK law in plain English.",
 };
@@ -47,7 +47,7 @@ export const UK_ESIGN_SHORT_ANSWER = {
   items: [
     [
       { strong: "CivicSign" },
-      ` — best fit if you want a genuine free plan, simple per-user GBP pricing (Pro ${PRO}/user/month excl. VAT), PDF editing in the same product, and simple electronic signatures (SES) with a sealed audit trail for everyday contracts.`,
+      ` — best fit if you want UK-hosted e-signatures, a genuine free plan, simple per-user GBP pricing (Pro ${PRO}/user/month excl. VAT), PDF editing in the same product, and simple electronic signatures (SES) with a sealed audit trail for everyday contracts.`,
     ],
     [
       { strong: "Legalesign" },
@@ -81,9 +81,9 @@ export const UK_ESIGN_PROOF = [
   },
   {
     key: "gdpr",
-    title: "UK company, UK GDPR",
+    title: "UK-owned, UK-hosted, UK GDPR",
     body:
-      "CivicSign is run by CivicBot LTD, a company registered in England and Wales. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process.",
+      "CivicSign is UK-owned (CivicBot LTD, registered in England and Wales) and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process.",
   },
   {
     key: "audit",
@@ -112,7 +112,7 @@ export const UK_ESIGN_COMPARISON = {
         `Free; Pro ${PRO}/user/month; Business ${BUSINESS}/user/month (excl. VAT). Extra documents ${EXTRA}.`,
         `Free plan: ${FREE_MONTHLY_DOCS} documents a month, no card. ${SUBSCRIPTION_TRIAL_DAYS_DEFAULT}-day trial on first paid upgrade.`,
         "SES with audit trail and SHA-256 seal. No AES or QES.",
-        "UK company; UK GDPR. Ask us for current hosting and sub-processor details.",
+        "UK-hosted and UK-owned; UK GDPR.",
         "Yes: Manage PDF on paid plans (edit, merge, split, compress, watermark, protect).",
       ],
     },
@@ -244,7 +244,7 @@ export const UK_ESIGN_CHECKLIST = {
     },
     {
       q: "Where is data processed, and is there a data processing agreement?",
-      a: "CivicSign: a UK company processing personal data under UK GDPR and the Data Protection Act 2018. Ask us for current hosting and sub-processor details.",
+      a: "CivicSign: UK-owned and UK-hosted, with personal data processed under UK GDPR and the Data Protection Act 2018.",
     },
     {
       q: "How is pricing measured: per user, per envelope or flat?",
@@ -318,7 +318,7 @@ export const UK_ESIGN_FAQS = [
   ],
   [
     "Is CivicSign UK GDPR compliant?",
-    "CivicSign is operated by CivicBot LTD, a company registered in England and Wales. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process. Contact us for current hosting and sub-processor details.",
+    "Yes. CivicSign is UK-owned and UK-hosted. Personal data is processed under UK GDPR and the Data Protection Act 2018, with encryption in transit, access controls and a clear data-subject rights process.",
   ],
   [
     "How much does CivicSign cost?",
@@ -334,7 +334,7 @@ export const UK_ESIGN_FAQS = [
   ],
   [
     "How does CivicSign compare to DocuSign, Signable or Legalesign?",
-    "CivicSign offers a free plan, published per-user GBP pricing, Manage PDF on paid plans and no signer accounts. Signable sells per-envelope plans with unlimited users and AES. Legalesign offers AES on every plan plus QES and witnessing on higher tiers. DocuSign keeps AES and QES on enhanced plans or add-ons. See the comparison table on this page for prices checked on each vendor's site.",
+    "CivicSign offers UK hosting, a free plan, published per-user GBP pricing, Manage PDF on paid plans and no signer accounts. Signable sells per-envelope plans with unlimited users and AES. Legalesign offers AES on every plan plus QES and witnessing on higher tiers. DocuSign keeps AES and QES on enhanced plans or add-ons. See the comparison table on this page for prices checked on each vendor's site.",
   ],
   [
     "Can I switch from another e-signature provider?",
