@@ -23,6 +23,7 @@ import { handleQuotaApiError } from "@/lib/quota";
 import { AppShell } from "@/components/AppShell";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { usePlan } from "@/hooks/usePlan";
+import { useAuth } from "@/context/AuthContext";
 import { QuotaLimitModal } from "@/components/QuotaLimitModal";
 
 // Tool panels are heavy — load only when the user opens that tool.
@@ -471,6 +472,7 @@ function SortablePageCard({
 
 export default function ManagePdf() {
   const { has: hasFeature } = usePlan();
+  const { user, impersonation } = useAuth();
   const navigate = useNavigate();
   const [homeView, setHomeView] = useState("home");
   const [homeCategory, setHomeCategory] = useState("all");
@@ -1031,6 +1033,21 @@ export default function ManagePdf() {
   })() : null;
 
   const showToolHome = !workspace && homeView === "home";
+
+  if (impersonation || user?.impersonating_session || user?.document_access_restricted
+      || ["admin", "staff"].includes(user?.role)) {
+    return (
+      <AppShell>
+        <div className="cs-portal-surface-card mx-auto max-w-xl rounded-2xl p-6" role="status" data-testid="manage-pdf-support-restricted">
+          <h1 className="text-xl font-semibold">PDF editing is unavailable in support access</h1>
+          <p className="mt-3 text-sm text-[var(--c-muted-fg)]">
+            Admin, staff, and impersonation sessions cannot open document contents.
+            To edit your own PDF, sign out and sign in with your regular document-owner account.
+          </p>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (!hasFeature("manage_pdf")) {
     return (

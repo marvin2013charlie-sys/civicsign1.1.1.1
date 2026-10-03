@@ -32,28 +32,33 @@ export function AuthProvider({ children }) {
   const location = useLocation();
   const checkStartedRef = useRef(false);
   const idleIdRef = useRef(null);
+  const sessionCheckRef = useRef(null);
 
   useEffect(() => {
     purgeLegacyTokenStorage();
   }, []);
 
   const resolveSession = useCallback(async () => {
+    sessionCheckRef.current?.abort();
+    const controller = new AbortController();
+    sessionCheckRef.current = controller;
     setAuthError(false);
     setAuthReady(false);
     try {
-      const data = await restoreSession();
+      const data = await restoreSession(controller.signal);
+      if (controller.signal.aborted) return;
       if (data) {
         setUser(data);
-        setImpersonation(null);
+        setImpersonation(data.impersonating_session ? { user_id: data.user_id, name: data.name, email: data.email } : null);
       } else {
         setUser(false);
         setImpersonation(null);
         clearTokens();
       }
     } catch {
-      setAuthError(true);
+      if (!controller.signal.aborted) setAuthError(true);
     } finally {
-      setAuthReady(true);
+      if (!controller.signal.aborted) setAuthReady(true);
     }
   }, []);
 
@@ -74,7 +79,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (authReady) return undefined;
 
-    if (isPortalPath(location.pathname)) {
+    // Begin the session request immediately while the visitor fills in the form.
+    if (isPortalPath(location.pathname) || ["/login", "/register", "/verify-email"].includes(location.pathname)) {
       startAuthCheck();
       return undefined;
     }
@@ -104,6 +110,9 @@ export function AuthProvider({ children }) {
   }, [resolveSession]);
 
   const login = async (email, password) => {
+    sessionCheckRef.current?.abort();
+    checkStartedRef.current = true;
+    setAuthReady(true);
     // Allow the hosted API to wake up, while keeping a bounded timeout.
     const { data } = await api.post(
       "/auth/login",
@@ -120,6 +129,9 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password, inviteCode) => {
+    sessionCheckRef.current?.abort();
+    checkStartedRef.current = true;
+    setAuthReady(true);
     const { data } = await api.post(
       "/auth/register",
       {
@@ -134,6 +146,9 @@ export function AuthProvider({ children }) {
   };
 
   const verifyEmail = async (email, code) => {
+    sessionCheckRef.current?.abort();
+    checkStartedRef.current = true;
+    setAuthReady(true);
     const { data } = await api.post("/auth/verify-email", { email, code });
     clearTokens();
     setImpersonation(null);
@@ -164,6 +179,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    sessionCheckRef.current?.abort();
+    checkStartedRef.current = true;
+    setAuthReady(true);
     try {
       await api.post("/auth/logout");
     } catch {
