@@ -49,6 +49,22 @@ assert.ok(redirects.includes('/sign/* /app-shell 200'), 'SPA sign fallback missi
 const home = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert.ok(/UK e-signature software/i.test(home), 'Homepage HTML must target primary keyword');
 assert.ok(home.includes('href="/uk-e-signature-software"'), 'Homepage HTML must link to the primary money page');
+assert.ok(/<title>CivicSign \| UK e-signature software[^<]*<\/title>/.test(home), 'Homepage title must lead with the CivicSign brand');
+assert.ok(/<h1>CivicSign — UK e-signature software[^<]*<\/h1>/.test(home), 'Homepage pre-rendered H1 must lead with CivicSign');
+assert.ok(home.includes('<h2>About CivicSign</h2>') && home.includes('CivicSign (civicsign.co.uk) is a UK-owned, UK-hosted e-signature platform'), 'Homepage brand statement missing');
+assert.ok(home.includes(`<link rel="canonical" href="${SITE_URL}/" />`), 'Homepage canonical missing');
+const homeSchema = [...home.matchAll(/<script type="application\/ld\+json" id="cs-jsonld-[^"]+">([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1]));
+const homeOrgs = homeSchema.filter(item => item['@type'] === 'Organization');
+const homeSites = homeSchema.filter(item => item['@type'] === 'WebSite');
+assert.equal(homeOrgs.length, 1, 'Homepage must have exactly one Organization');
+assert.equal(homeSites.length, 1, 'Homepage must have exactly one WebSite');
+assert.equal(homeOrgs[0].name, 'CivicSign');
+assert.deepEqual(homeOrgs[0].alternateName, ['Civic Sign', 'CivicSign UK', 'civicsign.co.uk']);
+assert.equal(homeOrgs[0].url, `${SITE_URL}/`);
+assert.equal(homeSites[0].name, 'CivicSign');
+assert.ok(!/\b(AES|QES)\b/.test(homeOrgs[0].description), 'Brand statement must not claim AES/QES');
+const about = fs.readFileSync(path.join(root, 'about.html'), 'utf8');
+assert.ok(about.includes('CivicSign (civicsign.co.uk) is a UK-owned, UK-hosted e-signature platform'), 'About page brand statement missing');
 
 // Primary money page: content must be in the served HTML, not only client-rendered.
 const money = fs.readFileSync(path.join(root, 'uk-e-signature-software.html'), 'utf8');

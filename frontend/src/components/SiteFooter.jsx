@@ -5,6 +5,7 @@ import { LEGAL_LINKS } from "@/lib/legalLinks";
 import { FOOTER_COLS } from "@/lib/footerNav";
 import { FooterLink } from "@/components/FooterLink";
 import { UkTrustBadge } from "@/components/UkTrustBadge";
+import { BRAND_FOOTER_LINE } from "@/lib/brand";
 
 export const SiteFooter = () => {
   return (
@@ -14,8 +15,8 @@ export const SiteFooter = () => {
           {/* Left: logo + brand text */}
           <div className="shrink-0 lg:max-w-[280px]" data-testid="footer-brand">
             <Logo />
-            <p className="mt-3 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-              The UK&rsquo;s first homegrown e-signature platform. Built in Britain, UK GDPR compliant, with legally binding signatures and a tamper-evident audit trail on every document.
+            <p className="mt-3 text-sm leading-relaxed text-[var(--c-muted-fg)]" data-testid="footer-brand-statement">
+              {BRAND_FOOTER_LINE}
             </p>
           <div className="mt-4">
             <UkTrustBadge variant="footer" />

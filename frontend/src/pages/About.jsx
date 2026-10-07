@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { FloatingAssistant } from "@/components/FloatingAssistant";
+import { BRAND_LEGAL_NAME, BRAND_STATEMENT } from "@/lib/brand";
 import {
   ArrowRight,
   Building2,
@@ -152,9 +153,8 @@ export default function About() {
               CivicSign started with a simple frustration: getting a signature shouldn&apos;t feel like enterprise software from a decade ago.
               We set out to build a fresh, fast, genuinely trustworthy way to sign — from the UK, for the UK and beyond.
             </p>
-            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
-              Today we&apos;re the UK&apos;s first homegrown, UK GDPR-aligned e-signature platform — helping freelancers, growing teams,
-              and organisations close agreements with confidence.
+            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--c-muted-fg)]" data-testid="about-brand-statement">
+              {BRAND_STATEMENT} We help freelancers, growing teams and organisations close agreements with confidence.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/register" className={PRIMARY_CTA} style={PRIMARY_CTA_STYLE}>
@@ -428,9 +428,9 @@ export default function About() {
         <div className="grid gap-[18px] lg:grid-cols-2">
           <div className={`p-8 ${MARKETING_CARD}`}>
             <Building2 className="h-7 w-7" style={{ color: "var(--c-primary)" }} />
-            <h3 className="mt-4 text-2xl font-bold text-[var(--c-ink)]" style={H_FONT}>CivicSign Ltd</h3>
+            <h3 className="mt-4 text-2xl font-bold text-[var(--c-ink)]" style={H_FONT}>{BRAND_LEGAL_NAME}</h3>
             <p className="mt-3 text-sm leading-relaxed text-[var(--c-muted-fg)]">
-              CivicSign is operated by CivicSign Ltd, registered in England and Wales. We build software for electronic signatures,
+              CivicSign (civicsign.co.uk) is operated by {BRAND_LEGAL_NAME}, registered in England and Wales. We build software for electronic signatures,
               document preparation, and audit-grade completion records.
             </p>
             <div className="mt-6 flex items-start gap-3 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] p-4">

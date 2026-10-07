@@ -87,3 +87,35 @@ test('eIDAS page metadata does not claim AES or QES support', () => {
   expect(meta.title).not.toMatch(/AES|QES/);
   expect(meta.description).not.toMatch(/SES\/AES|AES-aligned/);
 });
+
+test('homepage title leads with the CivicSign brand and keeps the primary keyword', () => {
+  const { title } = getSeoForPath('/');
+  expect(title.startsWith('CivicSign')).toBe(true);
+  expect(title.toLowerCase()).toContain('uk e-signature software');
+  expect(title.length).toBeLessThanOrEqual(60);
+});
+
+test('homepage ships one Organization and one WebSite entity with brand alternate names', () => {
+  const { jsonLd } = getSeoForPath('/');
+  const orgs = jsonLd.filter(item => item['@type'] === 'Organization');
+  const sites = jsonLd.filter(item => item['@type'] === 'WebSite');
+  expect(orgs).toHaveLength(1);
+  expect(sites).toHaveLength(1);
+  const [org] = orgs;
+  const [site] = sites;
+  expect(org.name).toBe('CivicSign');
+  expect(org.alternateName).toEqual(['Civic Sign', 'CivicSign UK', 'civicsign.co.uk']);
+  expect(org.url).toBe('https://www.civicsign.co.uk/');
+  expect(org.logo.url).toMatch(/^https:\/\/www\.civicsign\.co\.uk\/.+\.png$/);
+  expect(org.areaServed).toBe('GB');
+  expect(org['@id']).toBe('https://www.civicsign.co.uk/#organization');
+  expect(org.description).not.toMatch(/\b(AES|QES)\b/);
+  // sameAs must only ever list verified absolute profile URLs.
+  for (const url of org.sameAs || []) expect(url).toMatch(/^https:\/\//);
+  expect(site.name).toBe('CivicSign');
+  expect(site.alternateName).toEqual(org.alternateName);
+  expect(site.url).toBe('https://www.civicsign.co.uk/');
+  expect(site.publisher).toEqual({ '@id': org['@id'] });
+  // Organization is defined once site-wide: other pages reference it rather than duplicating it.
+  expect(getSeoForPath('/about').jsonLd.filter(item => item['@type'] === 'Organization')).toHaveLength(0);
+});

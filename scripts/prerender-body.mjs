@@ -38,3 +38,19 @@ export function renderContextLinkBody(route, description, contextLink) {
   const sentence = `${esc(contextLink.before)}<a href="/uk-e-signature-software">${esc(contextLink.anchor)}</a>${esc(contextLink.after)}`;
   return `<main class="${WRAP}" data-prerendered="${esc(route)}"><p>${esc(description)}</p><p>${sentence}</p></main>`;
 }
+
+/** Homepage: brand-first H1, plain "About CivicSign" statement and descriptive link to the money page. */
+export function renderHomeBody(brand, description, contextLink) {
+  const sentence = `${esc(contextLink.before)}<a href="/uk-e-signature-software">${esc(contextLink.anchor)}</a>${esc(contextLink.after)}`;
+  return `<main class="${WRAP}" data-prerendered="/"><h1>${esc(brand.HOME_H1)}</h1><p>${esc(description)}</p>`
+    + `<section><h2>About ${esc(brand.BRAND_NAME)}</h2><p>${esc(brand.BRAND_STATEMENT)}</p></section>`
+    + `<p>${sentence}</p>`
+    + `<p>${link('/uk-e-signature-software', 'Compare UK e-signature software')} · ${link('/pricing', 'CivicSign pricing')} · ${link('/about', 'About CivicSign')}</p></main>`;
+}
+
+/** About page: the plain brand statement, crawlable without JavaScript. */
+export function renderAboutBody(brand, description) {
+  return `<main class="${WRAP}" data-prerendered="/about"><p>${esc(description)}</p>`
+    + `<section><h2>About ${esc(brand.BRAND_NAME)}</h2><p>${esc(brand.BRAND_STATEMENT)}</p></section>`
+    + `<p>${link('/uk-e-signature-software', 'CivicSign UK e-signature software')} · ${link('/contact', 'Contact CivicSign')}</p></main>`;
+}

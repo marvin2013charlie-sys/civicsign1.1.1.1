@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadSeo, loadPageContent } from './load-seo.mjs';
-import { renderUkEsignBody, renderContextLinkBody } from './prerender-body.mjs';
+import { renderUkEsignBody, renderContextLinkBody, renderHomeBody, renderAboutBody } from './prerender-body.mjs';
 const { getSeoForPath, getPublicSitemapPaths, SITE_URL, DEFAULT_OG_IMAGE } = await loadSeo();
-const { ukEsign, contextLinks } = await loadPageContent();
+const { ukEsign, contextLinks, brand } = await loadPageContent();
 const ROOT_DIV = '<div id="root"></div>';
 const frontend = fileURLToPath(new URL('../frontend/', import.meta.url));
 const build = path.resolve(frontend, process.env.BUILD_PATH || 'build');
@@ -37,6 +37,8 @@ for (const route of paths) {
   // Crawlable body copy for the primary money page and its supporting pages.
   let body = '';
   if (route === '/uk-e-signature-software') body = renderUkEsignBody(ukEsign);
+  else if (route === '/') body = renderHomeBody(brand, meta.description, contextLinks['/']);
+  else if (route === '/about') body = renderAboutBody(brand, meta.description);
   else if (contextLinks[route]) body = renderContextLinkBody(route, meta.description, contextLinks[route]);
   if (body) {
     if (!html.includes(ROOT_DIV)) throw new Error(`Template missing ${ROOT_DIV}`);

@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
 import { UK_ESIGN_CONTEXT_LINKS } from "@/lib/ukEsignContextLinks";
+import { BRAND_STATEMENT, HOME_H1_BRAND, HOME_H1_TEXT } from "@/lib/brand";
 import { formatQuotaResetFaqAnswer } from "@/lib/pricing";
 import { MarketingFaqSection } from "@/components/MarketingFaqSection";
 import { loadDecorativeFonts } from "@/lib/signatureFonts";
@@ -127,8 +128,12 @@ export default function Landing() {
               <span className="h-[7px] w-[7px] rounded-full" style={{ background: "#16A34A", boxShadow: "0 0 0 3px rgba(22,163,74,.18)" }} />
               Trusted by UK teams
             </div>
-            <h1 className="mt-6 text-[2.35rem] font-bold leading-[1.08] tracking-[-0.03em] text-[var(--c-ink)] sm:text-5xl sm:leading-[1.05] lg:text-[64px]" style={H_FONT}>
-              UK e-signature software that gets documents{" "}
+            <h1 className="mt-6 text-[2.35rem] font-bold leading-[1.08] tracking-[-0.03em] text-[var(--c-ink)] sm:text-5xl sm:leading-[1.05] lg:text-[64px]" style={H_FONT} data-testid="home-h1">
+              <span className="mb-3 block text-xl font-semibold tracking-[-0.01em] text-[var(--badge-teal-fg)] sm:text-2xl" data-testid="home-h1-brand">
+                {HOME_H1_BRAND}
+                <span className="sr-only"> — </span>
+              </span>
+              {HOME_H1_TEXT.replace(/ signed$/, "")}{" "}
               <span className="relative sm:whitespace-nowrap" style={{ color: "var(--c-primary-hover)" }}>
                 signed
                 <svg viewBox="0 0 200 16" className="absolute -bottom-2.5 left-0 w-full" fill="none" aria-hidden="true">
@@ -592,6 +597,25 @@ export default function Landing() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ================= ABOUT CIVICSIGN (brand statement) ================= */}
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-14" data-testid="home-about-brand">
+        <div className="max-w-3xl">
+          <h2 className="text-2xl font-bold tracking-[-0.03em] text-[var(--c-ink)] sm:text-3xl" style={H_FONT}>
+            About CivicSign
+          </h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--c-muted-fg)]">
+            {BRAND_STATEMENT}{" "}
+            <Link to="/about" className="font-semibold text-[var(--c-primary)] hover:underline">
+              More about CivicSign
+            </Link>
+            {" · "}
+            <Link to="/uk-e-signature-software" className="font-semibold text-[var(--c-primary)] hover:underline" data-testid="home-about-brand-money-link">
+              CivicSign UK e-signature software
+            </Link>
+          </p>
         </div>
       </section>
 

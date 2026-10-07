@@ -10,6 +10,7 @@ const SHARED_LIB_FILES = [
   'contactEmail.js',
   'ukEsignSoftwareContent.js',
   'ukEsignContextLinks.js',
+  'brand.js',
 ];
 async function withSharedLib(load) {
   const directory = await mkdtemp(join(tmpdir(), 'civicsign-seo-'));
@@ -31,5 +32,6 @@ export async function loadPageContent() {
   return withSharedLib(async load => ({
     ukEsign: await load('ukEsignSoftwareContent.js'),
     contextLinks: (await load('ukEsignContextLinks.js')).UK_ESIGN_CONTEXT_LINKS,
+    brand: await load('brand.js'),
   }));
 }

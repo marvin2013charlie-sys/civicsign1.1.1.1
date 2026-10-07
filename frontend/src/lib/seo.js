@@ -1,4 +1,5 @@
 import { POSTS } from "./blogPostData.js";
+import { BRAND_ALTERNATE_NAMES, BRAND_LEGAL_NAME, BRAND_SAME_AS, BRAND_STATEMENT } from "./brand.js";
 import { CIVICSIGN_CONTACT_EMAIL } from "./contactEmail.js";
 import { BUSINESS_MONTHLY_GBP, PRO_MONTHLY_GBP, formatFreePlanSeoDescription } from "./pricing.js";
 import { UK_ESIGN_FAQS, UK_ESIGN_LAST_UPDATED } from "./ukEsignSoftwareContent.js";
@@ -8,6 +9,8 @@ export const SITE_TAGLINE = "UK e-signature software";
 export const SITE_URL = (process.env.REACT_APP_SITE_URL || "https://www.civicsign.co.uk").replace(/\/$/, "");
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/logo512.png`;
 export const DEFAULT_TWITTER_HANDLE = "@CivicSignUK";
+export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+export const WEBSITE_ID = `${SITE_URL}/#website`;
 
 const TITLE_SUFFIX = ` | ${SITE_NAME}`;
 
@@ -47,15 +50,15 @@ const HOME_FAQS = [
 
 const STATIC_ROUTES = {
   "/": {
-    title: `UK e-signature software — Legally Binding & UK GDPR Compliant | ${SITE_NAME}`,
+    title: `${SITE_NAME} | UK e-signature software — legally binding`,
     description:
       "CivicSign is UK e-signature software built for British teams. Send contracts, NDAs and offer letters for legally binding electronic signatures with a tamper-evident audit trail. UK GDPR compliant, UK-hosted. Start free.",
     path: "/",
   },
   "/about": {
-    title: `About CivicSign — Britain's E-Signature Platform${TITLE_SUFFIX}`,
+    title: `About CivicSign — UK-Owned, UK-Hosted E-Signatures${TITLE_SUFFIX}`,
     description:
-      "Meet CivicSign: the UK's first homegrown, UK GDPR-approved e-signature platform. Built in Britain for freelancers, SMEs and teams who need fast, trustworthy electronic signatures.",
+      "About CivicSign (civicsign.co.uk): a UK-owned, UK-hosted e-signature platform from CivicBot LTD for freelancers, SMEs and teams who need trustworthy signatures.",
     path: "/about",
   },
   "/contact": {
@@ -332,14 +335,24 @@ function absoluteUrl(path = "/") {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/** Single Organization entity for the CivicSign brand (homepage). sameAs lists verified profiles only. */
 function buildOrganizationJsonLd() {
-  return {
+  const organization = {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": ORGANIZATION_ID,
     name: SITE_NAME,
-    legalName: "CivicBot LTD",
-    url: SITE_URL,
-    logo: DEFAULT_OG_IMAGE,
+    alternateName: BRAND_ALTERNATE_NAMES,
+    legalName: BRAND_LEGAL_NAME,
+    url: `${SITE_URL}/`,
+    logo: {
+      "@type": "ImageObject",
+      url: DEFAULT_OG_IMAGE,
+      width: 512,
+      height: 512,
+    },
+    image: DEFAULT_OG_IMAGE,
+    description: BRAND_STATEMENT,
     email: CIVICSIGN_CONTACT_EMAIL,
     address: {
       "@type": "PostalAddress",
@@ -349,18 +362,21 @@ function buildOrganizationJsonLd() {
       addressCountry: "GB",
     },
     areaServed: "GB",
-    sameAs: [],
   };
+  if (BRAND_SAME_AS.length) organization.sameAs = [...BRAND_SAME_AS];
+  return organization;
 }
 
 function buildWebSiteJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": WEBSITE_ID,
     name: SITE_NAME,
-    url: SITE_URL,
+    alternateName: BRAND_ALTERNATE_NAMES,
+    url: `${SITE_URL}/`,
     description: STATIC_ROUTES["/"].description,
-    publisher: { "@type": "Organization", name: SITE_NAME },
+    publisher: { "@id": ORGANIZATION_ID },
     inLanguage: "en-GB",
   };
 }
@@ -379,7 +395,8 @@ function buildSoftwareApplicationJsonLd() {
       description: formatFreePlanSeoDescription(),
     },
     description: STATIC_ROUTES["/"].description,
-    url: SITE_URL,
+    url: `${SITE_URL}/`,
+    publisher: { "@id": ORGANIZATION_ID },
     featureList: [
       "Legally binding UK electronic signatures",
       "Tamper-evident audit trail",
@@ -451,8 +468,9 @@ function buildPageJsonLd(meta) {
   const page = {
     "@context": "https://schema.org", "@type": type, "@id": `${url}#webpage`,
     url, name: meta.title, description: truncate(meta.description), inLanguage: "en-GB",
-    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_URL}/` },
+    isPartOf: { "@type": "WebSite", "@id": WEBSITE_ID, name: SITE_NAME, url: `${SITE_URL}/` },
   };
+  if (meta.path === "/") page.about = { "@id": ORGANIZATION_ID };
   if (meta.path === "/") return [page];
   return [page, {
     "@context": "https://schema.org", "@type": "BreadcrumbList",

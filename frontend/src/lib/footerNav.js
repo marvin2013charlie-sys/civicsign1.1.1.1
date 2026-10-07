@@ -7,7 +7,7 @@ export const FOOTER_COLS = [
     links: [
       { label: "Manage PDF", to: "/product/manage-pdf" },
       { label: "ID verification", to: "/product/id-verification", badge: "Coming soon" },
-      { label: "UK e-signature", to: "/uk-e-signature-software" },
+      { label: "UK e-signature software", to: "/uk-e-signature-software" },
     ],
   },
   {
