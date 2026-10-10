@@ -33,5 +33,6 @@ export async function loadPageContent() {
     ukEsign: await load('ukEsignSoftwareContent.js'),
     contextLinks: (await load('ukEsignContextLinks.js')).UK_ESIGN_CONTEXT_LINKS,
     brand: await load('brand.js'),
+    posts: (await load('blogPostData.js')).POSTS,
   }));
 }

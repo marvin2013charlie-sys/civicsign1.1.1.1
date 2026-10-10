@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadSeo, loadPageContent } from './load-seo.mjs';
-import { renderUkEsignBody, renderContextLinkBody, renderHomeBody, renderAboutBody } from './prerender-body.mjs';
+import { renderUkEsignBody, renderContextLinkBody, renderHomeBody, renderAboutBody, renderBlogPostBody } from './prerender-body.mjs';
 const { getSeoForPath, getPublicSitemapPaths, SITE_URL, DEFAULT_OG_IMAGE } = await loadSeo();
-const { ukEsign, contextLinks, brand } = await loadPageContent();
+const { ukEsign, contextLinks, brand, posts } = await loadPageContent();
+const prerenderPosts = new Map(posts.filter(p => p.prerender).map(p => [`/blog/${p.slug}`, p]));
 const ROOT_DIV = '<div id="root"></div>';
 const frontend = fileURLToPath(new URL('../frontend/', import.meta.url));
 const build = path.resolve(frontend, process.env.BUILD_PATH || 'build');
@@ -39,6 +40,7 @@ for (const route of paths) {
   if (route === '/uk-e-signature-software') body = renderUkEsignBody(ukEsign);
   else if (route === '/') body = renderHomeBody(brand, meta.description, contextLinks['/']);
   else if (route === '/about') body = renderAboutBody(brand, meta.description);
+  else if (prerenderPosts.has(route)) body = renderBlogPostBody(prerenderPosts.get(route));
   else if (contextLinks[route]) body = renderContextLinkBody(route, meta.description, contextLinks[route]);
   if (body) {
     if (!html.includes(ROOT_DIV)) throw new Error(`Template missing ${ROOT_DIV}`);

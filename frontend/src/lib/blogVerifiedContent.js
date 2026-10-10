@@ -29,6 +29,18 @@ export const OFFICIAL_SOURCES = {
     label: "HMRC — Gift Aid declarations",
     href: "https://www.gov.uk/guidance/gift-aid-what-donations-your-charity-can-claim-on",
   },
+  hmrcAgentUpdate115: {
+    label: "HMRC Agent Update 115 — digital or electronic signatures",
+    href: "https://www.gov.uk/government/publications/agent-update-issue-115/issue-115-of-agent-update",
+  },
+  hmrcRepaymentAgents: {
+    label: "HMRC — Receive Income Tax or PAYE repayments on behalf of others",
+    href: "https://www.gov.uk/guidance/receive-income-tax-or-paye-repayments-on-behalf-of-others",
+  },
+  hmrcCharitiesCh3: {
+    label: "HMRC charities guidance — Chapter 3: Gift Aid",
+    href: "https://www.gov.uk/government/publications/charities-detailed-guidance-notes/chapter-3-gift-aid",
+  },
   icoUkGdpr: {
     label: "ICO — UK GDPR guidance",
     href: "https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/",
@@ -132,6 +144,7 @@ export const TOPIC_COLLECTIONS = [
       "are-e-signatures-legal-in-the-uk",
       "ses-aes-qes-which-signature-level-uk",
       "nda-confidentiality-agreements-electronic-signatures-uk",
+      "do-hmrc-accept-electronic-signatures",
     ],
     solutionTo: "/solutions/legal",
     solutionLabel: "Legal & solicitors",
@@ -175,7 +188,7 @@ export const TOPIC_COLLECTIONS = [
     category: "Charities",
     title: "Charities & fundraising",
     description: "HMRC-compliant Gift Aid declarations and donor records you can produce on request.",
-    slugs: ["gift-aid-electronic-declarations-hmrc-guide"],
+    slugs: ["gift-aid-electronic-declarations-hmrc-guide", "do-hmrc-accept-electronic-signatures"],
     solutionTo: "/solutions/charities",
     solutionLabel: "Charity solutions",
   },
@@ -196,6 +209,7 @@ export const POST_SOURCES = {
   ],
   "gift-aid-electronic-declarations-hmrc-guide": [
     OFFICIAL_SOURCES.hmrcGiftAid,
+    OFFICIAL_SOURCES.hmrcCharitiesCh3,
     OFFICIAL_SOURCES.eca2000s7,
   ],
   "right-to-work-digital-checks-uk-hr": [
@@ -239,6 +253,10 @@ export const POST_SOURCES = {
 };
 
 export const POST_EDITORIAL = {
+  "do-hmrc-accept-electronic-signatures": {
+    lastReviewed: "10 October 2026",
+    note: "Checked against HMRC Agent Updates 110, 115 and 138 and current GOV.UK guidance on agent authorisation, repayment nominations and Gift Aid.",
+  },
   "are-e-signatures-legal-in-the-uk": {
     lastReviewed: "February 2026",
     note: "Reviewed against ECA 2000 s.7, UK eIDAS and the Law Commission 2019 report.",

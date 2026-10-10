@@ -1,4 +1,96 @@
+const HMRC_FAQS = [
+  ["Do HMRC accept electronic signatures?", "Only in limited circumstances. HMRC says it accepts digital or electronic signatures on forms 64-8, P87, R40 and Marriage Allowance claims, including signatures drawn on a screen or shown in a keyboard-typed font, provided the taxpayer applied the signature themselves. All other claims and paper tax returns still need an original handwritten signature (HMRC Agent Update 115, December 2023)."],
+  ["Can I sign a 64-8 agent authorisation electronically?", "Yes. HMRC lists the 64-8 among the forms where it accepts electronic signatures, as long as the client signed it themselves. HMRC also offers online ways to authorise an agent, such as Online Agent Authorisation and the client's business tax account, and its guidance says to sign and date the paper form before posting it."],
+  ["Do repayment agents need an advanced electronic signature?", "Yes. Since 6 April 2025, agents who charge fees and are nominated to receive P87, R40 or Marriage Allowance repayments must get their client's authorisation using an advanced electronic signature (AES) process. Wet signatures are only accepted if HMRC has decided the client is digitally excluded. CivicSign offers simple electronic signatures only, so it is not suitable for these nominations."],
+  ["Do Gift Aid declarations need a signature?", "No. HMRC's charities guidance says Gift Aid declarations can be given in writing (including email or online forms) or orally, and there is no requirement for a declaration to contain a signature. Oral declarations need a written record sent to the donor unless the charity keeps an auditable recording."],
+  ["Does HMRC endorse any e-signature provider?", "We are not aware of HMRC publishing an approved list of e-signature providers, and CivicSign is not endorsed by HMRC. For repayment nominations, HMRC asks agents to keep evidence that they bought an advanced electronic signature solution. If you are unsure whether a form can be e-signed, check the form's GOV.UK page or contact HMRC."],
+];
+
+function faqBlocks(faqs) {
+  return faqs.flatMap(([question, answer]) => [
+    { type: "h3", content: question },
+    { type: "p", content: answer },
+  ]);
+}
+
 export const POSTS = [
+  {
+    slug: "do-hmrc-accept-electronic-signatures",
+    title: "Do HMRC accept electronic signatures? (2026 guide)",
+    excerpt: "Sometimes. HMRC accepts electronic signatures on a short, named list of forms (64-8, P87, R40 and Marriage Allowance claims), requires an advanced electronic signature for paid repayment-agent nominations, and still wants a handwritten signature on other paper claims and paper tax returns. Here's the detail, with the GOV.UK sources.",
+    category: "UK Law",
+    date: "Oct 10, 2026",
+    updated: "2026-10-10",
+    schemaType: "Article",
+    prerender: true,
+    readTime: "7 min read",
+    author: "CivicSign Editorial",
+    image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f",
+    faqs: HMRC_FAQS,
+    body: [
+      { type: "callout", content: "Short answer: sometimes. HMRC accepts electronic signatures on a named list of forms: the 64-8 agent authorisation, P87 employment-expense claims, R40 repayment claims and Marriage Allowance claims. Paid agents nominated to receive P87, R40 or Marriage Allowance repayments must use an advanced electronic signature. Other paper claims and paper tax returns still need a handwritten signature. Gift Aid declarations do not need a signature at all." },
+      { type: "p", content: "Last updated 10 October 2026. This guide only repeats what HMRC has published on GOV.UK, and links to each source. HMRC's position on signatures differs from form to form and changes over time, so if your form is not covered below, treat it as needing a handwritten signature until HMRC tells you otherwise." },
+      { type: "h2", content: "HMRC's general position on electronic signatures" },
+      { type: "p", content: "Electronic signatures are generally legal in the UK (see our guide to electronic signatures in the UK). But HMRC decides which signatures it accepts on its own forms. In Agent Update 115 (December 2023), HMRC said it now accepts digital or electronic signatures on 64-8s, P87s, Marriage Allowance claims and R40s. Signatures drawn on the screen of a digital device or displayed in a keyboard-typed font are accepted on those forms." },
+      { type: "ul", content: [
+        "The taxpayer must have applied the signature themselves. If they did not, HMRC treats the document as invalid.",
+        "Where HMRC has reason to doubt who signed, it may ask the agent for assurances or for details of the agent's signing process.",
+        "HMRC says electronic signatures are only accepted for the claims listed. All other claims and paper tax returns still require an original signature.",
+      ]},
+      { type: "p", content: "In December 2025 (Agent Update 138), HMRC repeated that it accepts digital signatures in limited circumstances, and said it continues to consider digital options while keeping wet signatures available for people who are digitally excluded." },
+      { type: "h2", content: "Which HMRC forms can be signed electronically?" },
+      { type: "ul", content: [
+        "64-8 Authorising your agent, both standalone and the version included on P87, R40 and Marriage Allowance claims.",
+        "P87, the claim for tax relief on employment expenses.",
+        "R40, the claim for a repayment of tax deducted from savings and investments.",
+        "Marriage Allowance claims.",
+      ]},
+      { type: "p", content: "That is the full list HMRC has published. We have not found GOV.UK guidance extending electronic signatures to other HMRC paper forms, so we do not suggest you e-sign them. If you need to sign something else, check that form's GOV.UK page or ask HMRC first." },
+      { type: "h2", content: "Repayment agents: an advanced electronic signature is required" },
+      { type: "p", content: "There is a stricter rule for paid agents. HMRC's guidance on receiving Income Tax or PAYE repayments on behalf of others applies if you charge fees to submit P87, R40 or Marriage Allowance Transfer Claim print-and-post forms and you are nominated to receive the repayment. Since 6 April 2025 you must use an advanced electronic signature (AES) process to get your client's authorisation." },
+      { type: "ul", content: [
+        "An AES must be uniquely linked to the signer and capable of identifying them, give the signer sole control of the signature data, and detect any later changes.",
+        "Handwritten signatures are only accepted if HMRC has decided the client is digitally excluded before they sign. The client has to arrange that with HMRC themselves.",
+        "The client's signature must be no more than 6 months old when the nomination is sent.",
+        "You must keep evidence that your firm bought an AES solution (a headed letter, receipt or email invoice) and provide it to HMRC on request.",
+      ]},
+      { type: "callout", content: "Be clear about this one: CivicSign provides simple electronic signatures (SES), with postcode knowledge-based authentication on the Business plan. It does not provide advanced or qualified electronic signatures, so it is not suitable for HMRC repayment nominations that require an AES." },
+      { type: "h2", content: "Agent authorisations (64-8) and online alternatives" },
+      { type: "p", content: "The 64-8 is on HMRC's electronic-signature list. But for many taxes HMRC would rather you skipped paper altogether. Its guidance on getting authorised as a tax agent lists online routes, including the agent services account digital handshake, Online Agent Authorisation and asking your client to authorise you through their business tax account. The 64-8 paper form remains the written route for Corporation Tax, individual PAYE or National Insurance, PAYE, Self Assessment and VAT." },
+      { type: "p", content: "If you use the paper 64-8, HMRC's instructions are to fill it in, sign and date it, and post it to the address shown on the form. HMRC also says it no longer accepts the 64-8 to request limited authorisation; that needs a signed letter of authority instead." },
+      { type: "h2", content: "Where HMRC still wants wet ink or an online account" },
+      { type: "ul", content: [
+        "Paper tax returns and any paper claim not on the list above: HMRC says these still need an original handwritten signature.",
+        "Repayment nominations by paid agents: an AES, or wet ink only where HMRC has decided the client is digitally excluded.",
+        "Online services: when you file online through HMRC's own services, you sign in with your HMRC account rather than signing a PDF, so an e-signature platform is not part of that process.",
+      ]},
+      { type: "p", content: "HMRC also accepts scanned copies of documents with handwritten signatures as digital records in many cases, but not where tax or other legislation requires the original, or where you are submitting a paper version of a return or claim (Agent Update 110, July 2023). If you are unsure, treat the original as needed and ask HMRC." },
+      { type: "h2", content: "Gift Aid declarations: no signature required" },
+      { type: "p", content: "Gift Aid is the exception that trips people up in the other direction. HMRC's charities guidance (Chapter 3) says declarations can be given in writing, including by email or online, or orally. It also says there is no requirement for a declaration to contain a signature, so charities can drop the signature box if they want to. What matters is that the declaration has the required information and that you keep records proving each donor made one." },
+      { type: "p", content: "For oral declarations, the charity must send the donor a written record, unless it keeps an audible, auditable recording. That record can be electronic and must tell the donor they can cancel within 30 days. Our Gift Aid guide walks through the fields to capture." },
+      { type: "h2", content: "Where CivicSign fits" },
+      { type: "p", content: "CivicSign is UK-owned and UK-hosted e-signature software. It provides simple electronic signatures with a full audit trail and a Certificate of Completion, and the Business plan adds postcode knowledge-based authentication for recipients. That makes it a good fit for documents HMRC does not prescribe a signature for, such as engagement letters, client onboarding packs and Gift Aid declarations, and for the listed forms where HMRC accepts a simple electronic signature the taxpayer applies themselves. It is not an AES provider, and HMRC does not endorse CivicSign or any other e-signature product." },
+      { type: "ul", content: [
+        { text: "Read the Gift Aid electronic declarations guide for charities", href: "/blog/gift-aid-electronic-declarations-hmrc-guide" },
+        { text: "Compare UK e-signature software for accountants and small firms", href: "/uk-e-signature-software" },
+        { text: "Are electronic signatures legal in the UK? Our UK overview", href: "/electronic-signatures-uk" },
+        { text: "Start on CivicSign's free plan, no card required", href: "/register" },
+      ]},
+      { type: "h2", content: "Frequently asked questions" },
+      ...faqBlocks(HMRC_FAQS),
+      { type: "h2", content: "GOV.UK sources" },
+      { type: "ul", content: [
+        { text: "HMRC Agent Update 115 (December 2023): digital or electronic signatures", href: "https://www.gov.uk/government/publications/agent-update-issue-115/issue-115-of-agent-update" },
+        { text: "HMRC Agent Update 138 (December 2025): digital signatures", href: "https://www.gov.uk/government/publications/agent-update-issue-138/issue-138-of-agent-update" },
+        { text: "HMRC Agent Update 110 (July 2023): digital records and signatures", href: "https://www.gov.uk/government/publications/agent-update-issue-110/issue-110-of-agent-update" },
+        { text: "HMRC: Receive Income Tax or PAYE repayments on behalf of others", href: "https://www.gov.uk/guidance/receive-income-tax-or-paye-repayments-on-behalf-of-others" },
+        { text: "HMRC: Authorising an agent to deal with your tax affairs", href: "https://www.gov.uk/guidance/authorising-an-agent-to-deal-with-your-tax-affairs" },
+        { text: "HMRC: How to get authorised to act as a tax agent", href: "https://www.gov.uk/guidance/how-to-get-authorised-to-act-as-a-tax-agent-on-behalf-of-your-clients" },
+        { text: "HMRC charities guidance, Chapter 3: Gift Aid", href: "https://www.gov.uk/government/publications/charities-detailed-guidance-notes/chapter-3-gift-aid" },
+        { text: "HMRC: Gift Aid declarations, claiming tax back on donations", href: "https://www.gov.uk/guidance/gift-aid-declarations-claiming-tax-back-on-donations" },
+      ]},
+    ],
+  },
   {
     slug: "are-e-signatures-legal-in-the-uk",
     title: "Are electronic signatures legal in the UK in 2026?",
@@ -133,6 +225,10 @@ export const POSTS = [
         "Pre-ticked Gift Aid boxes. The donor must take a positive action to opt in.",
         "Declarations without a date. The date determines when Gift Aid can start being claimed from.",
         "Not telling the donor what to do if they stop being a UK taxpayer or pay less tax in future. Include the standard HMRC wording verbatim.",
+      ]},
+      { type: "h2", content: "Related guides" },
+      { type: "ul", content: [
+        { text: "Do HMRC accept electronic signatures? Which HMRC forms you can e-sign", href: "/blog/do-hmrc-accept-electronic-signatures" },
       ]},
       { type: "p", content: "If you set up your declaration once in CivicSign with HMRC's verbatim wording, the donor cannot accidentally skip a field. The result: cleaner claims, fewer rejections, and 25% more for your cause." },
     ],

@@ -484,7 +484,11 @@ function buildPageJsonLd(meta) {
 function schemaDate(value) {
   if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime())) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  // Local calendar date: toISOString() would shift midnight BST back a day.
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function buildHomeJsonLd() {
@@ -507,16 +511,17 @@ export function buildBlogPostSeo(post) {
     type: "article",
     jsonLd: [...buildPageJsonLd({ path, title: post.title, description: post.excerpt }), {
       "@context": "https://schema.org",
-      "@type": "BlogPosting",
+      "@type": post.schemaType || "BlogPosting",
       headline: post.title,
       description: post.excerpt,
       image: post.image,
       datePublished: schemaDate(post.date),
+      dateModified: schemaDate(post.updated || post.date),
       author: { "@type": "Organization", name: post.author || SITE_NAME },
       publisher: { "@type": "Organization", name: SITE_NAME, logo: { "@type": "ImageObject", url: DEFAULT_OG_IMAGE } },
       mainEntityOfPage: absoluteUrl(path),
       inLanguage: "en-GB",
-    }],
+    }, ...(Array.isArray(post.faqs) && post.faqs.length ? [buildFaqJsonLd(post.faqs)] : [])],
   };
 }
 

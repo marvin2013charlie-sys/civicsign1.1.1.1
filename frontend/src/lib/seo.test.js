@@ -25,7 +25,7 @@ test.each(getPublicSitemapPaths())('%s has structured data and a concise descrip
   const page = meta.jsonLd.find(item => ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage'].includes(item['@type']));
   expect(page.url).toBe(`https://www.civicsign.co.uk${path}`);
   if (path.startsWith('/blog/')) {
-    const article = meta.jsonLd.find(item => item['@type'] === 'BlogPosting');
+    const article = meta.jsonLd.find(item => ['BlogPosting', 'Article'].includes(item['@type']));
     expect(article.datePublished).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(article.mainEntityOfPage).toBe(page.url);
   }
@@ -118,4 +118,18 @@ test('homepage ships one Organization and one WebSite entity with brand alternat
   expect(site.publisher).toEqual({ '@id': org['@id'] });
   // Organization is defined once site-wide: other pages reference it rather than duplicating it.
   expect(getSeoForPath('/about').jsonLd.filter(item => item['@type'] === 'Organization')).toHaveLength(0);
+});
+
+test('HMRC e-signature guide has Article + FAQPage schema and stays in the sitemap', () => {
+  const path = '/blog/do-hmrc-accept-electronic-signatures';
+  expect(getPublicSitemapPaths()).toContain(path);
+  const meta = getSeoForPath(path);
+  expect(meta.title).toMatch(/^Do HMRC accept electronic signatures\?/);
+  const article = meta.jsonLd.find(item => item['@type'] === 'Article');
+  expect(article.datePublished).toBe('2026-10-10');
+  expect(article.dateModified).toBe('2026-10-10');
+  const faq = meta.jsonLd.find(item => item['@type'] === 'FAQPage');
+  expect(faq.mainEntity.length).toBeGreaterThanOrEqual(4);
+  const text = JSON.stringify(meta.jsonLd);
+  expect(text).not.toMatch(/CivicSign (offers|provides) (AES|QES|advanced|qualified)/i);
 });

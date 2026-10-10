@@ -54,3 +54,19 @@ export function renderAboutBody(brand, description) {
     + `<section><h2>About ${esc(brand.BRAND_NAME)}</h2><p>${esc(brand.BRAND_STATEMENT)}</p></section>`
     + `<p>${link('/uk-e-signature-software', 'CivicSign UK e-signature software')} · ${link('/contact', 'Contact CivicSign')}</p></main>`;
 }
+
+/** Blog article: full body copy, so crawlers see the guide without JavaScript. */
+export function renderBlogPostBody(post) {
+  const block = b => {
+    if (b.type === 'h2') return `<h2>${esc(b.content)}</h2>`;
+    if (b.type === 'h3') return `<h3>${esc(b.content)}</h3>`;
+    if (b.type === 'p' || b.type === 'callout') return `<p>${esc(b.content)}</p>`;
+    if (b.type === 'quote') return `<blockquote>${esc(b.content)}</blockquote>`;
+    if (b.type === 'ul') return `<ul>${b.content.map(i => typeof i === 'string' ? `<li>${esc(i)}</li>` : `<li>${link(i.href, i.text)}</li>`).join('')}</ul>`;
+    return '';
+  };
+  const updated = post.updated ? `<p>Last updated <time datetime="${esc(post.updated)}">${esc(post.date)}</time></p>` : '';
+  return `<main class="${WRAP}" data-prerendered="/blog/${esc(post.slug)}"><article><h1>${esc(post.title)}</h1><p>${esc(post.excerpt)}</p>${updated}`
+    + post.body.map(block).join('')
+    + `<p>${link('/register', 'Start free on CivicSign')} · ${link('/blog', 'More CivicSign guides')}</p></article></main>`;
+}

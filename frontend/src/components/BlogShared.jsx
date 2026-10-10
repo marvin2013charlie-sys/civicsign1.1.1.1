@@ -366,7 +366,15 @@ export function BlogArticleBlock({ block }) {
                 aria-hidden
               />
               <span>
-                {href && isSafeExternalHref(href) ? (
+                {href && href.startsWith("/") && !href.startsWith("//") ? (
+                  <Link
+                    to={href}
+                    className="font-medium underline decoration-[var(--c-primary)]/30 underline-offset-2 hover:decoration-[var(--c-primary)]"
+                    style={{ color: "#0F9D7A" }}
+                  >
+                    {label}
+                  </Link>
+                ) : href && isSafeExternalHref(href) ? (
                   <a
                     href={href}
                     target="_blank"

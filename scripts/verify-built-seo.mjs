@@ -86,6 +86,23 @@ for (const route of ['/docusign-alternative', '/legalesign-alternative', '/signa
   assert.ok(html.includes('<a href="/uk-e-signature-software">'), `Missing money page link in served HTML: ${route}`);
 }
 
+// HMRC e-signature guide: crawlable body, Article + FAQPage schema and required internal links.
+{
+  const route = '/blog/do-hmrc-accept-electronic-signatures';
+  const html = fs.readFileSync(path.join(root, `${route}.html`), 'utf8');
+  assert.ok(html.includes(`<link rel="canonical" href="${SITE_URL}${route}" />`), 'HMRC guide canonical missing');
+  assert.ok(/<h1>Do HMRC accept electronic signatures\?/.test(html), 'HMRC guide H1 missing from served HTML');
+  assert.ok(/Last updated <time datetime="\d{4}-\d{2}-\d{2}">/.test(html), 'HMRC guide last-updated date missing');
+  for (const href of ['/uk-e-signature-software', '/electronic-signatures-uk', '/blog/gift-aid-electronic-declarations-hmrc-guide', '/register']) {
+    assert.ok(html.includes(`<a href="${href}">`), `HMRC guide missing link: ${href}`);
+  }
+  const schema = [...html.matchAll(/<script type="application\/ld\+json" id="cs-jsonld-[^"]+">([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1]));
+  assert.ok(schema.some(item => item['@type'] === 'Article'), 'HMRC guide Article schema missing');
+  const faq = schema.find(item => item['@type'] === 'FAQPage');
+  assert.ok(faq && faq.mainEntity.length >= 4, 'HMRC guide FAQPage schema missing');
+  for (const q of faq.mainEntity) assert.ok(html.includes(`<h3>${q.name.replace(/'/g, "'")}</h3>`) || html.includes(q.name.slice(0, 20)), `HMRC FAQ not visible: ${q.name}`);
+}
+
 console.log(`Verified descriptions and parseable JSON-LD on ${descriptions.size} built pages (+ soft-404 redirects)`);
 
 for (const route of ['/login', '/register', '/admin', '/admin/login', '/admin/*', '/settings']) {
