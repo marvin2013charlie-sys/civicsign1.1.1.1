@@ -43,6 +43,7 @@ from models import (
     BulkVerifyRequest,
 )
 from integrations import integrations_router, v1_router, emit_webhook
+from identity_verification import identity_available, start_identity, check_identity
 from auth import auth_router, get_current_user, get_current_user_sse, seed_admin
 from security_utils import (
     get_cors_origins, validate_redirect_base, esc, trust_proxy, sniff_image_type, is_dev_mode,
@@ -614,10 +615,12 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
             rid = r.recipient_id or f"rcp_{uuid.uuid4().hex[:10]}"
             prev = existing_by_id.get(rid, {})
             auth_method = (r.auth_method or "").lower().strip() or None
-            if auth_method and auth_method not in ("sms", "kba"):
-                raise HTTPException(status_code=400, detail="auth_method must be sms or kba")
+            if auth_method and auth_method not in ("sms", "kba", "identity"):
+                raise HTTPException(status_code=400, detail="auth_method must be sms, kba or identity")
             if auth_method:
                 require_feature(user, "recipient_auth")
+            if auth_method == "identity" and not identity_available():
+                raise HTTPException(status_code=503, detail="Photo ID verification is not configured")
             if auth_method == "sms" and not sms_auth_available():
                 raise HTTPException(
                     status_code=400,
@@ -632,13 +635,13 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
                 "email": r.email.lower().strip(), "order": r.order or (i + 1),
                 "color": r.color or RECIPIENT_COLORS[i % len(RECIPIENT_COLORS)],
                 "status": "pending",
-                "access_token": prev.get("access_token") or uuid.uuid4().hex,
+                "access_token": uuid.uuid4().hex if auth_method == "identity" else (prev.get("access_token") or uuid.uuid4().hex),
                 "viewed_at": None, "signed_at": None, "signer_name": None,
                 "auth_method": auth_method,
                 "auth_phone": (r.auth_phone or "").strip() if auth_method == "sms" else None,
                 "auth_kba_postcode": (r.auth_kba_postcode or "").strip().upper()
                 if auth_method == "kba" else None,
-                "auth_verified": prev.get("auth_verified", False) if auth_method else True,
+                "auth_verified": False if auth_method else True,
             }
             if not auth_method:
                 rec.pop("auth_method", None)
@@ -1597,6 +1600,32 @@ def _otp_hash(code: str) -> str:
 
 
 SIGNER_AUTH_MAX_ATTEMPTS = 5
+
+
+async def _identity_signer(token):
+    env, recipient = await _find_by_token(token)
+    env = await maybe_expire(env)
+    if recipient.get("auth_method") != "identity" or not can_sign(env, recipient):
+        raise HTTPException(403, "This request is not awaiting photo ID verification")
+    if not await owner_has_feature(env["owner_id"], "recipient_auth"):
+        raise HTTPException(403, "The sender's plan does not support identity verification")
+    return env, recipient
+
+
+@api_router.post("/sign/{token}/identity/start")
+@limiter.limit("5/hour")
+async def signer_start_identity(request: Request, token: str, body: dict):
+    if not isinstance(body, dict) or body.get("consent") is not True:
+        raise HTTPException(400, "Confirm you want to continue to the identity provider")
+    env, recipient = await _identity_signer(token)
+    return await start_identity(env, recipient)
+
+
+@api_router.post("/sign/{token}/identity/status")
+@limiter.limit("60/hour")
+async def signer_identity_status(request: Request, token: str):
+    env, recipient = await _identity_signer(token)
+    return await check_identity(env, recipient)
 
 
 @api_router.post("/sign/{token}/auth/send-code")

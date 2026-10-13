@@ -217,6 +217,8 @@ def plan_features(user: dict) -> dict:
     flags["plan"] = plan
     flags["enterprise_unlimited"] = is_enterprise_unlimited(user)
     # SMS availability depends on server configuration, not just the plan tier.
+    from identity_verification import identity_available
+    flags["recipient_auth_identity"] = bool(flags.get("recipient_auth")) and identity_available()
     flags["recipient_auth_sms"] = bool(flags.get("recipient_auth")) and sms_auth_available()
     if is_internal_team(user):
         flags["internal_team"] = True
