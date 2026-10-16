@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from rate_limits import limiter
 from html import escape
 
+import billing_emails
 import email_service
 from db import db
 from auth import (
@@ -515,7 +516,8 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
                 updates["plan_signature"] = None
                 updates["plan_upgraded_via_payment"] = False
                 updates["admin_plan_grant"] = False
-                updates["admin_plan_duration"] = None
+                # admin_plan_duration is removed via $unset below — setting it here
+                # too makes MongoDB reject the update as a path conflict.
                 updates["subscription_status"] = "admin_downgraded"
                 updates["subscription_cancel_at_period_end"] = False
                 updates["monthly_envelope_limit"] = None
@@ -611,6 +613,31 @@ async def update_user(request: Request, user_id: str, body: AdminUserUpdate, adm
                 "admin_plan_duration": "",
             }
         await db.users.update_one({"user_id": user_id}, mongo_update)
+
+        # Tell the user when an admin changes their plan — Stripe-driven changes
+        # email from billing.py, so without this an admin grant lands silently.
+        changed_plan = updates.get("plan")
+        previous_plan = target.get("plan", "free")
+        if changed_plan and changed_plan != previous_plan:
+            dedupe_key = f"admin_plan_{user_id}_{previous_plan}_{changed_plan}_{updates['updated_at']}"
+            if changed_plan == "free":
+                await billing_emails.notify_plan_downgrade(
+                    target,
+                    plan_id="free",
+                    billing_interval="monthly",
+                    dedupe_key=dedupe_key,
+                    previous_plan=previous_plan,
+                    effective="immediate",
+                )
+            else:
+                await billing_emails.notify_plan_upgrade(
+                    target,
+                    plan_id=changed_plan,
+                    billing_interval=updates.get("billing_interval", "monthly"),
+                    dedupe_key=dedupe_key,
+                    previous_plan=previous_plan,
+                )
+
         fresh = await db.users.find_one({"user_id": user_id})
         return _clean_user(fresh)
     except HTTPException:
