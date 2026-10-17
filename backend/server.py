@@ -77,6 +77,7 @@ from assistant import assistant_router
 from billing import billing_router
 from pdf_manager import pdf_router
 from idv import service as idv_service
+from idv.provider import ProviderError as IdvProviderError
 from idv.service import idv_available, normalise_checks as idv_normalise_checks
 
 logging.basicConfig(level=logging.INFO,
@@ -1738,6 +1739,43 @@ def _assert_signer_file_access(env: dict, recipient: dict) -> None:
         )
 
 
+@api_router.post("/webhook/idv")
+async def idv_webhook(request: Request):
+    """Authoritative verification result from the identity provider.
+
+    The delivery is authenticated by the provider, then the full result is
+    re-read from the provider so a spoofed body cannot decide an outcome.
+    """
+    payload = await request.body()
+    provider = idv_service.get_provider()
+    try:
+        signal = await asyncio.to_thread(
+            provider.verify_webhook, payload, dict(request.headers)
+        )
+    except IdvProviderError as exc:
+        logger.warning(f"[idv] rejected webhook: {exc}")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    except NotImplementedError:
+        raise HTTPException(status_code=400, detail="This provider does not send webhooks")
+
+    record = await db.identity_verifications.find_one(
+        {"provider_ref": signal.provider_ref}, {"_id": 0}
+    )
+    if not record:
+        return {"ok": True, "ignored": "unknown verification"}
+    if not signal.is_terminal:
+        return {"ok": True, "status": signal.status}
+
+    try:
+        result = await asyncio.to_thread(provider.fetch_result, signal.provider_ref)
+    except IdvProviderError as exc:
+        logger.error(f"[idv] could not re-read {signal.provider_ref}: {exc}")
+        raise HTTPException(status_code=502, detail="Could not confirm the verification")
+
+    updated = await idv_service.apply_result(record["verification_id"], result)
+    return {"ok": True, "status": updated["status"]}
+
+
 @api_router.post("/sign/{token}/idv/start")
 @limiter.limit("10/hour")
 async def signer_idv_start(request: Request, token: str):
@@ -1752,9 +1790,18 @@ async def signer_idv_start(request: Request, token: str):
             status_code=503,
             detail="Identity verification is temporarily unavailable — ask the sender to resend",
         )
-    record = await idv_service.start_verification(
-        env, recipient, return_url=_signer_return_url(request, token)
-    )
+    try:
+        record = await idv_service.start_verification(
+            env, recipient, return_url=_signer_return_url(request, token)
+        )
+    except idv_service.QuotaExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except IdvProviderError as exc:
+        logger.error(f"[idv] provider error starting verification: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail="The verification service is unavailable — please try again shortly",
+        )
     return {
         "verification_id": record["verification_id"],
         "status": record["status"],

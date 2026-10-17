@@ -424,7 +424,7 @@ export default function PrepareStudio() {
               <UserPlus className="mr-1.5 h-4 w-4" /> Add recipient
             </Button>
           </div>
-          {features.recipient_auth && activeRecipient && (
+          {(features.recipient_auth || features.id_verification) && activeRecipient && (
             <div className="mt-4 rounded-xl border border-[var(--c-border)] bg-[var(--c-paper-2)] p-3" data-testid="recipient-auth-panel">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
                 <ShieldCheck className="h-3.5 w-3.5" /> Recipient authentication
@@ -433,7 +433,12 @@ export default function PrepareStudio() {
               <div
                 className="mt-2 flex flex-wrap rounded-full border border-[var(--c-border)] bg-[var(--c-portal-card)] p-[3px]"
               >
-                {[["", "None"], ...(features.recipient_auth_sms ? [["sms", "SMS"]] : []), ["kba", "KBA"]].map(([v, l]) => {
+                {[
+                  ["", "None"],
+                  ...(features.recipient_auth_sms ? [["sms", "SMS"]] : []),
+                  ...(features.recipient_auth ? [["kba", "KBA"]] : []),
+                  ...(features.id_verification ? [["idv", "ID check"]] : []),
+                ].map(([v, l]) => {
                   const active = (recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method || "") === v;
                   return (
                     <button
@@ -441,7 +446,8 @@ export default function PrepareStudio() {
                       type="button"
                       onClick={() => setRecipients((p) => p.map((r) => r.recipient_id === activeRecipient
                         ? { ...r, auth_method: v || null, auth_phone: v === "sms" ? r.auth_phone : null,
-                            auth_kba_postcode: v === "kba" ? r.auth_kba_postcode : null }
+                            auth_kba_postcode: v === "kba" ? r.auth_kba_postcode : null,
+                            idv_required_checks: v === "idv" ? (r.idv_required_checks || null) : null }
                         : r))}
                       className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
                       style={active ? { background: "var(--c-ink-solid)", color: "#fff" } : { color: "var(--c-muted-fg)" }}
@@ -451,6 +457,12 @@ export default function PrepareStudio() {
                   );
                 })}
               </div>
+              {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "idv" && (
+                <p className="mt-2 text-xs text-[var(--c-muted-fg)]" data-testid="recipient-idv-note">
+                  This signer photographs an identity document and takes a selfie before the document
+                  unlocks. If the check fails, or the document is in a different name, signing stays locked.
+                </p>
+              )}
               {recipients.find((r) => r.recipient_id === activeRecipient)?.auth_method === "sms" && (
                 <Input className="mt-2 h-9 rounded-lg" placeholder="+44 7700 900123"
                   value={recipients.find((r) => r.recipient_id === activeRecipient)?.auth_phone || ""}

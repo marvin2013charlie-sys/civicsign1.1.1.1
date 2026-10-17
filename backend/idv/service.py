@@ -43,8 +43,11 @@ def get_provider() -> IdentityProvider:
     if name not in _PROVIDERS:
         if name == "mock":
             _PROVIDERS[name] = MockProvider()
+        elif name == "stripe":
+            from idv.stripe_identity import StripeIdentityProvider
+
+            _PROVIDERS[name] = StripeIdentityProvider()
         else:
-            # Phase 1 registers real providers here.
             raise ValueError(f"Unknown IDV_PROVIDER '{name}'")
     return _PROVIDERS[name]
 
@@ -56,10 +59,15 @@ def idv_available() -> bool:
     except ValueError:
         logger.warning(f"[idv] IDV_PROVIDER '{provider_name()}' is not implemented")
         return False
-    if provider_name() == "mock":
+    name = provider_name()
+    if name == "mock":
         from security_utils import is_dev_mode
 
         return is_dev_mode()
+    if name == "stripe":
+        from idv.stripe_identity import configured
+
+        return configured()
     return True
 
 
@@ -98,11 +106,40 @@ def names_match(document_name: str | None, recipient_name: str | None) -> bool:
     return expected.issubset(doc)
 
 
+class QuotaExceeded(RuntimeError):
+    """The account has used its identity verifications for this month."""
+
+
+def monthly_cap() -> int:
+    try:
+        return int(os.environ.get("IDV_MONTHLY_CAP", "100"))
+    except ValueError:
+        return 100
+
+
+async def verifications_used_this_month(owner_id: str) -> int:
+    start = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    return await db.identity_verifications.count_documents(
+        {"owner_id": owner_id, "created_at": {"$gte": start}}
+    )
+
+
 async def start_verification(
     envelope: dict, recipient: dict, *, return_url: str
 ) -> dict:
     """Create a verification record and a provider session for this recipient."""
     provider = get_provider()
+    cap = monthly_cap()
+    owner_id = envelope.get("owner_id")
+    if cap > 0 and owner_id:
+        used = await verifications_used_this_month(owner_id)
+        if used >= cap:
+            logger.warning(f"[idv] monthly cap reached for owner={owner_id} ({used}/{cap})")
+            raise QuotaExceeded(
+                f"This account has used its {cap} identity verifications for this month"
+            )
     verification_id = f"idv_{uuid.uuid4().hex[:16]}"
     checks = normalise_checks(recipient.get("idv_required_checks"))
 
