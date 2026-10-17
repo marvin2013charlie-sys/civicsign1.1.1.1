@@ -44,6 +44,7 @@ class RecipientIn(BaseModel):
     auth_method: Optional[str] = None   # None | sms | kba (Business plan)
     auth_phone: Optional[str] = None      # required when auth_method=sms
     auth_kba_postcode: Optional[str] = None  # required when auth_method=kba
+    idv_required_checks: Optional[List[str]] = None  # when auth_method=idv
 
 
 class FieldIn(BaseModel):

@@ -40,6 +40,9 @@ export default function SignerFlow() {
   const [authVerified, setAuthVerified] = useState(false);
   const [authCode, setAuthCode] = useState("");
   const [authPostcode, setAuthPostcode] = useState("");
+  const [idvStatus, setIdvStatus] = useState(null);
+  const [idvStarting, setIdvStarting] = useState(false);
+  const [idvFailure, setIdvFailure] = useState("");
   const [authSending, setAuthSending] = useState(false);
   const [authVerifying, setAuthVerifying] = useState(false);
   const [savedSig, setSavedSig] = useState(null);
@@ -161,6 +164,42 @@ export default function SignerFlow() {
     }
   };
 
+  const startIdv = async () => {
+    setIdvStarting(true);
+    setIdvFailure("");
+    try {
+      const { data: res } = await publicApi.post(`/sign/${token}/idv/start`);
+      if (res.status === "verified") {
+        setAuthVerified(true);
+        return;
+      }
+      setIdvStatus("pending");
+      // A hosted provider flow lives on another origin; the mock returns our own.
+      if (res.redirect_url && !res.redirect_url.startsWith(window.location.origin)) {
+        window.location.assign(res.redirect_url);
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not start identity verification");
+    } finally {
+      setIdvStarting(false);
+    }
+  };
+
+  const pollIdv = useCallback(async () => {
+    try {
+      const { data: res } = await publicApi.get(`/sign/${token}/idv/status`);
+      setIdvStatus(res.status);
+      if (res.status === "verified") {
+        setAuthVerified(true);
+        toast.success("Identity verified");
+      } else if (res.status === "failed" || res.status === "expired") {
+        setIdvFailure(res.failure_reason || "Identity verification was not successful");
+      }
+    } catch {
+      /* keep polling; a transient error should not break the gate */
+    }
+  }, [token]);
+
   const sendAuthCode = async () => {
     setAuthSending(true);
     try {
@@ -172,6 +211,12 @@ export default function SignerFlow() {
       setAuthSending(false);
     }
   };
+
+  useEffect(() => {
+    if (idvStatus !== "pending" && idvStatus !== "in_progress") return undefined;
+    const id = setInterval(pollIdv, 3000);
+    return () => clearInterval(id);
+  }, [idvStatus, pollIdv]);
 
   const verifyAuth = async () => {
     setAuthVerifying(true);
@@ -310,9 +355,81 @@ export default function SignerFlow() {
           <div className="rounded-2xl border border-[var(--c-border)] bg-[var(--card)] p-6" data-testid="signer-auth-gate">
             <h1 className="font-heading text-xl font-bold text-[var(--c-ink)]">Verify your <BrandAccent>identity</BrandAccent></h1>
             <p className="mt-1 text-sm text-[var(--c-muted-fg)]">
-              {data.sender_name} requires {data.auth_method === "sms" ? "SMS" : "knowledge-based"} authentication before you can sign.
+              {data.auth_method === "idv"
+                ? `${data.sender_name} requires an identity check before you can sign.`
+                : `${data.sender_name} requires ${data.auth_method === "sms" ? "SMS" : "knowledge-based"} authentication before you can sign.`}
             </p>
-            {data.auth_method === "sms" ? (
+            {data.auth_method === "idv" ? (
+              <div className="mt-4 space-y-4" data-testid="signer-idv-gate">
+                {(data.idv_required_checks || []).length > 0 && (
+                  <ul className="flex flex-wrap gap-2">
+                    {data.idv_required_checks.map((check) => (
+                      <li
+                        key={check}
+                        className="rounded-full border border-[var(--c-border)] bg-[var(--c-paper)] px-3 py-1 text-xs font-medium text-[var(--c-muted-fg)]"
+                      >
+                        {check === "face_match" ? "Face match" : check === "chip" ? "Document chip" : check.charAt(0).toUpperCase() + check.slice(1)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {idvFailure ? (
+                  <div
+                    className="rounded-xl border border-[var(--c-danger)] bg-[var(--c-danger-bg)] px-4 py-3 text-sm text-[var(--c-danger)]"
+                    role="alert"
+                    data-testid="signer-idv-failure"
+                  >
+                    <p className="font-semibold">Identity check not passed</p>
+                    <p className="mt-1">{idvFailure}</p>
+                    <p className="mt-1">Signing stays locked. Ask {data.sender_name} to send a new link.</p>
+                  </div>
+                ) : idvStatus === "pending" || idvStatus === "in_progress" ? (
+                  <div className="flex items-center gap-2 text-sm text-[var(--c-muted-fg)]" data-testid="signer-idv-waiting">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Waiting for your identity check to finish…
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--c-muted-fg)]">
+                    You will be asked to photograph an identity document and take a short selfie. Your document images stay with the verification provider — CivicSign records only the result.
+                  </p>
+                )}
+
+                {!idvFailure && (
+                  <Button
+                    onClick={startIdv}
+                    disabled={idvStarting || idvStatus === "pending"}
+                    data-testid="signer-idv-start"
+                    style={{ background: primary || "var(--c-primary)", color: "#fff" }}
+                  >
+                    {idvStarting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    {idvStatus === "pending" ? "Check in progress" : "Start identity check"}
+                  </Button>
+                )}
+
+                {window.location.hostname === "localhost" && idvStatus === "pending" && (
+                  <div className="flex flex-wrap gap-2 border-t border-[var(--c-border)] pt-3">
+                    <span className="w-full text-xs font-semibold uppercase tracking-wide text-[var(--c-muted-fg)]">
+                      Development only
+                    </span>
+                    {["verified", "failed"].map((outcome) => (
+                      <Button
+                        key={outcome}
+                        variant="outline"
+                        size="sm"
+                        data-testid={`signer-idv-simulate-${outcome}`}
+                        onClick={async () => {
+                          await publicApi.post(`/sign/${token}/idv/dev-complete?outcome=${outcome}`);
+                          pollIdv();
+                        }}
+                      >
+                        Simulate {outcome}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : data.auth_method === "sms" ? (
               <div className="mt-4 space-y-3">
                 {data.auth_phone_hint && (
                   <p className="text-sm text-[var(--c-muted-fg)]">Code will be sent to {data.auth_phone_hint}</p>
@@ -336,11 +453,13 @@ export default function SignerFlow() {
                 />
               </div>
             )}
+            {data.auth_method !== "idv" && (
             <Button className="mt-5 w-full" onClick={verifyAuth} disabled={authVerifying}
               data-testid="signer-verify-auth" style={{ background: primary || "var(--c-primary)", color: "#fff" }}>
               {authVerifying && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Verify & continue
             </Button>
+            )}
           </div>
         </div>
       )}

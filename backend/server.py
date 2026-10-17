@@ -76,6 +76,8 @@ from careers import public_router as careers_public_router, admin_router as care
 from assistant import assistant_router
 from billing import billing_router
 from pdf_manager import pdf_router
+from idv import service as idv_service
+from idv.service import idv_available, normalise_checks as idv_normalise_checks
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -614,10 +616,17 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
             rid = r.recipient_id or f"rcp_{uuid.uuid4().hex[:10]}"
             prev = existing_by_id.get(rid, {})
             auth_method = (r.auth_method or "").lower().strip() or None
-            if auth_method and auth_method not in ("sms", "kba"):
-                raise HTTPException(status_code=400, detail="auth_method must be sms or kba")
-            if auth_method:
+            if auth_method and auth_method not in ("sms", "kba", "idv"):
+                raise HTTPException(status_code=400, detail="auth_method must be sms, kba or idv")
+            if auth_method in ("sms", "kba"):
                 require_feature(user, "recipient_auth")
+            if auth_method == "idv":
+                require_feature(user, "id_verification")
+                if not idv_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Identity verification is not available yet — use SMS or postcode verification",
+                    )
             if auth_method == "sms" and not sms_auth_available():
                 raise HTTPException(
                     status_code=400,
@@ -638,8 +647,15 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
                 "auth_phone": (r.auth_phone or "").strip() if auth_method == "sms" else None,
                 "auth_kba_postcode": (r.auth_kba_postcode or "").strip().upper()
                 if auth_method == "kba" else None,
+                "idv_required_checks": list(idv_normalise_checks(r.idv_required_checks))
+                if auth_method == "idv" else None,
+                "idv_status": (prev.get("idv_status") or "pending")
+                if auth_method == "idv" else None,
                 "auth_verified": prev.get("auth_verified", False) if auth_method else True,
             }
+            if auth_method != "idv":
+                rec.pop("idv_required_checks", None)
+                rec.pop("idv_status", None)
             if not auth_method:
                 rec.pop("auth_method", None)
                 rec.pop("auth_phone", None)
@@ -1585,6 +1601,8 @@ async def signer_view(request: Request, token: str):
         "auth_required": bool(recipient.get("auth_method")),
         "auth_method": recipient.get("auth_method"),
         "auth_verified": recipient.get("auth_verified", not recipient.get("auth_method")),
+        "idv_status": recipient.get("idv_status"),
+        "idv_required_checks": recipient.get("idv_required_checks") or [],
         "auth_phone_hint": (
             f"***{recipient['auth_phone'][-4:]}" if recipient.get("auth_phone")
             and len(recipient["auth_phone"]) >= 4 else None
@@ -1597,6 +1615,15 @@ def _otp_hash(code: str) -> str:
 
 
 SIGNER_AUTH_MAX_ATTEMPTS = 5
+
+
+def _signer_return_url(request: Request, token: str) -> str:
+    """Where the provider sends the signer back to. Allowlisted origins only."""
+    try:
+        base = validate_redirect_base("", fallback=request.headers.get("origin") or "")
+    except HTTPException:
+        base = (os.environ.get("FRONTEND_URL") or "").rstrip("/")
+    return f"{base}/sign/{token}" if base else f"/sign/{token}"
 
 
 @api_router.post("/sign/{token}/auth/send-code")
@@ -1711,6 +1738,74 @@ def _assert_signer_file_access(env: dict, recipient: dict) -> None:
         )
 
 
+@api_router.post("/sign/{token}/idv/start")
+@limiter.limit("10/hour")
+async def signer_idv_start(request: Request, token: str):
+    """Begin identity verification for this signer and return where to send them."""
+    env, recipient = await _find_by_token(token)
+    if recipient.get("auth_method") != "idv":
+        raise HTTPException(status_code=400, detail="Identity verification is not required for this link")
+    if recipient.get("auth_verified"):
+        return {"status": "verified"}
+    if not idv_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Identity verification is temporarily unavailable — ask the sender to resend",
+        )
+    record = await idv_service.start_verification(
+        env, recipient, return_url=_signer_return_url(request, token)
+    )
+    return {
+        "verification_id": record["verification_id"],
+        "status": record["status"],
+        "required_checks": record["required_checks"],
+        "redirect_url": record["redirect_url"],
+        "expires_at": record["expires_at"],
+    }
+
+
+@api_router.get("/sign/{token}/idv/status")
+@limiter.limit("120/hour")
+async def signer_idv_status(request: Request, token: str):
+    """Poll the verification while the signer completes it."""
+    env, recipient = await _find_by_token(token)
+    if recipient.get("auth_method") != "idv":
+        raise HTTPException(status_code=400, detail="Identity verification is not required for this link")
+    verification_id = recipient.get("idv_verification_id")
+    if not verification_id:
+        return {"status": "not_started", "checks": {}}
+    try:
+        record = await idv_service.refresh_from_provider(verification_id)
+    except KeyError:
+        return {"status": "not_started", "checks": {}}
+    return {
+        "status": record["status"],
+        "checks": record.get("checks") or {},
+        "failure_reason": record.get("failure_reason"),
+    }
+
+
+@api_router.post("/sign/{token}/idv/dev-complete")
+@limiter.limit("60/hour")
+async def signer_idv_dev_complete(request: Request, token: str, outcome: str = "verified"):
+    """Simulate the provider flow. Development only — never reachable in production."""
+    if not is_dev_mode():
+        raise HTTPException(status_code=404, detail="Not found")
+    env, recipient = await _find_by_token(token)
+    verification_id = recipient.get("idv_verification_id")
+    if not verification_id:
+        raise HTTPException(status_code=400, detail="Start a verification first")
+    record = await db.identity_verifications.find_one(
+        {"verification_id": verification_id}, {"_id": 0}
+    )
+    provider = idv_service.get_provider()
+    if not hasattr(provider, "complete"):
+        raise HTTPException(status_code=400, detail="The configured provider cannot be simulated")
+    result = provider.complete(record["provider_ref"], outcome)
+    updated = await idv_service.apply_result(verification_id, result)
+    return {"status": updated["status"], "failure_reason": updated.get("failure_reason")}
+
+
 @api_router.get("/sign/{token}/file")
 @limiter.limit("60/hour")
 async def signer_file(request: Request, token: str):
@@ -1793,6 +1888,13 @@ async def signer_submit(token: str, body: SignSubmit, request: Request,
         auth_method=recipient.get("auth_method"),
         auth_verified=bool(recipient.get("auth_verified")),
     )
+    if signer_evidence is not None and recipient.get("auth_method") == "idv":
+        idv_record = await db.identity_verifications.find_one(
+            {"verification_id": recipient.get("idv_verification_id")}, {"_id": 0}
+        )
+        idv_evidence = idv_service.evidence_for_certificate(idv_record)
+        if idv_evidence:
+            signer_evidence["identity_verification"] = idv_evidence
     for r in env["recipients"]:
         if r["access_token"] == token:
             r["status"] = "signed"

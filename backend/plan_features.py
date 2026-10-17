@@ -42,6 +42,7 @@ _PRO_FLAGS = {
     "public_links": True,
     "auto_reminders": True,
     "recipient_auth": False,
+    "id_verification": False,
     "bulk_send": False,
     "api_webhooks": False,
     "priority_support": False,
@@ -71,6 +72,7 @@ _PLAN_FLAGS = {
         **_PRO_FLAGS,
         "monthly_quota": BUSINESS_FAIR_USE_DEFAULT,
         "recipient_auth": True,
+        "id_verification": True,
         "bulk_send": True,
         "api_webhooks": True,
         "priority_support": True,
@@ -84,7 +86,7 @@ _BUSINESS_UPGRADE_MSG = (
 )
 
 _BUSINESS_ONLY = frozenset({
-    "recipient_auth", "bulk_send", "api_webhooks", "priority_support",
+    "recipient_auth", "id_verification", "bulk_send", "api_webhooks", "priority_support",
 })
 
 # Organisation owners can toggle these per member at invite time.

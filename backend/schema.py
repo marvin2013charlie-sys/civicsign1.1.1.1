@@ -123,6 +123,29 @@ COLLECTIONS = {
             {"email": _STR, "signature_data": _STR},
         ),
     },
+    "identity_verifications": {
+        "indexes": [
+            ([("verification_id", 1)], {"unique": True}),
+            ([("provider_ref", 1)], {}),
+            ([("envelope_id", 1), ("recipient_id", 1)], {}),
+            ([("owner_id", 1), ("created_at", -1)], {}),
+        ],
+        # Outcomes only: document images and face templates stay with the provider.
+        "validator": _obj(
+            ["verification_id", "envelope_id", "recipient_id", "provider", "status"],
+            {
+                "verification_id": _STR,
+                "envelope_id": _STR,
+                "recipient_id": _STR,
+                "owner_id": _STR_OR_NULL,
+                "provider": _STR,
+                "provider_ref": _STR,
+                "status": {"enum": ["pending", "verified", "failed", "expired"]},
+                "required_checks": {"bsonType": "array"},
+                "checks": {"bsonType": "object"},
+            },
+        ),
+    },
     "organizations": {
         "indexes": [
             ([("org_id", 1)], {"unique": True}),
