@@ -37,6 +37,7 @@ from schema import ensure_database
 import pdf_service
 import email_service
 from models import (
+    IdvDocumentSubmission,
     EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest, ContactRequest,
     TemplateCreate, TemplateUse, BulkSend, RemindRequest, SignerAuthVerify,
     TeamCreate, TeamInviteCreate, TemplateShareUpdate, CommentCreate, BrandingUpdate,
@@ -627,6 +628,18 @@ async def update_envelope(envelope_id: str, body: EnvelopeUpdate,
                     raise HTTPException(
                         status_code=400,
                         detail="Identity verification is not available yet — use SMS or postcode verification",
+                    )
+                unsupported = idv_service.unsupported_checks(
+                    idv_normalise_checks(r.idv_required_checks)
+                )
+                if unsupported:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"The current verification provider cannot perform: "
+                            f"{', '.join(unsupported)}. Request document checks only, "
+                            "or switch provider."
+                        ),
                     )
             if auth_method == "sms" and not sms_auth_available():
                 raise HTTPException(
@@ -1830,6 +1843,41 @@ async def signer_idv_status(request: Request, token: str):
         "checks": record.get("checks") or {},
         "failure_reason": record.get("failure_reason"),
     }
+
+
+@api_router.post("/sign/{token}/idv/document")
+@limiter.limit("10/hour")
+async def signer_idv_document(request: Request, token: str, body: IdvDocumentSubmission):
+    """Submit a document to CivicSign's own verification (MRZ, ICAO 9303)."""
+    env, recipient = await _find_by_token(token)
+    if recipient.get("auth_method") != "idv":
+        raise HTTPException(status_code=400, detail="Identity verification is not required for this link")
+    verification_id = recipient.get("idv_verification_id")
+    if not verification_id:
+        raise HTTPException(status_code=400, detail="Start a verification first")
+
+    record = await db.identity_verifications.find_one(
+        {"verification_id": verification_id}, {"_id": 0}
+    )
+    if not record:
+        raise HTTPException(status_code=400, detail="Start a verification first")
+    if record["status"] != "pending":
+        return {"status": record["status"], "failure_reason": record.get("failure_reason")}
+
+    provider = idv_service.get_provider()
+    if provider.name != "civicsign":
+        raise HTTPException(
+            status_code=400,
+            detail="This verification is completed with the identity provider, not here",
+        )
+
+    from idv.civicsign_provider import evaluate_mrz
+
+    result, summary = evaluate_mrz(body.mrz, record["provider_ref"])
+    updated = await idv_service.apply_result(
+        verification_id, result, extra={"document": summary} if summary else None
+    )
+    return {"status": updated["status"], "failure_reason": updated.get("failure_reason")}
 
 
 @api_router.post("/sign/{token}/idv/dev-complete")

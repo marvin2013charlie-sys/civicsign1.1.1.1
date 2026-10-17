@@ -43,6 +43,10 @@ def get_provider() -> IdentityProvider:
     if name not in _PROVIDERS:
         if name == "mock":
             _PROVIDERS[name] = MockProvider()
+        elif name == "civicsign":
+            from idv.civicsign_provider import CivicSignProvider
+
+            _PROVIDERS[name] = CivicSignProvider()
         elif name == "stripe":
             from idv.stripe_identity import StripeIdentityProvider
 
@@ -64,6 +68,8 @@ def idv_available() -> bool:
         from security_utils import is_dev_mode
 
         return is_dev_mode()
+    if name == "civicsign":
+        return True  # our own stack needs no third-party configuration
     if name == "stripe":
         from idv.stripe_identity import configured
 
@@ -71,14 +77,29 @@ def idv_available() -> bool:
     return True
 
 
+def unsupported_checks(checks) -> list[str]:
+    """Which requested checks the active provider cannot perform."""
+    if provider_name() != "civicsign":
+        return []
+    from idv.civicsign_provider import unsupported
+
+    return unsupported(checks)
+
+
+def default_checks() -> tuple[str, ...]:
+    """The default set, narrowed to what the active provider can actually do."""
+    unsupported = set(unsupported_checks(DEFAULT_CHECKS))
+    return tuple(c for c in DEFAULT_CHECKS if c not in unsupported) or ("document",)
+
+
 def normalise_checks(requested) -> tuple[str, ...]:
-    """Validate requested checks, falling back to the default set."""
+    """Validate requested checks, falling back to the provider's default set."""
     if not requested:
-        return DEFAULT_CHECKS
+        return default_checks()
     cleaned = tuple(
         c for c in (str(x).lower().strip() for x in requested) if c in ALL_CHECKS
     )
-    return cleaned or DEFAULT_CHECKS
+    return cleaned or default_checks()
 
 
 # Apostrophes vanish (O'Connor and OConnor are one name); anything else
@@ -185,7 +206,9 @@ async def start_verification(
     return {**doc, "redirect_url": session.redirect_url}
 
 
-async def apply_result(verification_id: str, result: VerificationResult) -> dict:
+async def apply_result(
+    verification_id: str, result: VerificationResult, *, extra: dict | None = None
+) -> dict:
     """Record a provider answer, then unlock signing only if everything passed."""
     record = await db.identity_verifications.find_one(
         {"verification_id": verification_id}, {"_id": 0}
@@ -224,6 +247,8 @@ async def apply_result(verification_id: str, result: VerificationResult) -> dict
         "completed_at": result.completed_at or _now(),
         "updated_at": _now(),
     }
+    if extra:
+        updates.update(extra)
     await db.identity_verifications.update_one(
         {"verification_id": verification_id}, {"$set": updates}
     )

@@ -47,6 +47,11 @@ class RecipientIn(BaseModel):
     idv_required_checks: Optional[List[str]] = None  # when auth_method=idv
 
 
+class IdvDocumentSubmission(BaseModel):
+    """The MRZ the signer transcribes or their device reads from the document."""
+    mrz: str = Field(min_length=20, max_length=300)
+
+
 class FieldIn(BaseModel):
     field_id: Optional[str] = None
     recipient_id: str
