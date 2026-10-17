@@ -14,7 +14,7 @@ import asyncio
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -124,6 +124,15 @@ async def _upsert_user(db, spec: dict, *, created_by: str | None = None) -> dict
             ts,
         )
         base["plan_upgraded_via_payment"] = True
+        # Without a live status and a future period end, paid_access_should_expire()
+        # downgrades the account on its first request — so re-seeding an account that
+        # had lapsed would silently leave it on Free.
+        base["subscription_status"] = "active"
+        base["subscription_cancel_at_period_end"] = False
+        base["subscription_current_period_end"] = (
+            datetime.now(timezone.utc) + timedelta(days=365)
+        ).isoformat()
+        base["billing_interval"] = "monthly"
 
     if existing:
         user_id = existing["user_id"]
