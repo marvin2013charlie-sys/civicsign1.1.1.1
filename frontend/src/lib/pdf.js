@@ -10,7 +10,8 @@ import { pdfjs } from "react-pdf";
 pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ""}/pdf.worker.min.js`;
 
 export const PDF_OPTIONS = {
-  cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+  // Self-hosted: copied from pdfjs-dist by scripts/copy-pdf-cmaps.mjs at build time.
+  cMapUrl: `${process.env.PUBLIC_URL || ""}/pdf-cmaps/`,
   cMapPacked: true,
 };
 

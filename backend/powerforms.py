@@ -2,7 +2,7 @@
 import uuid
 import secrets
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
@@ -32,6 +32,11 @@ class PublicFormSubmit(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     base_url: str | None = None
+
+
+# Per-address daily cap on public form starts, so a leaked slug cannot be used
+# to send unlimited invites in the owner's name.
+PUBLIC_FORM_DAILY_PER_EMAIL = 3
 
 
 def _slug() -> str:
@@ -108,6 +113,23 @@ async def get_public_form(request: Request, slug: str):
 async def start_public_form(request: Request, slug: str, body: PublicFormSubmit):
     """Create envelope from template and return signing URL (DocuSign PowerForm-style)."""
     tpl, owner = await _get_template_by_slug(slug)
+
+    # A leaked form slug would otherwise let anyone send repeated CivicSign-branded
+    # invites to a chosen address on the owner's quota. Cap repeats per address.
+    recipient_email = body.email.lower().strip()
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    recent = await db.envelopes.count_documents({
+        "public_form_slug": slug,
+        "recipients.email": recipient_email,
+        "created_at": {"$gte": since},
+    })
+    if recent >= PUBLIC_FORM_DAILY_PER_EMAIL:
+        raise HTTPException(
+            status_code=429,
+            detail="This address has already been sent this form today. "
+                   "Check your inbox, or try again tomorrow.",
+        )
+
     credits = await enforce_quota(owner, count=1)
 
     from server import copy_gridfs, build_envelope_from_template, now_iso, can_sign

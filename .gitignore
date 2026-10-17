@@ -44,3 +44,6 @@ frontend/public/resources/*-original.*
 
 # OS
 .DS_Store
+
+# Generated at build time by scripts/copy-pdf-cmaps.mjs
+frontend/public/pdf-cmaps/
