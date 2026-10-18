@@ -1807,6 +1807,8 @@ async def signer_idv_start(request: Request, token: str):
         record = await idv_service.start_verification(
             env, recipient, return_url=_signer_return_url(request, token)
         )
+    except idv_service.TooManyAttempts as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
     except idv_service.QuotaExceeded as exc:
         raise HTTPException(status_code=429, detail=str(exc))
     except IdvProviderError as exc:
@@ -1839,11 +1841,16 @@ async def signer_idv_status(request: Request, token: str):
         record = await idv_service.refresh_from_provider(verification_id)
     except KeyError:
         return {"status": "not_started", "checks": {}}
+    used = await db.identity_verifications.count_documents({
+        "envelope_id": env["envelope_id"], "recipient_id": recipient["recipient_id"],
+    })
+    limit = idv_service.max_attempts()
     return {
         "status": record["status"],
         "provider": record.get("provider"),
         "checks": record.get("checks") or {},
         "failure_reason": record.get("failure_reason"),
+        "attempts_remaining": max(0, limit - used) if limit > 0 else None,
     }
 
 
@@ -1880,6 +1887,52 @@ async def signer_idv_document(request: Request, token: str, body: IdvDocumentSub
         verification_id, result, extra={"document": summary} if summary else None
     )
     return {"status": updated["status"], "failure_reason": updated.get("failure_reason")}
+
+
+@api_router.post("/sign/{token}/idv/document-photo")
+@limiter.limit("20/hour")
+async def signer_idv_document_photo(request: Request, token: str, file: UploadFile = File(...)):
+    """Read the MRZ from a photograph so the signer does not type it.
+
+    The image lives in memory for this request only: it is never written to
+    disk, stored in the database or sent to a third party. Only the recovered
+    text is returned, and the signer confirms it before anything is checked.
+    """
+    env, recipient = await _find_by_token(token)
+    if recipient.get("auth_method") != "idv":
+        raise HTTPException(status_code=400, detail="Identity verification is not required for this link")
+    if not recipient.get("idv_verification_id"):
+        raise HTTPException(status_code=400, detail="Start a verification first")
+
+    from idv import mrz_ocr
+
+    if not mrz_ocr.available():
+        raise HTTPException(
+            status_code=503,
+            detail="Reading photographs is unavailable here — type the code line instead",
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(raw) > mrz_ocr.MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Photo is too large — maximum 8 MB")
+    if sniff_image_type(raw) not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Upload a JPEG, PNG or WebP photo")
+
+    try:
+        found = await asyncio.to_thread(mrz_ocr.extract_mrz, raw)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        del raw  # nothing keeps a reference to the image beyond this request
+
+    if not found:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not read the code line — try better lighting, or type it instead",
+        )
+    return {"mrz": found}
 
 
 @api_router.post("/sign/{token}/idv/dev-complete")

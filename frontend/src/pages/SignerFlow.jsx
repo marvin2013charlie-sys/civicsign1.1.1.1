@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, CheckCircle2, Download, PenLine, ChevronRight,
-  XCircle, Fingerprint,
+  XCircle, Fingerprint, Camera,
 } from "lucide-react";
 
 // Lazy so react-pdf + pdf.js (~109 KB gzip) don't block the signer shell.
@@ -46,6 +46,8 @@ export default function SignerFlow() {
   const [idvProvider, setIdvProvider] = useState(null);
   const [idvMrz, setIdvMrz] = useState("");
   const [idvSubmitting, setIdvSubmitting] = useState(false);
+  const [idvReadingPhoto, setIdvReadingPhoto] = useState(false);
+  const [idvAttemptsLeft, setIdvAttemptsLeft] = useState(null);
   const [authSending, setAuthSending] = useState(false);
   const [authVerifying, setAuthVerifying] = useState(false);
   const [savedSig, setSavedSig] = useState(null);
@@ -190,6 +192,24 @@ export default function SignerFlow() {
     }
   };
 
+  const readIdvPhoto = async (file) => {
+    if (!file) return;
+    setIdvReadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data: res } = await publicApi.post(`/sign/${token}/idv/document-photo`, form);
+      setIdvMrz(res.mrz);
+      toast.success("Code line read from your photo — check it, then continue");
+    } catch (e) {
+      toast.error(
+        e?.response?.data?.detail || "Could not read that photo — type the code line instead",
+      );
+    } finally {
+      setIdvReadingPhoto(false);
+    }
+  };
+
   const submitIdvDocument = async () => {
     setIdvSubmitting(true);
     try {
@@ -213,6 +233,7 @@ export default function SignerFlow() {
       const { data: res } = await publicApi.get(`/sign/${token}/idv/status`);
       setIdvStatus(res.status);
       if (res.provider) setIdvProvider(res.provider);
+      if (res.attempts_remaining !== undefined) setIdvAttemptsLeft(res.attempts_remaining);
       if (res.status === "verified") {
         setAuthVerified(true);
         toast.success("Identity verified");
@@ -406,7 +427,32 @@ export default function SignerFlow() {
                   >
                     <p className="font-semibold">Identity check not passed</p>
                     <p className="mt-1">{idvFailure}</p>
-                    <p className="mt-1">Signing stays locked. Ask {data.sender_name} to send a new link.</p>
+                    {idvAttemptsLeft === null || idvAttemptsLeft > 0 ? (
+                      <>
+                        <p className="mt-1">
+                          Signing stays locked until a check passes.
+                          {idvAttemptsLeft !== null && ` ${idvAttemptsLeft} ${idvAttemptsLeft === 1 ? "attempt" : "attempts"} left.`}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          data-testid="signer-idv-retry"
+                          onClick={() => {
+                            setIdvFailure("");
+                            setIdvMrz("");
+                            setIdvStatus(null);
+                            startIdv();
+                          }}
+                        >
+                          Try again
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="mt-1">
+                        Signing stays locked. Ask {data.sender_name} to send a new link.
+                      </p>
+                    )}
                   </div>
                 ) : (idvStatus === "pending" || idvStatus === "in_progress") && idvProvider === "civicsign" ? (
                   <div className="space-y-2" data-testid="signer-idv-document">
@@ -414,9 +460,30 @@ export default function SignerFlow() {
                       Machine readable zone
                     </label>
                     <p className="text-xs text-[var(--c-muted-fg)]">
-                      Type the two lines of letters, numbers and &lt; symbols printed at the bottom of your
-                      passport photo page. An identity card has three shorter lines.
+                      Photograph the bottom of your passport photo page, where two lines of letters,
+                      numbers and &lt; symbols are printed. Your photo is read and discarded — it is
+                      never stored. You can also type the lines yourself.
                     </p>
+                    <label
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--c-ink)] hover:border-[var(--c-primary)]"
+                      data-testid="signer-idv-photo-label"
+                    >
+                      {idvReadingPhoto ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                      {idvReadingPhoto ? "Reading your photo…" : "Photograph document"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        disabled={idvReadingPhoto}
+                        onChange={(e) => readIdvPhoto(e.target.files?.[0])}
+                        data-testid="signer-idv-photo"
+                      />
+                    </label>
                     <textarea
                       id="signer-mrz"
                       rows={3}

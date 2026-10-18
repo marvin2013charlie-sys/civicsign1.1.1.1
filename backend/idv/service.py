@@ -131,6 +131,18 @@ class QuotaExceeded(RuntimeError):
     """The account has used its identity verifications for this month."""
 
 
+def max_attempts() -> int:
+    """How many times one signer may attempt verification before the link locks."""
+    try:
+        return int(os.environ.get("IDV_MAX_ATTEMPTS", "3"))
+    except ValueError:
+        return 3
+
+
+class TooManyAttempts(RuntimeError):
+    """The signer has used their verification attempts for this envelope."""
+
+
 def monthly_cap() -> int:
     try:
         return int(os.environ.get("IDV_MONTHLY_CAP", "100"))
@@ -152,6 +164,16 @@ async def start_verification(
 ) -> dict:
     """Create a verification record and a provider session for this recipient."""
     provider = get_provider()
+    attempts = await db.identity_verifications.count_documents({
+        "envelope_id": envelope["envelope_id"],
+        "recipient_id": recipient["recipient_id"],
+    })
+    limit = max_attempts()
+    if limit > 0 and attempts >= limit:
+        raise TooManyAttempts(
+            f"This link has used its {limit} verification attempts. "
+            "Ask the sender to send a new one."
+        )
     cap = monthly_cap()
     owner_id = envelope.get("owner_id")
     if cap > 0 and owner_id:

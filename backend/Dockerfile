@@ -7,9 +7,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Word (.docx) → PDF conversion (headless LibreOffice)
+# Word (.docx) → PDF conversion (headless LibreOffice) and MRZ reading
+# (Tesseract) so signers photograph a document instead of typing its code line.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer-nogui \
+    && apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        tesseract-ocr \
+        tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Install startup-critical packages in their own layer so a stale Docker cache

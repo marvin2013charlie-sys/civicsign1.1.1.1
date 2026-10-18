@@ -13,7 +13,7 @@ from idv.stripe_identity import (  # noqa: E402
     map_session,
     webhook_secret,
 )
-from idv.service import monthly_cap  # noqa: E402
+from idv.service import max_attempts, monthly_cap  # noqa: E402
 
 CHECKS = ("document", "liveness", "face_match")
 
@@ -108,3 +108,9 @@ def test_configured_follows_the_api_key(monkeypatch):
 def test_monthly_cap_reads_env(monkeypatch, value, expected):
     monkeypatch.setenv("IDV_MONTHLY_CAP", value)
     assert monthly_cap() == expected
+
+
+@pytest.mark.parametrize("value,expected", [("5", 5), ("0", 0), ("nonsense", 3)])
+def test_max_attempts_reads_env(monkeypatch, value, expected):
+    monkeypatch.setenv("IDV_MAX_ATTEMPTS", value)
+    assert max_attempts() == expected
