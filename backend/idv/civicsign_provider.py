@@ -1,7 +1,8 @@
 """CivicSign's own document verification — no vendor in the path.
 
-Today this stack reads the printed MRZ and checks it against ICAO 9303: every
-check digit, the expiry date, and the name used for recipient matching.
+This stack reads the printed MRZ and checks it against ICAO 9303 — every check
+digit, the expiry date, and the name used for recipient matching — and verifies
+a passport chip by passive authentication when the mobile app supplies one.
 
 It deliberately refuses to start when liveness, face match or chip reading are
 required. Those need a licensed anti-spoof SDK and a native client, and
@@ -27,7 +28,7 @@ from idv.provider import (
 
 logger = logging.getLogger("civicsign.idv.own")
 
-SUPPORTED_CHECKS = frozenset({"document"})
+SUPPORTED_CHECKS = frozenset({"document", "chip"})
 SESSION_TTL_MINUTES = 30
 
 

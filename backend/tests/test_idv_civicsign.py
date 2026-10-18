@@ -72,8 +72,9 @@ def test_stored_summary_holds_no_document_number_or_birth_date():
 
 @pytest.mark.parametrize("checks,expected", [
     (("document",), []),
+    (("document", "chip"), []),          # chip is verified by passive authentication
     (("document", "liveness"), ["liveness"]),
-    (("face_match", "chip"), ["face_match", "chip"]),
+    (("face_match", "chip"), ["face_match"]),
 ])
 def test_unsupported_checks_are_named(checks, expected):
     assert unsupported(checks) == expected

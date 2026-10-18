@@ -47,6 +47,12 @@ class RecipientIn(BaseModel):
     idv_required_checks: Optional[List[str]] = None  # when auth_method=idv
 
 
+class IdvChipSubmission(BaseModel):
+    """What the mobile app read from the passport chip, base64 encoded."""
+    sod: str = Field(min_length=100, max_length=120_000)
+    dg1: str = Field(min_length=20, max_length=8_000)
+
+
 class IdvDocumentSubmission(BaseModel):
     """The MRZ the signer transcribes or their device reads from the document."""
     mrz: str = Field(min_length=20, max_length=300)

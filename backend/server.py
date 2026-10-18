@@ -37,6 +37,7 @@ from schema import ensure_database
 import pdf_service
 import email_service
 from models import (
+    IdvChipSubmission,
     IdvDocumentSubmission,
     EnvelopeUpdate, SendRequest, SignSubmit, DeclineRequest, ContactRequest,
     TemplateCreate, TemplateUse, BulkSend, RemindRequest, SignerAuthVerify,
@@ -1887,6 +1888,89 @@ async def signer_idv_document(request: Request, token: str, body: IdvDocumentSub
         verification_id, result, extra={"document": summary} if summary else None
     )
     return {"status": updated["status"], "failure_reason": updated.get("failure_reason")}
+
+
+@api_router.post("/sign/{token}/idv/chip")
+@limiter.limit("20/hour")
+async def signer_idv_chip(request: Request, token: str, body: IdvChipSubmission):
+    """Verify a passport chip read by the CivicSign mobile app.
+
+    The app performs the NFC exchange; the server decides whether to believe
+    it. Passive authentication is run here, so a tampered client cannot assert
+    a chip was genuine.
+    """
+    env, recipient = await _find_by_token(token)
+    if recipient.get("auth_method") != "idv":
+        raise HTTPException(status_code=400, detail="Identity verification is not required for this link")
+    verification_id = recipient.get("idv_verification_id")
+    if not verification_id:
+        raise HTTPException(status_code=400, detail="Start a verification first")
+    record = await db.identity_verifications.find_one(
+        {"verification_id": verification_id}, {"_id": 0}
+    )
+    if not record:
+        raise HTTPException(status_code=400, detail="Start a verification first")
+    if record["status"] != "pending":
+        return {"status": record["status"], "failure_reason": record.get("failure_reason")}
+
+    import base64
+
+    from idv import chip as chip_module
+    from idv.mrz import MrzError
+    from idv.mrz import parse as parse_mrz
+    from idv.provider import VerificationResult
+
+    try:
+        sod = base64.b64decode(body.sod, validate=True)
+        dg1 = base64.b64decode(body.dg1, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Chip data is not valid base64")
+
+    outcome = await asyncio.to_thread(chip_module.verify, sod, dg1)
+    mrz_text = chip_module.mrz_from_dg1(dg1)
+    document_name = None
+    problems = list(outcome.problems)
+    document_summary = {}
+
+    if not mrz_text:
+        problems.append("The chip did not contain a readable data page")
+    else:
+        try:
+            data = parse_mrz(mrz_text)
+        except MrzError as exc:
+            problems.append(f"Chip data page could not be read: {exc}")
+        else:
+            if not data.valid:
+                problems.extend(data.errors)
+            elif data.is_expired():
+                problems.append("The document has expired")
+            else:
+                document_name = data.full_name
+                document_summary = data.summary()
+
+    passed = outcome.authentic and document_name is not None
+    checks = {
+        "chip": "passed" if outcome.authentic else "failed",
+        "document": "passed" if document_name else "failed",
+    }
+    result = VerificationResult(
+        provider="civicsign",
+        provider_ref=record["provider_ref"],
+        status="verified" if passed else "failed",
+        checks=checks,
+        document_name=document_name,
+        failure_reason=None if passed else "; ".join(problems) or "Chip verification failed",
+        completed_at=now_iso(),
+    )
+    extra = {"chip": outcome.summary()}
+    if document_summary:
+        extra["document"] = document_summary
+    updated = await idv_service.apply_result(verification_id, result, extra=extra)
+    return {
+        "status": updated["status"],
+        "failure_reason": updated.get("failure_reason"),
+        "checks": updated.get("checks") or {},
+    }
 
 
 @api_router.post("/sign/{token}/idv/document-photo")
