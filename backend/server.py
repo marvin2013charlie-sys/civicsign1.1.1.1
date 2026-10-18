@@ -1818,6 +1818,7 @@ async def signer_idv_start(request: Request, token: str):
     return {
         "verification_id": record["verification_id"],
         "status": record["status"],
+        "provider": record["provider"],
         "required_checks": record["required_checks"],
         "redirect_url": record["redirect_url"],
         "expires_at": record["expires_at"],
@@ -1840,6 +1841,7 @@ async def signer_idv_status(request: Request, token: str):
         return {"status": "not_started", "checks": {}}
     return {
         "status": record["status"],
+        "provider": record.get("provider"),
         "checks": record.get("checks") or {},
         "failure_reason": record.get("failure_reason"),
     }

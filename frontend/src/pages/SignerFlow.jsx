@@ -43,6 +43,9 @@ export default function SignerFlow() {
   const [idvStatus, setIdvStatus] = useState(null);
   const [idvStarting, setIdvStarting] = useState(false);
   const [idvFailure, setIdvFailure] = useState("");
+  const [idvProvider, setIdvProvider] = useState(null);
+  const [idvMrz, setIdvMrz] = useState("");
+  const [idvSubmitting, setIdvSubmitting] = useState(false);
   const [authSending, setAuthSending] = useState(false);
   const [authVerifying, setAuthVerifying] = useState(false);
   const [savedSig, setSavedSig] = useState(null);
@@ -174,7 +177,9 @@ export default function SignerFlow() {
         return;
       }
       setIdvStatus("pending");
-      // A hosted provider flow lives on another origin; the mock returns our own.
+      setIdvProvider(res.provider || null);
+      // A hosted provider flow lives on another origin; our own stack keeps the
+      // signer here, so only leave the page for a third-party flow.
       if (res.redirect_url && !res.redirect_url.startsWith(window.location.origin)) {
         window.location.assign(res.redirect_url);
       }
@@ -185,10 +190,29 @@ export default function SignerFlow() {
     }
   };
 
+  const submitIdvDocument = async () => {
+    setIdvSubmitting(true);
+    try {
+      const { data: res } = await publicApi.post(`/sign/${token}/idv/document`, { mrz: idvMrz });
+      setIdvStatus(res.status);
+      if (res.status === "verified") {
+        setAuthVerified(true);
+        toast.success("Identity verified");
+      } else {
+        setIdvFailure(res.failure_reason || "The document could not be verified");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not check that document");
+    } finally {
+      setIdvSubmitting(false);
+    }
+  };
+
   const pollIdv = useCallback(async () => {
     try {
       const { data: res } = await publicApi.get(`/sign/${token}/idv/status`);
       setIdvStatus(res.status);
+      if (res.provider) setIdvProvider(res.provider);
       if (res.status === "verified") {
         setAuthVerified(true);
         toast.success("Identity verified");
@@ -384,6 +408,36 @@ export default function SignerFlow() {
                     <p className="mt-1">{idvFailure}</p>
                     <p className="mt-1">Signing stays locked. Ask {data.sender_name} to send a new link.</p>
                   </div>
+                ) : (idvStatus === "pending" || idvStatus === "in_progress") && idvProvider === "civicsign" ? (
+                  <div className="space-y-2" data-testid="signer-idv-document">
+                    <label htmlFor="signer-mrz" className="block text-sm font-semibold text-[var(--c-ink)]">
+                      Machine readable zone
+                    </label>
+                    <p className="text-xs text-[var(--c-muted-fg)]">
+                      Type the two lines of letters, numbers and &lt; symbols printed at the bottom of your
+                      passport photo page. An identity card has three shorter lines.
+                    </p>
+                    <textarea
+                      id="signer-mrz"
+                      rows={3}
+                      spellCheck={false}
+                      autoCapitalize="characters"
+                      value={idvMrz}
+                      onChange={(e) => setIdvMrz(e.target.value)}
+                      className="w-full rounded-md border border-[var(--c-border)] bg-[var(--card)] px-3 py-2 font-mono text-xs uppercase tracking-tight text-[var(--c-ink)]"
+                      placeholder={"P<GBRPATEL<<SIAN<<<<<<<<<<<<<<<<<<<<<<<<<<<\n1234567897GBR9001018F3504159<<<<<<<<<<<<<<04"}
+                      data-testid="signer-idv-mrz"
+                    />
+                    <Button
+                      onClick={submitIdvDocument}
+                      disabled={idvSubmitting || idvMrz.trim().length < 20}
+                      data-testid="signer-idv-submit"
+                      style={{ background: primary || "var(--c-primary)", color: "#fff" }}
+                    >
+                      {idvSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      Check document
+                    </Button>
+                  </div>
                 ) : idvStatus === "pending" || idvStatus === "in_progress" ? (
                   <div className="flex items-center gap-2 text-sm text-[var(--c-muted-fg)]" data-testid="signer-idv-waiting">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -391,11 +445,13 @@ export default function SignerFlow() {
                   </div>
                 ) : (
                   <p className="text-sm text-[var(--c-muted-fg)]">
-                    You will be asked to photograph an identity document and take a short selfie. Your document images stay with the verification provider — CivicSign records only the result.
+                    {(data.idv_required_checks || []).some((c) => c === "liveness" || c === "face_match")
+                      ? "You will be asked to photograph an identity document and take a short selfie. Your images stay with the verification provider — CivicSign records only the result."
+                      : "You will be asked for the details printed on an identity document. CivicSign records only the result of the check, never the document itself."}
                   </p>
                 )}
 
-                {!idvFailure && (
+                {!idvFailure && !(idvProvider === "civicsign" && idvStatus === "pending") && (
                   <Button
                     onClick={startIdv}
                     disabled={idvStarting || idvStatus === "pending"}

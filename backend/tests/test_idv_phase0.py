@@ -68,8 +68,17 @@ def test_mock_refuses_webhooks():
     (["DOCUMENT", " chip "], ("document", "chip")),
     (["nonsense"], DEFAULT_CHECKS),
 ])
-def test_normalise_checks(requested, expected):
+def test_normalise_checks(monkeypatch, requested, expected):
+    # Pin the provider: the fallback set narrows to what the provider supports.
+    monkeypatch.setenv("IDV_PROVIDER", "mock")
     assert normalise_checks(requested) == expected
+
+
+def test_defaults_narrow_to_what_the_provider_supports(monkeypatch):
+    monkeypatch.setenv("IDV_PROVIDER", "civicsign")
+    # Our own stack reads documents but cannot do liveness or face match,
+    # so asking for the default set must not silently promise them.
+    assert normalise_checks(None) == ("document",)
 
 
 def test_default_checks_exclude_chip():
